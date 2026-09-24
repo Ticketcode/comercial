@@ -25,3 +25,12 @@ body {
     text-wrap: balance;
   }
 }
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  body {
+    background: white;
+  }
+}
