@@ -704,45 +704,22 @@ function ExpandableCategory({
           <thead>
             <tr className="text-[10px] uppercase text-neutral-400">
               <th className="pb-1 pl-5 text-left font-medium">Concepto</th>
-              <th className="w-20 pb-1 text-right font-medium">Días</th>
-              <th className="w-20 pb-1 text-right font-medium">Cantidad</th>
+              <th className="w-16 pb-1 text-right font-medium">Días</th>
+              <th className="w-16 pb-1 text-right font-medium">Cantidad</th>
               <th className="w-24 pb-1 text-right font-medium">Valor unitario</th>
               <th className="w-28 pb-1 pr-1 text-right font-medium">Total</th>
+              <th className="w-8 pb-1"></th>
             </tr>
           </thead>
           <tbody>
-            {items.map((item, idx) => {
-              const itemOverride = overrides[item.label];
-              const overridden = !!itemOverride;
-              return (
-                <tr key={idx} className="border-t border-neutral-100">
-                  <td className="py-1.5 pl-5 text-neutral-700">
-                    {item.label}
-                    <p className="text-[10px] text-neutral-400">{item.basis}</p>
-                  </td>
-                  <EditableNumberCell
-                    value={item.dias}
-                    overridden={itemOverride?.dias !== undefined}
-                    onChange={(v) => onOverride(item.label, "dias", v)}
-                  />
-                  <EditableNumberCell
-                    value={item.quantity}
-                    overridden={itemOverride?.quantity !== undefined}
-                    onChange={(v) => onOverride(item.label, "quantity", v)}
-                  />
-                  <td className="py-1.5 text-right text-neutral-500">{formatCOP(item.rate)}</td>
-                  <td
-                    className={`py-1.5 pr-1 text-right font-medium ${
-                      overridden ? "text-amber-700" : "text-neutral-700"
-                    }`}
-                    title={overridden ? "Incluye días y/o cantidad forzados a mano" : undefined}
-                  >
-                    {overridden && <span className="mr-1 text-[10px]">✎</span>}
-                    {formatCOP(item.subtotal)}
-                  </td>
-                </tr>
-              );
-            })}
+            {items.map((item, idx) => (
+              <EditableItemRow
+                key={idx}
+                item={item}
+                override={overrides[item.label]}
+                onOverride={(field, value) => onOverride(item.label, field, value)}
+              />
+            ))}
           </tbody>
         </table>
       )}
@@ -750,84 +727,122 @@ function ExpandableCategory({
   );
 }
 
-function EditableNumberCell({
-  value,
-  overridden,
-  onChange,
+function EditableItemRow({
+  item,
+  override,
+  onOverride,
 }: {
-  value: number;
-  overridden: boolean;
-  onChange: (value: number | null) => void;
+  item: LogisticsLineItem;
+  override: { dias?: number; quantity?: number } | undefined;
+  onOverride: (field: "dias" | "quantity", value: number | null) => void;
 }) {
   const [editing, setEditing] = useState(false);
-  const [text, setText] = useState(() => String(value));
+  const [diasText, setDiasText] = useState(() => String(item.dias));
+  const [qtyText, setQtyText] = useState(() => String(item.quantity));
+  const overridden = !!override;
 
-  if (editing) {
-    return (
-      <td className="py-1 text-right">
-        <div className="flex items-center justify-end gap-1">
-          <input
-            autoFocus
-            type="number"
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            className="h-7 w-14 rounded-md border border-neutral-300 px-1 text-right text-xs outline-none focus:border-neutral-900"
-          />
-          <button
-            type="button"
-            title="Guardar"
-            onClick={() => {
-              const n = Number(text);
-              onChange(Number.isFinite(n) ? n : null);
-              setEditing(false);
-            }}
-            className="text-emerald-600 hover:text-emerald-800"
-          >
-            ✓
-          </button>
-          <button
-            type="button"
-            title="Cancelar"
-            onClick={() => {
-              setText(String(value));
-              setEditing(false);
-            }}
-            className="text-neutral-400 hover:text-neutral-700"
-          >
-            ✕
-          </button>
-        </div>
-      </td>
-    );
+  function startEditing() {
+    setDiasText(String(item.dias));
+    setQtyText(String(item.quantity));
+    setEditing(true);
+  }
+
+  function confirm() {
+    const dias = Number(diasText);
+    const qty = Number(qtyText);
+    onOverride("dias", Number.isFinite(dias) && dias !== item.dias ? dias : null);
+    onOverride("quantity", Number.isFinite(qty) && qty !== item.quantity ? qty : null);
+    setEditing(false);
   }
 
   return (
-    <td
-      className={`py-1.5 text-right ${overridden ? "font-medium text-amber-700" : "text-neutral-500"}`}
-    >
-      <button
-        type="button"
-        title={overridden ? "Editar valor forzado" : "Forzar este valor a mano"}
-        onClick={() => {
-          setText(String(value));
-          setEditing(true);
-        }}
-        className="inline-flex items-center gap-1 hover:text-neutral-900"
+    <tr className={`border-t border-neutral-100 ${editing ? "bg-amber-50" : ""}`}>
+      <td className="py-1.5 pl-5 text-neutral-700">
+        {item.label}
+        <p className="text-[10px] text-neutral-400">{item.basis}</p>
+      </td>
+      <td className="py-1.5 text-right">
+        {editing ? (
+          <input
+            autoFocus
+            type="number"
+            value={diasText}
+            onChange={(e) => setDiasText(e.target.value)}
+            className="h-7 w-14 rounded-md border border-neutral-300 px-1 text-right text-xs outline-none focus:border-neutral-900"
+          />
+        ) : (
+          <span className={override?.dias !== undefined ? "font-medium text-amber-700" : "text-neutral-500"}>
+            {item.dias}
+          </span>
+        )}
+      </td>
+      <td className="py-1.5 text-right">
+        {editing ? (
+          <input
+            type="number"
+            value={qtyText}
+            onChange={(e) => setQtyText(e.target.value)}
+            className="h-7 w-14 rounded-md border border-neutral-300 px-1 text-right text-xs outline-none focus:border-neutral-900"
+          />
+        ) : (
+          <span
+            className={override?.quantity !== undefined ? "font-medium text-amber-700" : "text-neutral-500"}
+          >
+            {item.quantity}
+          </span>
+        )}
+      </td>
+      <td className="py-1.5 text-right text-neutral-500">{formatCOP(item.rate)}</td>
+      <td
+        className={`py-1.5 pr-1 text-right font-medium ${
+          overridden ? "text-amber-700" : "text-neutral-700"
+        }`}
+        title={overridden ? "Incluye días y/o cantidad forzados a mano" : undefined}
       >
-        {overridden && <span className="text-[10px]">✎</span>}
-        {value}
-      </button>
-      {overridden && (
-        <button
-          type="button"
-          title="Volver al cálculo automático"
-          onClick={() => onChange(null)}
-          className="ml-1 text-neutral-300 hover:text-red-600"
-        >
-          ↺
-        </button>
-      )}
-    </td>
+        {formatCOP(item.subtotal)}
+      </td>
+      <td className="py-1.5 text-right">
+        {editing ? (
+          <span className="inline-flex items-center gap-1">
+            <button type="button" title="Guardar" onClick={confirm} className="text-emerald-600 hover:text-emerald-800">
+              ✓
+            </button>
+            <button
+              type="button"
+              title="Cancelar"
+              onClick={() => setEditing(false)}
+              className="text-neutral-400 hover:text-neutral-700"
+            >
+              ✕
+            </button>
+          </span>
+        ) : (
+          <span className="inline-flex items-center gap-1">
+            <button
+              type="button"
+              title="Editar días/cantidad de este rubro"
+              onClick={startEditing}
+              className="text-neutral-400 hover:text-neutral-900"
+            >
+              ✎
+            </button>
+            {overridden && (
+              <button
+                type="button"
+                title="Volver al cálculo automático"
+                onClick={() => {
+                  onOverride("dias", null);
+                  onOverride("quantity", null);
+                }}
+                className="text-neutral-300 hover:text-red-600"
+              >
+                ↺
+              </button>
+            )}
+          </span>
+        )}
+      </td>
+    </tr>
   );
 }
 
