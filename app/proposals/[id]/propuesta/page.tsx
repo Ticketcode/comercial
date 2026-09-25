@@ -7,6 +7,8 @@ import { getValidServiceCostItems } from "@/lib/data/service-items";
 import { REQUERIMIENTOS_OPERATIVOS_TEMPLATE } from "@/lib/schedule-templates";
 import { PropuestaEditor } from "./propuesta-editor";
 
+export const dynamic = "force-dynamic";
+
 export default async function PropuestaPage({
   params,
 }: {

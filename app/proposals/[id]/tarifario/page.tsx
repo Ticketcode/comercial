@@ -5,6 +5,11 @@ import { buildLogisticsRates } from "@/lib/pricing/logistics";
 import { getValidServiceCostItems } from "@/lib/data/service-items";
 import { TarifarioEditor } from "./tarifario-editor";
 
+// Evita que Next cachee las consultas a Supabase entre requests — sin esto,
+// un cambio en el Catálogo de precios podía no reflejarse aquí hasta que
+// expirara el cache de fetch.
+export const dynamic = "force-dynamic";
+
 export default async function TarifarioPage({
   params,
 }: {

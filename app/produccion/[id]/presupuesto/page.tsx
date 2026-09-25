@@ -3,6 +3,8 @@ import type { PresupuestoItem, Proposal } from "@/lib/types";
 import { PresupuestoEditor } from "./presupuesto-editor";
 import { SeedPresupuestoButton } from "./seed-presupuesto-button";
 
+export const dynamic = "force-dynamic";
+
 export default async function PresupuestoPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const supabase = await createClient();

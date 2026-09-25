@@ -3,6 +3,8 @@ import { createClient } from "@/lib/supabase/server";
 import type { Proposal, ProposalContractFields } from "@/lib/types";
 import { ContratoEditor } from "./contrato-editor";
 
+export const dynamic = "force-dynamic";
+
 export default async function ContratoPage({
   params,
 }: {

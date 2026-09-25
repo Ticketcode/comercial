@@ -211,13 +211,22 @@ export interface QuantityTier {
   unit_value: number;
 }
 
-/** Busca el tramo cuyo rango [tier_min, tier_max] contiene `qty`. */
+/**
+ * Busca el tramo cuyo rango [tier_min, tier_max] contiene `qty`. Si `qty`
+ * está por DEBAJO del tramo más bajo (ej. aforo todavía en 0, evento sin
+ * configurar) devuelve 0 en vez del tramo más alto — antes caía al último
+ * tramo ordenado, mostrando honorarios de aforo grande para un evento
+ * vacío. Si `qty` supera el tramo más alto, sí se usa ese tramo (tope).
+ */
 export function findTier(tiers: QuantityTier[], qty: number): number {
   const sorted = [...tiers].sort((a, b) => a.tier_min - b.tier_min);
+  if (sorted.length === 0) return 0;
   const match = sorted.find(
     (t) => qty >= t.tier_min && (t.tier_max === null || qty <= t.tier_max)
   );
-  return match ? Number(match.unit_value) : (sorted.at(-1)?.unit_value ?? 0);
+  if (match) return Number(match.unit_value);
+  if (qty < sorted[0].tier_min) return 0;
+  return Number(sorted.at(-1)!.unit_value);
 }
 
 export function computeLogisticsBreakdown(
@@ -267,7 +276,7 @@ export function computeLogisticsBreakdown(
   const honorariosSalonesInternos = virtual
     ? 0
     : qtyLogisticaSalonesInternos * dias * rates.honorariosLogistico;
-  const honorariosProductor = findTier(honorariosProductorScale, aforoPresencial);
+  const honorariosProductor = qtyProductor > 0 ? findTier(honorariosProductorScale, aforoPresencial) : 0;
   const arl = virtual ? 0 : qtyArl * dias * rates.arl;
   const honorarios =
     honorariosLogistico + honorariosSupervisor + honorariosSalonesInternos + honorariosProductor + arl;
@@ -276,7 +285,7 @@ export function computeLogisticsBreakdown(
     { label: "Logístico", quantity: qtyLogistico, rate: rates.honorariosLogistico, subtotal: honorariosLogistico, basis: `${qtyLogistico} logísticos × ${dias} día(s)` },
     { label: "Supervisor", quantity: qtySupervisor, rate: rates.honorariosSupervisor, subtotal: honorariosSupervisor, basis: `${qtySupervisor} supervisores × ${diasPersonal} día(s) (incl. preoperativa)` },
     { label: "Logística salones internos", quantity: qtyLogisticaSalonesInternos, rate: rates.honorariosLogistico, subtotal: honorariosSalonesInternos, basis: `${qtyLogisticaSalonesInternos} × ${dias} día(s)` },
-    { label: "Productor (según aforo)", quantity: 1, rate: honorariosProductor, subtotal: honorariosProductor, basis: `Aforo ${aforoPresencial} → tarifa fija por escala` },
+    { label: "Productor (según aforo)", quantity: qtyProductor > 0 ? 1 : 0, rate: honorariosProductor, subtotal: honorariosProductor, basis: qtyProductor > 0 ? `Aforo ${aforoPresencial} → tarifa fija por escala` : "Sin productor asignado (cantidad en 0)" },
     { label: "ARL", quantity: qtyArl, rate: rates.arl, subtotal: arl, basis: `${qtyArl} personas (logístico+staff apoyo) × ${dias} día(s)` },
   ];
 
@@ -331,13 +340,17 @@ export function computeLogisticsBreakdown(
   const legsDiasSiguientes = diasSiguientes * 2;
   // Fuera de Bogotá: transporte local del staff que viaja, día 1 +
   // siguientes (ver arriba). En Bogotá no hay viaje/hotel — el transporte
-  // es solo para el Productor, solo los días del evento (no el día
-  // antes), mínimo 2 trayectos por día.
+  // es solo para el Productor, pero SIEMPRE cuenta el día antes del evento
+  // (visita preoperativa) además de los días del evento — la ciudad solo
+  // cambia la tarifa (pick), no si esos días se cuentan.
+  const diasTransporteProductorBogota = dias + visitaPreoperativaDias;
   const transporteLocalDestino = virtual || bogota
     ? 0
     : qtyStaffViaja * (legsDia1 + legsDiasSiguientes) * pick(rates.transporteLocal);
   const transporteLocalBogota =
-    virtual || !bogota ? 0 : qtyProductor * dias * 2 * pick(rates.transporteLocal);
+    virtual || !bogota
+      ? 0
+      : qtyProductor * diasTransporteProductorBogota * 2 * pick(rates.transporteLocal);
   const transporteCase = virtual ? 0 : pick(rates.transporteCase) * qtyTransporteCase;
   const transporte =
     tiquetesAereos +
@@ -352,7 +365,7 @@ export function computeLogisticsBreakdown(
     { label: "Transporte nacional (casa-aeropuerto-casa, origen)", quantity: bogota ? 0 : qtyStaffViaja, rate: rates.transporteNacional, subtotal: transportesCiudadOrigen, basis: `${qtyStaffViaja} personas — solo fuera de Bogotá (hoy: ${ciudadLabel})` },
     { label: "Transporte aeropuerto → hotel (día 1 de llegada)", quantity: bogota ? 0 : qtyStaffViaja, rate: pick(rates.transporteAeropuertoHotel), subtotal: transporteAeropuertoHotelDia1, basis: `${qtyStaffViaja} personas, 1 vez` },
     { label: "Transporte local hotel↔evento (todos los días en tierra)", quantity: bogota ? 0 : qtyStaffViaja * (legsDia1 + legsDiasSiguientes), rate: pick(rates.transporteLocal), subtotal: transporteLocalDestino, basis: `Solo fuera de Bogotá — ${qtyStaffViaja} personas × (2 tramos día 1 + 2 tramos × ${diasSiguientes} día(s) siguientes)` },
-    { label: "Transporte local del Productor (Bogotá)", quantity: bogota ? qtyProductor * dias * 2 : 0, rate: pick(rates.transporteLocal), subtotal: transporteLocalBogota, basis: `Solo en Bogotá — ${qtyProductor} productor(es) × ${dias} día(s) de evento × 2 (mínimo por día)` },
+    { label: "Transporte local del Productor (Bogotá)", quantity: bogota ? qtyProductor * diasTransporteProductorBogota * 2 : 0, rate: pick(rates.transporteLocal), subtotal: transporteLocalBogota, basis: `Solo en Bogotá — ${qtyProductor} productor(es) × ${diasTransporteProductorBogota} día(s) (día antes + evento) × 2` },
     { label: "Transporte del case (equipos)", quantity: qtyTransporteCase, rate: pick(rates.transporteCase), subtotal: transporteCase, basis: `Fijo por evento presencial/híbrido` },
   ];
 

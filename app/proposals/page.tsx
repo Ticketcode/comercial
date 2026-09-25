@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 
+export const dynamic = "force-dynamic";
+
 const statusLabel: Record<string, string> = {
   tarifario: "Tarifario",
   propuesta: "Propuesta",

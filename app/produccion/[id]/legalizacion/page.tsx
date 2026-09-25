@@ -2,6 +2,8 @@ import { createClient } from "@/lib/supabase/server";
 import type { EventStaff, LegalizacionGasto, LegalizacionMeta, ViaticoGiro } from "@/lib/types";
 import { LegalizacionEditor } from "./legalizacion-editor";
 
+export const dynamic = "force-dynamic";
+
 export default async function LegalizacionPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const supabase = await createClient();

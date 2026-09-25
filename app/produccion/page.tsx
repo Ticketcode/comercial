@@ -2,6 +2,8 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { NewEventForm } from "./new-event-form";
 
+export const dynamic = "force-dynamic";
+
 const modalityLabel: Record<string, string> = {
   presencial: "Presencial",
   virtual: "Virtual",

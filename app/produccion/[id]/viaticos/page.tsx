@@ -4,6 +4,8 @@ import { buildLogisticsRates, esBogota } from "@/lib/pricing/logistics";
 import type { EventStaff, ViaticoGiro } from "@/lib/types";
 import { ProduccionEditor } from "./produccion-editor";
 
+export const dynamic = "force-dynamic";
+
 export default async function ProduccionPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const supabase = await createClient();

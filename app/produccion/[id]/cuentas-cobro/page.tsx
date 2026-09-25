@@ -2,6 +2,8 @@ import { createClient } from "@/lib/supabase/server";
 import type { CuentaCobro } from "@/lib/types";
 import { CuentasCobroEditor } from "./cuentas-cobro-editor";
 
+export const dynamic = "force-dynamic";
+
 export default async function CuentasCobroPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const supabase = await createClient();
