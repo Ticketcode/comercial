@@ -342,8 +342,8 @@ export function PropuestaEditor({
         {/* Inversión */}
         <Slide kicker="Presupuesto" title="Inversión inicial" accent={BRAND.blue}>
           <HeroNumber
-            label="Valor Propuesta Inicial (+ IVA)"
-            value={formatCOP(tarifarioSummary.valorPropuestaInicial)}
+            label="Valor Propuesta Final (+ IVA)"
+            value={formatCOP(tarifarioSummary.valorPropuestaFinal + tarifarioSummary.iva)}
             color={BRAND.blue}
             large
           />
