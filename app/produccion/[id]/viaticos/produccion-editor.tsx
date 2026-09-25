@@ -1,17 +1,23 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
-import type { EventStaff, ViaticoGiro, ViaticoEstado } from "@/lib/types";
+import { useMemo, useRef, useState, useTransition } from "react";
+import type { EventStaff, ViaticoGiro } from "@/lib/types";
 import { formatCOP } from "@/lib/pricing/summary";
+import { formatFechaCorta } from "@/lib/fecha-local";
 import { saveProduccion, type SaveStaffRow, type SaveGiroRow } from "./actions";
 
 interface TarifasReferencia {
   alimentacion: Record<string, number>;
+  alojamiento: Record<string, number>;
   transporte: Record<string, number>;
 }
 
+const CATEGORIAS = ["Transporte", "Alojamiento", "Honorarios", "Varios", "Alimentación"] as const;
+type Categoria = (typeof CATEGORIAS)[number];
+
 interface Props {
   proposalId: string;
+  eventName: string;
   initialStaff: EventStaff[];
   initialGiros: ViaticoGiro[];
   tarifasReferencia: TarifasReferencia;
@@ -32,14 +38,31 @@ function isTemp(id: string) {
 
 const RUBROS_LIBRES = ["Honorarios", "Varios", "Otro"];
 
-export function ProduccionEditor({ proposalId, initialStaff, initialGiros, tarifasReferencia }: Props) {
+export function ProduccionEditor({
+  proposalId,
+  eventName,
+  initialStaff,
+  initialGiros,
+  tarifasReferencia,
+}: Props) {
   const [staff, setStaff] = useState<EventStaff[]>(initialStaff);
   const [deletedStaffIds, setDeletedStaffIds] = useState<string[]>([]);
   const [giros, setGiros] = useState<ViaticoGiro[]>(initialGiros);
   const [deletedGiroIds, setDeletedGiroIds] = useState<string[]>([]);
   const [activeStaffId, setActiveStaffId] = useState<string | null>(initialStaff[0]?.id ?? null);
   const [isPending, startTransition] = useTransition();
+  const [isDownloading, setIsDownloading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const printAreaRef = useRef<HTMLDivElement>(null);
+
+  function categoriaDeRubro(rubro: string | null): Categoria {
+    if (!rubro) return "Varios";
+    if (rubro in tarifasReferencia.alojamiento) return "Alojamiento";
+    if (rubro in tarifasReferencia.transporte) return "Transporte";
+    if (rubro in tarifasReferencia.alimentacion) return "Alimentación";
+    if (rubro === "Honorarios") return "Honorarios";
+    return "Varios";
+  }
 
   function addStaff() {
     const newStaff = {
@@ -104,6 +127,11 @@ export function ProduccionEditor({ proposalId, initialStaff, initialGiros, tarif
         const next = { ...g, ...patch };
         if (patch.cantidad !== undefined || patch.valor_unitario !== undefined) {
           next.monto = Math.round(next.cantidad * next.valor_unitario);
+        }
+        // El estado (girado/pendiente) se deriva de si tiene fecha — ya no
+        // se marca a mano, la fecha es la única señal.
+        if (patch.fecha_giro !== undefined) {
+          next.estado = next.fecha_giro ? "girado" : "pendiente";
         }
         return next;
       })
@@ -192,36 +220,34 @@ export function ProduccionEditor({ proposalId, initialStaff, initialGiros, tarif
     });
   }
 
-  function exportCSV() {
-    const header = ["Persona", "Cargo", "Cédula", "Banco", "Tipo de cuenta", "Número de cuenta", "Rubro", "Concepto", "Cantidad", "Valor unitario", "Monto", "Estado", "Fecha giro"];
-    const rows = giros.map((g) => {
-      const s = staff.find((s) => s.id === g.staff_id);
-      return [
-        s?.full_name ?? "",
-        s?.cargo ?? "",
-        s?.cedula ?? "",
-        s?.banco ?? "",
-        s?.tipo_cuenta ?? "",
-        s?.numero_cuenta ?? "",
-        g.rubro ?? "",
-        g.concepto ?? "",
-        g.cantidad,
-        g.valor_unitario,
-        g.monto,
-        g.estado,
-        g.fecha_giro ?? "",
-      ];
-    });
-    const csv = [header, ...rows]
-      .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(","))
-      .join("\n");
-    const blob = new Blob([`﻿${csv}`], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `viaticos-${proposalId}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+  const girosPorCategoria = useMemo(() => {
+    const map = new Map<Categoria, ViaticoGiro[]>();
+    for (const cat of CATEGORIAS) map.set(cat, []);
+    for (const g of giros) {
+      map.get(categoriaDeRubro(g.rubro))!.push(g);
+    }
+    return map;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [giros, tarifasReferencia]);
+
+  async function downloadPdf() {
+    if (!printAreaRef.current) return;
+    setIsDownloading(true);
+    try {
+      const html2pdf = (await import("html2pdf.js")).default;
+      await html2pdf()
+        .set({
+          filename: `Viaticos-${proposalId}.pdf`,
+          margin: 10,
+          image: { type: "jpeg", quality: 0.98 },
+          html2canvas: { scale: 2, useCORS: true },
+          jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
+        })
+        .from(printAreaRef.current)
+        .save();
+    } finally {
+      setIsDownloading(false);
+    }
   }
 
   const activeStaff = staff.find((s) => s.id === activeStaffId) ?? null;
@@ -301,11 +327,17 @@ export function ProduccionEditor({ proposalId, initialStaff, initialGiros, tarif
         <section className="rounded-xl border border-neutral-200 bg-white p-5">
           <h3 className="text-sm font-semibold text-neutral-900">Tarifas fijas de referencia</h3>
           <p className="mt-1 text-xs text-neutral-500">
-            Valores fijos de la empresa — se seleccionan solos al elegir un rubro de Alimentación o
-            Transporte en el cuadro de cada persona.
+            Valores fijos de la empresa — se seleccionan solos al elegir un rubro de Alimentación,
+            Alojamiento o Transporte en el cuadro de cada persona.
           </p>
           <div className="mt-3 grid grid-cols-2 gap-x-6 gap-y-1 text-xs">
             {Object.entries(tarifasReferencia.alimentacion).map(([label, valor]) => (
+              <div key={label} className="flex items-center justify-between text-neutral-600">
+                <span>{label}</span>
+                <span className="font-medium">{formatCOP(valor)}</span>
+              </div>
+            ))}
+            {Object.entries(tarifasReferencia.alojamiento).map(([label, valor]) => (
               <div key={label} className="flex items-center justify-between text-neutral-600">
                 <span>{label}</span>
                 <span className="font-medium">{formatCOP(valor)}</span>
@@ -367,13 +399,12 @@ export function ProduccionEditor({ proposalId, initialStaff, initialGiros, tarif
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="text-left text-xs text-neutral-400">
+                        <th className="w-32 py-2">Fecha</th>
                         <th className="w-40 py-2">Rubro</th>
                         <th className="py-2">Concepto</th>
                         <th className="w-16 py-2">Cant.</th>
                         <th className="w-28 py-2">Vlr. unitario</th>
                         <th className="w-28 py-2">Monto</th>
-                        <th className="w-28 py-2">Estado</th>
-                        <th className="w-32 py-2">Fecha</th>
                         <th className="w-8 py-2"></th>
                       </tr>
                     </thead>
@@ -381,12 +412,21 @@ export function ProduccionEditor({ proposalId, initialStaff, initialGiros, tarif
                       {activeGiros.map((g) => (
                         <tr key={g.id} className="border-t border-neutral-100">
                           <td className="py-1.5 pr-2">
+                            <input
+                              type="date"
+                              value={g.fecha_giro ?? ""}
+                              onChange={(e) => patchGiro(g.id, { fecha_giro: e.target.value || null })}
+                              className={inputClass}
+                            />
+                          </td>
+                          <td className="py-1.5 pr-2">
                             <select
                               value={g.rubro ?? "Otro"}
                               onChange={(e) => {
                                 const label = e.target.value;
                                 const tarifa =
                                   tarifasReferencia.alimentacion[label] ??
+                                  tarifasReferencia.alojamiento[label] ??
                                   tarifasReferencia.transporte[label] ??
                                   null;
                                 if (tarifa !== null) {
@@ -399,6 +439,13 @@ export function ProduccionEditor({ proposalId, initialStaff, initialGiros, tarif
                             >
                               <optgroup label="Alimentación (tarifa fija)">
                                 {Object.keys(tarifasReferencia.alimentacion).map((label) => (
+                                  <option key={label} value={label}>
+                                    {label}
+                                  </option>
+                                ))}
+                              </optgroup>
+                              <optgroup label="Alojamiento (tarifa fija)">
+                                {Object.keys(tarifasReferencia.alojamiento).map((label) => (
                                   <option key={label} value={label}>
                                     {label}
                                   </option>
@@ -449,34 +496,6 @@ export function ProduccionEditor({ proposalId, initialStaff, initialGiros, tarif
                           </td>
                           <td className="py-1.5 pr-2 text-right font-medium text-neutral-700">
                             {formatCOP(g.monto)}
-                          </td>
-                          <td className="py-1.5 pr-2">
-                            <select
-                              value={g.estado}
-                              onChange={(e) =>
-                                patchGiro(g.id, {
-                                  estado: e.target.value as ViaticoEstado,
-                                  fecha_giro:
-                                    e.target.value === "girado"
-                                      ? g.fecha_giro ?? new Date().toISOString().slice(0, 10)
-                                      : null,
-                                })
-                              }
-                              className={`${inputClass} ${
-                                g.estado === "girado" ? "text-emerald-700" : "text-amber-700"
-                              }`}
-                            >
-                              <option value="pendiente">Pendiente</option>
-                              <option value="girado">Girado</option>
-                            </select>
-                          </td>
-                          <td className="py-1.5 pr-2">
-                            <input
-                              type="date"
-                              value={g.fecha_giro ?? ""}
-                              onChange={(e) => patchGiro(g.id, { fecha_giro: e.target.value || null })}
-                              className={inputClass}
-                            />
                           </td>
                           <td className="py-1.5">
                             <button
@@ -539,10 +558,11 @@ export function ProduccionEditor({ proposalId, initialStaff, initialGiros, tarif
           <div className="space-y-2 border-t border-neutral-100 pt-3">
             <button
               type="button"
-              onClick={exportCSV}
-              className="w-full rounded-md border border-neutral-300 px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
+              onClick={downloadPdf}
+              disabled={isDownloading}
+              className="w-full rounded-md border border-neutral-300 px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50 disabled:opacity-50"
             >
-              Exportar CSV para contabilidad
+              {isDownloading ? "Generando PDF..." : "Descargar PDF para contabilidad"}
             </button>
             <button
               type="button"
@@ -553,6 +573,64 @@ export function ProduccionEditor({ proposalId, initialStaff, initialGiros, tarif
               {isPending ? "Guardando..." : "Guardar"}
             </button>
             {message && <p className="text-center text-xs text-neutral-500">{message}</p>}
+          </div>
+        </div>
+      </div>
+
+      {/* Área imprimible oculta — el PDF sale de este bloque, agrupado por
+          rubro (Transporte, Alojamiento, Honorarios, Varios, Alimentación),
+          no del formulario de edición. */}
+      <div className="fixed left-[-9999px] top-0 -z-10">
+        <div ref={printAreaRef} className="w-[750px] bg-white p-8 text-black">
+          <h1 className="text-lg font-bold">Viáticos — {eventName}</h1>
+          <p className="mt-1 text-xs text-neutral-500">
+            Generado el {formatFechaCorta(new Date().toISOString().slice(0, 10))}
+          </p>
+
+          {CATEGORIAS.map((cat) => {
+            const items = girosPorCategoria.get(cat) ?? [];
+            if (items.length === 0) return null;
+            const subtotal = items.reduce((sum, g) => sum + g.monto, 0);
+            return (
+              <div key={cat} className="mt-6">
+                <h2 className="border-b-2 border-neutral-800 pb-1 text-sm font-bold uppercase">{cat}</h2>
+                <table className="mt-2 w-full text-xs">
+                  <thead>
+                    <tr className="border-b border-neutral-300 text-left">
+                      <th className="py-1">Fecha</th>
+                      <th className="py-1">Persona</th>
+                      <th className="py-1">Concepto</th>
+                      <th className="py-1 text-right">Cant.</th>
+                      <th className="py-1 text-right">Vlr. unitario</th>
+                      <th className="py-1 text-right">Monto</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {items.map((g) => (
+                      <tr key={g.id} className="border-b border-neutral-100">
+                        <td className="py-1">{g.fecha_giro ? formatFechaCorta(g.fecha_giro) : "—"}</td>
+                        <td className="py-1">
+                          {staff.find((s) => s.id === g.staff_id)?.full_name || "—"}
+                        </td>
+                        <td className="py-1">{g.concepto || g.rubro || "—"}</td>
+                        <td className="py-1 text-right">{g.cantidad}</td>
+                        <td className="py-1 text-right">{formatCOP(g.valor_unitario)}</td>
+                        <td className="py-1 text-right">{formatCOP(g.monto)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <div className="mt-1 flex justify-end text-xs font-semibold">
+                  <span className="mr-2">Subtotal {cat}:</span>
+                  <span>{formatCOP(subtotal)}</span>
+                </div>
+              </div>
+            );
+          })}
+
+          <div className="mt-6 flex justify-end border-t-2 border-neutral-800 pt-2 text-sm font-bold">
+            <span className="mr-2">Total general:</span>
+            <span>{formatCOP(totalGeneral)}</span>
           </div>
         </div>
       </div>

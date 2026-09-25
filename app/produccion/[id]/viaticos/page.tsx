@@ -11,7 +11,7 @@ export default async function ProduccionPage({ params }: { params: Promise<{ id:
   const supabase = await createClient();
 
   const [{ data: proposal }, { data: rateRows }, { data: staff }, { data: giros }] = await Promise.all([
-    supabase.from("proposals").select("id, city").eq("id", id).single(),
+    supabase.from("proposals").select("id, city, event_name").eq("id", id).single(),
     supabase.from("logistics_rate_items").select("name, city, default_unit_cost"),
     supabase.from("event_staff").select("*").eq("proposal_id", id).order("sort_order"),
     supabase.from("viatico_giros").select("*").eq("proposal_id", id).order("sort_order"),
@@ -31,6 +31,8 @@ export default async function ProduccionPage({ params }: { params: Promise<{ id:
       "Almuerzo (logística)": logisticsRates.almuerzoLogistica,
       "Cena (staff)": logisticsRates.cenasStaff,
       "Refrigerio (logística)": logisticsRates.refrigerioLogistica,
+    },
+    alojamiento: {
       "Hospedaje (noche)": logisticsRates.hospedaje,
     },
     transporte: {
@@ -47,6 +49,7 @@ export default async function ProduccionPage({ params }: { params: Promise<{ id:
   return (
     <ProduccionEditor
       proposalId={id}
+      eventName={proposal.event_name}
       initialStaff={(staff ?? []) as EventStaff[]}
       initialGiros={(giros ?? []) as ViaticoGiro[]}
       tarifasReferencia={tarifasReferencia}
