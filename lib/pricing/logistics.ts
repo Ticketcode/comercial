@@ -108,10 +108,16 @@ export interface LogisticsInput {
   extraCompraAgua: boolean;
   extraCompraBloqueadorSolar: boolean;
   extraActividadCierre: boolean;
-  /** Ajustes manuales por rubro, keyed por el `label` del ítem — para casos
-   * puntuales donde el cálculo automático no aplica y el comercial necesita
-   * forzar un valor. */
-  overrides?: Record<string, number>;
+  /** Ajustes manuales de días/cantidad por rubro, keyed por el `label` del
+   * ítem — para casos puntuales donde el cálculo automático no aplica. El
+   * valor unitario NUNCA se sobreescribe aquí, viene siempre del catálogo;
+   * el total se sigue calculando como dias × cantidad × valor unitario. */
+  overrides?: Record<string, LogisticsItemOverride>;
+}
+
+export interface LogisticsItemOverride {
+  dias?: number;
+  quantity?: number;
 }
 
 export interface LogisticsLineItem {
@@ -121,7 +127,7 @@ export interface LogisticsLineItem {
   quantity: number;
   rate: number;
   subtotal: number;
-  /** true si `subtotal` fue forzado a mano y no es dias × quantity × rate. */
+  /** true si días y/o cantidad fueron forzados a mano. */
   overridden?: boolean;
   /** Explica en una frase corta de qué depende la cantidad (aforo, días, ciudad...). */
   basis: string;
@@ -265,8 +271,10 @@ export function computeLogisticsBreakdown(
   function withOverrides(items: LogisticsLineItem[]): LogisticsLineItem[] {
     return items.map((item) => {
       const override = overrides[item.label];
-      if (override === undefined) return item;
-      return { ...item, subtotal: override, overridden: true };
+      if (!override) return item;
+      const dias = override.dias ?? item.dias;
+      const quantity = override.quantity ?? item.quantity;
+      return { ...item, dias, quantity, subtotal: dias * quantity * item.rate, overridden: true };
     });
   }
   const sumSubtotals = (items: LogisticsLineItem[]) =>

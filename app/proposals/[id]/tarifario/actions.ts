@@ -41,7 +41,7 @@ export interface SaveTarifarioPayload {
   };
   serviceItems: SaveTarifarioItem[];
   salonesInternosAforos: number[];
-  logisticsOverrides: Record<string, number>;
+  logisticsOverrides: Record<string, { dias?: number; quantity?: number }>;
 }
 
 export async function saveTarifario(payload: SaveTarifarioPayload) {

@@ -84,17 +84,23 @@ export function TarifarioEditor({
   const [salonesAforos, setSalonesAforos] = useState<number[]>(
     () => proposal.salones_internos_aforos ?? []
   );
-  const [logisticsOverrides, setLogisticsOverrides] = useState<Record<string, number>>(
-    () => proposal.logistics_overrides ?? {}
-  );
+  const [logisticsOverrides, setLogisticsOverrides] = useState<
+    Record<string, { dias?: number; quantity?: number }>
+  >(() => proposal.logistics_overrides ?? {});
 
-  function setOverride(label: string, value: number | null) {
+  function setOverride(label: string, field: "dias" | "quantity", value: number | null) {
     setLogisticsOverrides((prev) => {
       const next = { ...prev };
+      const current = { ...next[label] };
       if (value === null) {
+        delete current[field];
+      } else {
+        current[field] = value;
+      }
+      if (current.dias === undefined && current.quantity === undefined) {
         delete next[label];
       } else {
-        next[label] = value;
+        next[label] = current;
       }
       return next;
     });
@@ -676,8 +682,8 @@ function ExpandableCategory({
   label: string;
   total: number;
   items: LogisticsLineItem[];
-  overrides: Record<string, number>;
-  onOverride: (label: string, value: number | null) => void;
+  overrides: Record<string, { dias?: number; quantity?: number }>;
+  onOverride: (label: string, field: "dias" | "quantity", value: number | null) => void;
 }) {
   const [open, setOpen] = useState(false);
   return (
@@ -698,30 +704,45 @@ function ExpandableCategory({
           <thead>
             <tr className="text-[10px] uppercase text-neutral-400">
               <th className="pb-1 pl-5 text-left font-medium">Concepto</th>
-              <th className="w-14 pb-1 text-right font-medium">Días</th>
-              <th className="w-16 pb-1 text-right font-medium">Cantidad</th>
+              <th className="w-20 pb-1 text-right font-medium">Días</th>
+              <th className="w-20 pb-1 text-right font-medium">Cantidad</th>
               <th className="w-24 pb-1 text-right font-medium">Valor unitario</th>
               <th className="w-28 pb-1 pr-1 text-right font-medium">Total</th>
-              <th className="w-8 pb-1"></th>
             </tr>
           </thead>
           <tbody>
-            {items.map((item, idx) => (
-              <tr key={idx} className="border-t border-neutral-100">
-                <td className="py-1.5 pl-5 text-neutral-700">
-                  {item.label}
-                  <p className="text-[10px] text-neutral-400">{item.basis}</p>
-                </td>
-                <td className="py-1.5 text-right text-neutral-500">{item.dias}</td>
-                <td className="py-1.5 text-right text-neutral-500">{item.quantity}</td>
-                <td className="py-1.5 text-right text-neutral-500">{formatCOP(item.rate)}</td>
-                <EditableTotalCell
-                  value={item.subtotal}
-                  overridden={Object.prototype.hasOwnProperty.call(overrides, item.label)}
-                  onChange={(v) => onOverride(item.label, v)}
-                />
-              </tr>
-            ))}
+            {items.map((item, idx) => {
+              const itemOverride = overrides[item.label];
+              const overridden = !!itemOverride;
+              return (
+                <tr key={idx} className="border-t border-neutral-100">
+                  <td className="py-1.5 pl-5 text-neutral-700">
+                    {item.label}
+                    <p className="text-[10px] text-neutral-400">{item.basis}</p>
+                  </td>
+                  <EditableNumberCell
+                    value={item.dias}
+                    overridden={itemOverride?.dias !== undefined}
+                    onChange={(v) => onOverride(item.label, "dias", v)}
+                  />
+                  <EditableNumberCell
+                    value={item.quantity}
+                    overridden={itemOverride?.quantity !== undefined}
+                    onChange={(v) => onOverride(item.label, "quantity", v)}
+                  />
+                  <td className="py-1.5 text-right text-neutral-500">{formatCOP(item.rate)}</td>
+                  <td
+                    className={`py-1.5 pr-1 text-right font-medium ${
+                      overridden ? "text-amber-700" : "text-neutral-700"
+                    }`}
+                    title={overridden ? "Incluye días y/o cantidad forzados a mano" : undefined}
+                  >
+                    {overridden && <span className="mr-1 text-[10px]">✎</span>}
+                    {formatCOP(item.subtotal)}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       )}
@@ -729,7 +750,7 @@ function ExpandableCategory({
   );
 }
 
-function EditableTotalCell({
+function EditableNumberCell({
   value,
   overridden,
   onChange,
@@ -739,22 +760,22 @@ function EditableTotalCell({
   onChange: (value: number | null) => void;
 }) {
   const [editing, setEditing] = useState(false);
-  const [text, setText] = useState(() => String(Math.round(value)));
+  const [text, setText] = useState(() => String(value));
 
   if (editing) {
     return (
-      <td className="py-1 pr-1 text-right">
+      <td className="py-1 text-right">
         <div className="flex items-center justify-end gap-1">
           <input
             autoFocus
             type="number"
             value={text}
             onChange={(e) => setText(e.target.value)}
-            className="h-7 w-24 rounded-md border border-neutral-300 px-1.5 text-right text-xs outline-none focus:border-neutral-900"
+            className="h-7 w-14 rounded-md border border-neutral-300 px-1 text-right text-xs outline-none focus:border-neutral-900"
           />
           <button
             type="button"
-            title="Guardar valor forzado"
+            title="Guardar"
             onClick={() => {
               const n = Number(text);
               onChange(Number.isFinite(n) ? n : null);
@@ -768,7 +789,7 @@ function EditableTotalCell({
             type="button"
             title="Cancelar"
             onClick={() => {
-              setText(String(Math.round(value)));
+              setText(String(value));
               setEditing(false);
             }}
             className="text-neutral-400 hover:text-neutral-700"
@@ -782,25 +803,19 @@ function EditableTotalCell({
 
   return (
     <td
-      className={`py-1.5 pr-1 text-right font-medium ${
-        overridden ? "text-amber-700" : "text-neutral-700"
-      }`}
-      title={overridden ? "Valor forzado manualmente" : undefined}
+      className={`py-1.5 text-right ${overridden ? "font-medium text-amber-700" : "text-neutral-500"}`}
     >
-      <span className="inline-flex items-center gap-1">
-        {overridden && <span className="text-[10px]">✎</span>}
-        {formatCOP(value)}
-      </span>
       <button
         type="button"
         title={overridden ? "Editar valor forzado" : "Forzar este valor a mano"}
         onClick={() => {
-          setText(String(Math.round(value)));
+          setText(String(value));
           setEditing(true);
         }}
-        className="ml-1 text-neutral-300 hover:text-neutral-600"
+        className="inline-flex items-center gap-1 hover:text-neutral-900"
       >
-        ✎
+        {overridden && <span className="text-[10px]">✎</span>}
+        {value}
       </button>
       {overridden && (
         <button

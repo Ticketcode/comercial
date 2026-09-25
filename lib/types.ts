@@ -63,7 +63,7 @@ export interface Proposal {
   extra_compra_bloqueador_solar: boolean;
   extra_actividad_cierre: boolean;
   salones_internos_aforos: number[];
-  logistics_overrides: Record<string, number>;
+  logistics_overrides: Record<string, { dias?: number; quantity?: number }>;
   pago_pct_1: number;
   pago_pct_2: number;
   pago_pct_3: number;
