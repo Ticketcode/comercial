@@ -39,7 +39,8 @@ export async function updateSession(request: NextRequest) {
   const isAuthRoute = request.nextUrl.pathname.startsWith("/login");
   const isProtectedRoute =
     request.nextUrl.pathname.startsWith("/proposals") ||
-    request.nextUrl.pathname.startsWith("/catalog");
+    request.nextUrl.pathname.startsWith("/catalog") ||
+    request.nextUrl.pathname.startsWith("/produccion");
 
   if (!user && isProtectedRoute) {
     const url = request.nextUrl.clone();

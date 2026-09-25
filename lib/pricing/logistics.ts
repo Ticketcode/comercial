@@ -192,7 +192,7 @@ const IMPREVISTOS_FACTOR = 1.1;
 
 /** Normaliza para comparar ciudades sin importar tildes/mayúsculas
  * ("Bogotá", "bogota", "BOGOTÁ D.C." → todas reconocidas). */
-function esBogota(ciudad: string | null) {
+export function esBogota(ciudad: string | null) {
   const normalizado = (ciudad ?? "")
     .normalize("NFD")
     .replace(/[̀-ͯ]/g, "")

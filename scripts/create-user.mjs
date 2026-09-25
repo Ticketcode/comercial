@@ -17,9 +17,13 @@ function loadEnvLocal() {
 }
 loadEnvLocal();
 
-const [, , email, password, fullName] = process.argv;
+const [, , email, password, fullName, role] = process.argv;
 if (!email || !password) {
-  console.error("Uso: node scripts/create-user.mjs <email> <password> [nombre]");
+  console.error("Uso: node scripts/create-user.mjs <email> <password> [nombre] [comercial|produccion|admin]");
+  process.exit(1);
+}
+if (role && !["comercial", "produccion", "admin"].includes(role)) {
+  console.error("Rol inválido. Usa: comercial, produccion o admin.");
   process.exit(1);
 }
 
@@ -41,3 +45,15 @@ if (error) {
   process.exit(1);
 }
 console.log("Usuario creado:", data.user.id, data.user.email);
+
+if (role && role !== "comercial") {
+  const { error: roleError } = await supabase
+    .from("profiles")
+    .update({ role })
+    .eq("id", data.user.id);
+  if (roleError) {
+    console.error("Usuario creado pero falló al asignar el rol:", roleError);
+    process.exit(1);
+  }
+  console.log("Rol asignado:", role);
+}
