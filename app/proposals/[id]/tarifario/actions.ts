@@ -41,6 +41,7 @@ export interface SaveTarifarioPayload {
   };
   serviceItems: SaveTarifarioItem[];
   salonesInternosAforos: number[];
+  logisticsOverrides: Record<string, number>;
 }
 
 export async function saveTarifario(payload: SaveTarifarioPayload) {
@@ -52,6 +53,7 @@ export async function saveTarifario(payload: SaveTarifarioPayload) {
       ...payload.eventFields,
       qty_logistica_salones_internos: totalLogisticosSalones(payload.salonesInternosAforos),
       salones_internos_aforos: payload.salonesInternosAforos,
+      logistics_overrides: payload.logisticsOverrides,
       status: "tarifario",
     })
     .eq("id", payload.proposalId);

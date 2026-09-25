@@ -57,6 +57,7 @@ export function computeTarifarioSummary(
       extraCompraAgua: proposal.extra_compra_agua,
       extraCompraBloqueadorSolar: proposal.extra_compra_bloqueador_solar,
       extraActividadCierre: proposal.extra_actividad_cierre,
+      overrides: proposal.logistics_overrides ?? undefined,
     },
     logisticsRates,
     honorariosProductorScale

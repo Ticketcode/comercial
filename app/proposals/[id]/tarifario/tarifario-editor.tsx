@@ -84,6 +84,21 @@ export function TarifarioEditor({
   const [salonesAforos, setSalonesAforos] = useState<number[]>(
     () => proposal.salones_internos_aforos ?? []
   );
+  const [logisticsOverrides, setLogisticsOverrides] = useState<Record<string, number>>(
+    () => proposal.logistics_overrides ?? {}
+  );
+
+  function setOverride(label: string, value: number | null) {
+    setLogisticsOverrides((prev) => {
+      const next = { ...prev };
+      if (value === null) {
+        delete next[label];
+      } else {
+        next[label] = value;
+      }
+      return next;
+    });
+  }
 
   function patchEvent<K extends keyof EventFields>(key: K, value: EventFields[K]) {
     setEventFields((prev) => ({ ...prev, [key]: value }));
@@ -152,8 +167,9 @@ export function TarifarioEditor({
       ...eventFields,
       dias: eventFields.dias + preacreditacionDias,
       qty_logistica_salones_internos: qtyLogisticaSalonesInternos,
+      logistics_overrides: logisticsOverrides,
     }),
-    [proposal, eventFields, preacreditacionDias, qtyLogisticaSalonesInternos]
+    [proposal, eventFields, preacreditacionDias, qtyLogisticaSalonesInternos, logisticsOverrides]
   );
   const serviceItemsForSummary = useMemo(
     () =>
@@ -184,6 +200,7 @@ export function TarifarioEditor({
         eventFields,
         serviceItems: Object.values(serviceRows),
         salonesInternosAforos: salonesAforos,
+        logisticsOverrides,
       });
       setMessage(result.error ? `Error: ${result.error}` : "Guardado.");
     });
@@ -267,52 +284,18 @@ export function TarifarioEditor({
             <button
               type="button"
               onClick={() => setShowAdvanced((v) => !v)}
-              className="text-xs font-medium text-neutral-500 underline hover:text-neutral-900"
+              className={`rounded-md px-3 py-1.5 text-xs font-semibold ${
+                showAdvanced
+                  ? "bg-neutral-900 text-white hover:bg-neutral-800"
+                  : "bg-neutral-100 text-neutral-700 hover:bg-neutral-200"
+              }`}
             >
-              {showAdvanced ? "Ocultar cantidades" : "Ajustar cantidades (avanzado)"}
+              {showAdvanced ? "Ocultar dotación y cantidades" : "Ajustar dotación y cantidades"}
             </button>
           </div>
 
-          <div className="divide-y divide-neutral-100 px-5">
-            <ExpandableCategory
-              label="1. Honorarios"
-              total={summary.logistica.honorarios}
-              items={summary.logistica.lineItems.honorarios}
-            />
-            <ExpandableCategory
-              label="2. Alimentación y hotel"
-              total={summary.logistica.alimentacionHotel}
-              items={summary.logistica.lineItems.alimentacionHotel}
-            />
-            <ExpandableCategory
-              label="3. Transporte"
-              total={summary.logistica.transporte}
-              items={summary.logistica.lineItems.transporte}
-            />
-            <ExpandableCategory
-              label="4. Equipos"
-              total={summary.logistica.equipos}
-              items={summary.logistica.lineItems.equipos}
-            />
-            <ExpandableCategory
-              label="5. Costos Varios"
-              total={summary.logistica.costosVarios}
-              items={summary.logistica.lineItems.costosVarios}
-            />
-            <SummaryLine
-              label="Sub Total Costo Logística"
-              value={formatCOP(summary.logistica.subTotalCostoLogistica)}
-              bold
-            />
-            <SummaryLine
-              label="Total Costo + Imprevistos (10%)"
-              value={formatCOP(summary.logistica.totalCostoLogisticaConImprevistos)}
-              bold
-            />
-          </div>
-
           {showAdvanced && (
-            <div className="border-t border-neutral-100 p-5">
+            <div className="border-b border-neutral-100 bg-neutral-50 p-5">
               <div className="mb-3 flex items-center justify-between">
                 <p className="text-xs text-neutral-500">
                   Dotación por defecto según el aforo — editable por evento.
@@ -320,7 +303,7 @@ export function TarifarioEditor({
                 <button
                   type="button"
                   onClick={recalcularSegunAforo}
-                  className="rounded-md border border-neutral-300 px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
+                  className="rounded-md border border-neutral-300 bg-white px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
                 >
                   Recalcular según aforo ({eventFields.aforo})
                 </button>
@@ -408,6 +391,54 @@ export function TarifarioEditor({
               </div>
             </div>
           )}
+
+          <div className="divide-y divide-neutral-100 px-5">
+            <ExpandableCategory
+              label="1. Honorarios"
+              total={summary.logistica.honorarios}
+              items={summary.logistica.lineItems.honorarios}
+              overrides={logisticsOverrides}
+              onOverride={setOverride}
+            />
+            <ExpandableCategory
+              label="2. Alimentación y hotel"
+              total={summary.logistica.alimentacionHotel}
+              items={summary.logistica.lineItems.alimentacionHotel}
+              overrides={logisticsOverrides}
+              onOverride={setOverride}
+            />
+            <ExpandableCategory
+              label="3. Transporte"
+              total={summary.logistica.transporte}
+              items={summary.logistica.lineItems.transporte}
+              overrides={logisticsOverrides}
+              onOverride={setOverride}
+            />
+            <ExpandableCategory
+              label="4. Equipos"
+              total={summary.logistica.equipos}
+              items={summary.logistica.lineItems.equipos}
+              overrides={logisticsOverrides}
+              onOverride={setOverride}
+            />
+            <ExpandableCategory
+              label="5. Costos Varios"
+              total={summary.logistica.costosVarios}
+              items={summary.logistica.lineItems.costosVarios}
+              overrides={logisticsOverrides}
+              onOverride={setOverride}
+            />
+            <SummaryLine
+              label="Sub Total Costo Logística"
+              value={formatCOP(summary.logistica.subTotalCostoLogistica)}
+              bold
+            />
+            <SummaryLine
+              label="Total Costo + Imprevistos (10%)"
+              value={formatCOP(summary.logistica.totalCostoLogisticaConImprevistos)}
+              bold
+            />
+          </div>
         </section>
 
         {/* Servicios personalizados — esto sí se elige ítem por ítem */}
@@ -639,10 +670,14 @@ function ExpandableCategory({
   label,
   total,
   items,
+  overrides,
+  onOverride,
 }: {
   label: string;
   total: number;
   items: LogisticsLineItem[];
+  overrides: Record<string, number>;
+  onOverride: (label: string, value: number | null) => void;
 }) {
   const [open, setOpen] = useState(false);
   return (
@@ -660,6 +695,16 @@ function ExpandableCategory({
       </button>
       {open && (
         <table className="mt-2 w-full text-xs">
+          <thead>
+            <tr className="text-[10px] uppercase text-neutral-400">
+              <th className="pb-1 pl-5 text-left font-medium">Concepto</th>
+              <th className="w-14 pb-1 text-right font-medium">Días</th>
+              <th className="w-16 pb-1 text-right font-medium">Cantidad</th>
+              <th className="w-24 pb-1 text-right font-medium">Valor unitario</th>
+              <th className="w-28 pb-1 pr-1 text-right font-medium">Total</th>
+              <th className="w-8 pb-1"></th>
+            </tr>
+          </thead>
           <tbody>
             {items.map((item, idx) => (
               <tr key={idx} className="border-t border-neutral-100">
@@ -667,18 +712,107 @@ function ExpandableCategory({
                   {item.label}
                   <p className="text-[10px] text-neutral-400">{item.basis}</p>
                 </td>
-                <td className="py-1.5 text-right text-neutral-500">
-                  {item.quantity} × {formatCOP(item.rate)}
-                </td>
-                <td className="w-28 py-1.5 pr-1 text-right font-medium text-neutral-700">
-                  {formatCOP(item.subtotal)}
-                </td>
+                <td className="py-1.5 text-right text-neutral-500">{item.dias}</td>
+                <td className="py-1.5 text-right text-neutral-500">{item.quantity}</td>
+                <td className="py-1.5 text-right text-neutral-500">{formatCOP(item.rate)}</td>
+                <EditableTotalCell
+                  value={item.subtotal}
+                  overridden={Object.prototype.hasOwnProperty.call(overrides, item.label)}
+                  onChange={(v) => onOverride(item.label, v)}
+                />
               </tr>
             ))}
           </tbody>
         </table>
       )}
     </div>
+  );
+}
+
+function EditableTotalCell({
+  value,
+  overridden,
+  onChange,
+}: {
+  value: number;
+  overridden: boolean;
+  onChange: (value: number | null) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [text, setText] = useState(() => String(Math.round(value)));
+
+  if (editing) {
+    return (
+      <td className="py-1 pr-1 text-right">
+        <div className="flex items-center justify-end gap-1">
+          <input
+            autoFocus
+            type="number"
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            className="h-7 w-24 rounded-md border border-neutral-300 px-1.5 text-right text-xs outline-none focus:border-neutral-900"
+          />
+          <button
+            type="button"
+            title="Guardar valor forzado"
+            onClick={() => {
+              const n = Number(text);
+              onChange(Number.isFinite(n) ? n : null);
+              setEditing(false);
+            }}
+            className="text-emerald-600 hover:text-emerald-800"
+          >
+            ✓
+          </button>
+          <button
+            type="button"
+            title="Cancelar"
+            onClick={() => {
+              setText(String(Math.round(value)));
+              setEditing(false);
+            }}
+            className="text-neutral-400 hover:text-neutral-700"
+          >
+            ✕
+          </button>
+        </div>
+      </td>
+    );
+  }
+
+  return (
+    <td
+      className={`py-1.5 pr-1 text-right font-medium ${
+        overridden ? "text-amber-700" : "text-neutral-700"
+      }`}
+      title={overridden ? "Valor forzado manualmente" : undefined}
+    >
+      <span className="inline-flex items-center gap-1">
+        {overridden && <span className="text-[10px]">✎</span>}
+        {formatCOP(value)}
+      </span>
+      <button
+        type="button"
+        title={overridden ? "Editar valor forzado" : "Forzar este valor a mano"}
+        onClick={() => {
+          setText(String(Math.round(value)));
+          setEditing(true);
+        }}
+        className="ml-1 text-neutral-300 hover:text-neutral-600"
+      >
+        ✎
+      </button>
+      {overridden && (
+        <button
+          type="button"
+          title="Volver al cálculo automático"
+          onClick={() => onChange(null)}
+          className="ml-1 text-neutral-300 hover:text-red-600"
+        >
+          ↺
+        </button>
+      )}
+    </td>
   );
 }
 

@@ -108,13 +108,21 @@ export interface LogisticsInput {
   extraCompraAgua: boolean;
   extraCompraBloqueadorSolar: boolean;
   extraActividadCierre: boolean;
+  /** Ajustes manuales por rubro, keyed por el `label` del ítem — para casos
+   * puntuales donde el cálculo automático no aplica y el comercial necesita
+   * forzar un valor. */
+  overrides?: Record<string, number>;
 }
 
 export interface LogisticsLineItem {
   label: string;
+  /** Días que se multiplican (1 cuando el rubro no depende de los días). */
+  dias: number;
   quantity: number;
   rate: number;
   subtotal: number;
+  /** true si `subtotal` fue forzado a mano y no es dias × quantity × rate. */
+  overridden?: boolean;
   /** Explica en una frase corta de qué depende la cantidad (aforo, días, ciudad...). */
   basis: string;
 }
@@ -252,6 +260,17 @@ export function computeLogisticsBreakdown(
   const virtual = esVirtual(modalidad);
   const bogota = esBogota(ciudad);
   const pick = (r: CityRate) => (bogota ? r.bogota : r.otras);
+  const overrides = input.overrides ?? {};
+
+  function withOverrides(items: LogisticsLineItem[]): LogisticsLineItem[] {
+    return items.map((item) => {
+      const override = overrides[item.label];
+      if (override === undefined) return item;
+      return { ...item, subtotal: override, overridden: true };
+    });
+  }
+  const sumSubtotals = (items: LogisticsLineItem[]) =>
+    items.reduce((sum, item) => sum + item.subtotal, 0);
 
   const qtyStaffApoyo = qtySupervisor + qtyLogisticaSalonesInternos + qtyProductor;
   const qtyArl = qtyLogistico + qtyStaffApoyo;
@@ -278,16 +297,14 @@ export function computeLogisticsBreakdown(
     : qtyLogisticaSalonesInternos * dias * rates.honorariosLogistico;
   const honorariosProductor = qtyProductor > 0 ? findTier(honorariosProductorScale, aforoPresencial) : 0;
   const arl = virtual ? 0 : qtyArl * dias * rates.arl;
-  const honorarios =
-    honorariosLogistico + honorariosSupervisor + honorariosSalonesInternos + honorariosProductor + arl;
-
-  const honorariosItems: LogisticsLineItem[] = [
-    { label: "Logístico", quantity: qtyLogistico, rate: rates.honorariosLogistico, subtotal: honorariosLogistico, basis: `${qtyLogistico} logísticos × ${dias} día(s)` },
-    { label: "Supervisor", quantity: qtySupervisor, rate: rates.honorariosSupervisor, subtotal: honorariosSupervisor, basis: `${qtySupervisor} supervisores × ${diasPersonal} día(s) (incl. preoperativa)` },
-    { label: "Logística salones internos", quantity: qtyLogisticaSalonesInternos, rate: rates.honorariosLogistico, subtotal: honorariosSalonesInternos, basis: `${qtyLogisticaSalonesInternos} × ${dias} día(s)` },
-    { label: "Productor (según aforo)", quantity: qtyProductor > 0 ? 1 : 0, rate: honorariosProductor, subtotal: honorariosProductor, basis: qtyProductor > 0 ? `Aforo ${aforoPresencial} → tarifa fija por escala` : "Sin productor asignado (cantidad en 0)" },
-    { label: "ARL", quantity: qtyArl, rate: rates.arl, subtotal: arl, basis: `${qtyArl} personas (logístico+staff apoyo) × ${dias} día(s)` },
-  ];
+  const honorariosItems: LogisticsLineItem[] = withOverrides([
+    { label: "Logístico", dias, quantity: virtual ? 0 : qtyLogistico, rate: rates.honorariosLogistico, subtotal: honorariosLogistico, basis: `${qtyLogistico} logísticos` },
+    { label: "Supervisor", dias: diasPersonal, quantity: virtual ? 0 : qtySupervisor, rate: rates.honorariosSupervisor, subtotal: honorariosSupervisor, basis: `${qtySupervisor} supervisores — días incl. preoperativa` },
+    { label: "Logística salones internos", dias, quantity: virtual ? 0 : qtyLogisticaSalonesInternos, rate: rates.honorariosLogistico, subtotal: honorariosSalonesInternos, basis: `${qtyLogisticaSalonesInternos} logísticos de salón` },
+    { label: "Productor (según aforo)", dias: 1, quantity: qtyProductor > 0 ? 1 : 0, rate: honorariosProductor, subtotal: honorariosProductor, basis: qtyProductor > 0 ? `Aforo ${aforoPresencial} → tarifa fija por escala` : "Sin productor asignado (cantidad en 0)" },
+    { label: "ARL", dias, quantity: virtual ? 0 : qtyArl, rate: rates.arl, subtotal: arl, basis: `${qtyArl} personas (logístico + staff apoyo)` },
+  ]);
+  const honorarios = sumSubtotals(honorariosItems);
 
   // 2) Alimentación y hotel — solo para el staff que viaja (Supervisor +
   // Productor). El día antes de llegada se liquidan los 3 tiempos de
@@ -299,31 +316,28 @@ export function computeLogisticsBreakdown(
     : visitaPreoperativaDias * qtyStaffViaja * rates.almuerzoStaff;
   const cenaStaff = bogota ? 0 : diasEnTierra * qtyStaffViaja * rates.cenasStaff;
   const almuerzoLogistica = virtual ? 0 : qtyAlmuerzoLogistica * rates.almuerzoLogistica * dias;
-  // Refrigerio AM+PM: el día antes solo para el staff que viaja; los días
-  // del evento para todo el equipo (logísticos + staff).
+  // Refrigerio AM+PM: el día antes es para el staff que trabaja ese día
+  // (Supervisor + Productor) EN CUALQUIER ciudad — a diferencia de
+  // desayuno/almuerzo/cena/hotel, que solo aplican fuera de Bogotá porque
+  // son gastos de viaje, el refrigerio se da por trabajar el día antes,
+  // viajen o no; los días del evento son para todo el equipo (logísticos +
+  // staff).
   const refrigerioDiaAntes = virtual
     ? 0
     : 2 * visitaPreoperativaDias * qtyStaffViaja * rates.refrigerioLogistica;
   const refrigerioDiasEvento = virtual ? 0 : 2 * dias * qtyArl * rates.refrigerioLogistica;
   const hotel = bogota ? 0 : qtyStaffViaja * diasEnTierra * rates.hospedaje;
-  const alimentacionHotel =
-    desayunoStaff +
-    almuerzoDiaAntes +
-    cenaStaff +
-    almuerzoLogistica +
-    refrigerioDiaAntes +
-    refrigerioDiasEvento +
-    hotel;
 
-  const alimentacionItems: LogisticsLineItem[] = [
-    { label: "Desayuno (Staff que viaja)", quantity: bogota ? 0 : qtyStaffViaja, rate: rates.desayunoStaff, subtotal: desayunoStaff, basis: `${qtyStaffViaja} × ${diasEnTierra} día(s) en tierra — solo fuera de Bogotá (hoy: ${ciudadLabel})` },
-    { label: "Almuerzo (día antes, staff que viaja)", quantity: bogota ? 0 : qtyStaffViaja, rate: rates.almuerzoStaff, subtotal: almuerzoDiaAntes, basis: `${qtyStaffViaja} × ${visitaPreoperativaDias} día(s) antes — solo fuera de Bogotá (hoy: ${ciudadLabel})` },
-    { label: "Cena (Staff que viaja)", quantity: bogota ? 0 : qtyStaffViaja, rate: rates.cenasStaff, subtotal: cenaStaff, basis: `${qtyStaffViaja} × ${diasEnTierra} día(s) en tierra — solo fuera de Bogotá (hoy: ${ciudadLabel})` },
-    { label: "Almuerzo (Logística — días del evento, todo el equipo)", quantity: qtyAlmuerzoLogistica, rate: rates.almuerzoLogistica, subtotal: almuerzoLogistica, basis: `${qtyAlmuerzoLogistica} × ${dias} día(s) de evento` },
-    { label: "Refrigerio AM+PM (día antes, staff que viaja)", quantity: bogota ? 0 : qtyStaffViaja * 2, rate: rates.refrigerioLogistica, subtotal: refrigerioDiaAntes, basis: `${qtyStaffViaja} × ${visitaPreoperativaDias} día(s) antes × 2 (AM+PM)` },
-    { label: "Refrigerio AM+PM (días evento, todo el equipo)", quantity: qtyArl * 2, rate: rates.refrigerioLogistica, subtotal: refrigerioDiasEvento, basis: `${qtyArl} × ${dias} día(s) × 2 (AM+PM)` },
-    { label: "Hotel (noches, staff que viaja)", quantity: bogota ? 0 : qtyStaffViaja, rate: rates.hospedaje, subtotal: hotel, basis: `${qtyStaffViaja} × ${diasEnTierra} noche(s) — solo fuera de Bogotá (hoy: ${ciudadLabel})` },
-  ];
+  const alimentacionItems: LogisticsLineItem[] = withOverrides([
+    { label: "Desayuno (Staff que viaja)", dias: diasEnTierra, quantity: bogota ? 0 : qtyStaffViaja, rate: rates.desayunoStaff, subtotal: desayunoStaff, basis: `Días en tierra — solo fuera de Bogotá (hoy: ${ciudadLabel})` },
+    { label: "Almuerzo (día antes, staff que viaja)", dias: visitaPreoperativaDias, quantity: bogota ? 0 : qtyStaffViaja, rate: rates.almuerzoStaff, subtotal: almuerzoDiaAntes, basis: `Día(s) antes del evento — solo fuera de Bogotá (hoy: ${ciudadLabel})` },
+    { label: "Cena (Staff que viaja)", dias: diasEnTierra, quantity: bogota ? 0 : qtyStaffViaja, rate: rates.cenasStaff, subtotal: cenaStaff, basis: `Días en tierra — solo fuera de Bogotá (hoy: ${ciudadLabel})` },
+    { label: "Almuerzo (Logística — días del evento, todo el equipo)", dias, quantity: virtual ? 0 : qtyAlmuerzoLogistica, rate: rates.almuerzoLogistica, subtotal: almuerzoLogistica, basis: `Días de evento — ${qtyAlmuerzoLogistica} personas` },
+    { label: "Refrigerio AM+PM (día antes, staff que viaja)", dias: visitaPreoperativaDias, quantity: virtual ? 0 : qtyStaffViaja * 2, rate: rates.refrigerioLogistica, subtotal: refrigerioDiaAntes, basis: `Día(s) antes — ${qtyStaffViaja} personas × 2 (AM+PM) — aplica en cualquier ciudad` },
+    { label: "Refrigerio AM+PM (días evento, todo el equipo)", dias, quantity: virtual ? 0 : qtyArl * 2, rate: rates.refrigerioLogistica, subtotal: refrigerioDiasEvento, basis: `Días de evento — ${qtyArl} personas × 2 (AM+PM)` },
+    { label: "Hotel (noches, staff que viaja)", dias: diasEnTierra, quantity: bogota ? 0 : qtyStaffViaja, rate: rates.hospedaje, subtotal: hotel, basis: `Noches en tierra — solo fuera de Bogotá (hoy: ${ciudadLabel})` },
+  ]);
+  const alimentacionHotel = sumSubtotals(alimentacionItems);
 
   // 3) Transporte — para el staff que viaja: vuelo ida/regreso, transporte
   // en la ciudad de origen, y el transporte interno diario en el destino
@@ -352,53 +366,41 @@ export function computeLogisticsBreakdown(
       ? 0
       : qtyProductor * diasTransporteProductorBogota * 2 * pick(rates.transporteLocal);
   const transporteCase = virtual ? 0 : pick(rates.transporteCase) * qtyTransporteCase;
-  const transporte =
-    tiquetesAereos +
-    transportesCiudadOrigen +
-    transporteAeropuertoHotelDia1 +
-    transporteLocalDestino +
-    transporteLocalBogota +
-    transporteCase;
 
-  const transporteItems: LogisticsLineItem[] = [
-    { label: "Tiquetes aéreos (ida y regreso)", quantity: bogota ? 0 : qtyStaffViaja, rate: rates.tiqueteAereo * 2, subtotal: tiquetesAereos, basis: `${qtyStaffViaja} personas — solo fuera de Bogotá (hoy: ${ciudadLabel})` },
-    { label: "Transporte nacional (casa-aeropuerto-casa, origen)", quantity: bogota ? 0 : qtyStaffViaja, rate: rates.transporteNacional, subtotal: transportesCiudadOrigen, basis: `${qtyStaffViaja} personas — solo fuera de Bogotá (hoy: ${ciudadLabel})` },
-    { label: "Transporte aeropuerto → hotel (día 1 de llegada)", quantity: bogota ? 0 : qtyStaffViaja, rate: pick(rates.transporteAeropuertoHotel), subtotal: transporteAeropuertoHotelDia1, basis: `${qtyStaffViaja} personas, 1 vez` },
-    { label: "Transporte local hotel↔evento (todos los días en tierra)", quantity: bogota ? 0 : qtyStaffViaja * (legsDia1 + legsDiasSiguientes), rate: pick(rates.transporteLocal), subtotal: transporteLocalDestino, basis: `Solo fuera de Bogotá — ${qtyStaffViaja} personas × (2 tramos día 1 + 2 tramos × ${diasSiguientes} día(s) siguientes)` },
-    { label: "Transporte local del Productor (Bogotá)", quantity: bogota ? qtyProductor * diasTransporteProductorBogota * 2 : 0, rate: pick(rates.transporteLocal), subtotal: transporteLocalBogota, basis: `Solo en Bogotá — ${qtyProductor} productor(es) × ${diasTransporteProductorBogota} día(s) (día antes + evento) × 2` },
-    { label: "Transporte del case (equipos)", quantity: qtyTransporteCase, rate: pick(rates.transporteCase), subtotal: transporteCase, basis: `Fijo por evento presencial/híbrido` },
-  ];
+  const transporteItems: LogisticsLineItem[] = withOverrides([
+    { label: "Tiquetes aéreos (ida y regreso)", dias: 1, quantity: bogota ? 0 : qtyStaffViaja, rate: rates.tiqueteAereo * 2, subtotal: tiquetesAereos, basis: `Solo fuera de Bogotá (hoy: ${ciudadLabel}) — valor unitario ya incluye ida y regreso` },
+    { label: "Transporte nacional (casa-aeropuerto-casa, origen)", dias: 1, quantity: bogota ? 0 : qtyStaffViaja, rate: rates.transporteNacional, subtotal: transportesCiudadOrigen, basis: `Solo fuera de Bogotá (hoy: ${ciudadLabel})` },
+    { label: "Transporte aeropuerto → hotel (día 1 de llegada)", dias: 1, quantity: bogota || diasEnTierra === 0 ? 0 : qtyStaffViaja, rate: pick(rates.transporteAeropuertoHotel), subtotal: transporteAeropuertoHotelDia1, basis: `1 vez, día de llegada` },
+    { label: "Transporte local hotel↔evento (todos los días en tierra)", dias: 1, quantity: virtual || bogota ? 0 : qtyStaffViaja * (legsDia1 + legsDiasSiguientes), rate: pick(rates.transporteLocal), subtotal: transporteLocalDestino, basis: `Solo fuera de Bogotá — cantidad ya incluye 2 tramos día 1 + 2 tramos × ${diasSiguientes} día(s) siguientes` },
+    { label: "Transporte local del Productor (Bogotá)", dias: 1, quantity: virtual || !bogota ? 0 : qtyProductor * diasTransporteProductorBogota * 2, rate: pick(rates.transporteLocal), subtotal: transporteLocalBogota, basis: `Solo en Bogotá — cantidad ya incluye ${diasTransporteProductorBogota} día(s) (día antes + evento) × 2 tramos` },
+    { label: "Transporte del case (equipos)", dias: 1, quantity: virtual ? 0 : qtyTransporteCase, rate: pick(rates.transporteCase), subtotal: transporteCase, basis: `Fijo por evento presencial/híbrido` },
+  ]);
+  const transporte = sumSubtotals(transporteItems);
 
   // 4) Equipos
   const computadores = virtual ? 0 : qtyComputadores * rates.alquilerPortatil;
   const impresoras = virtual ? 0 : qtyImpresoras * rates.impresoras;
   const rollosLabels = virtual ? 0 : qtyRollosLabels * rates.papelImpresora;
-  const equipos = computadores + impresoras + rollosLabels;
 
-  const equiposItems: LogisticsLineItem[] = [
-    { label: "Computadores (alquiler portátil)", quantity: qtyComputadores, rate: rates.alquilerPortatil, subtotal: computadores, basis: `Según escala de aforo (editable)` },
-    { label: "Impresoras", quantity: qtyImpresoras, rate: rates.impresoras, subtotal: impresoras, basis: `Según escala de aforo (editable)` },
-    { label: "Rollos / Labels (papel impresora)", quantity: qtyRollosLabels, rate: rates.papelImpresora, subtotal: rollosLabels, basis: `Según escala de aforo (editable)` },
-  ];
+  const equiposItems: LogisticsLineItem[] = withOverrides([
+    { label: "Computadores (alquiler portátil)", dias: 1, quantity: virtual ? 0 : qtyComputadores, rate: rates.alquilerPortatil, subtotal: computadores, basis: `Según escala de aforo (editable)` },
+    { label: "Impresoras", dias: 1, quantity: virtual ? 0 : qtyImpresoras, rate: rates.impresoras, subtotal: impresoras, basis: `Según escala de aforo (editable)` },
+    { label: "Rollos / Labels (papel impresora)", dias: 1, quantity: virtual ? 0 : qtyRollosLabels, rate: rates.papelImpresora, subtotal: rollosLabels, basis: `Según escala de aforo (editable)` },
+  ]);
+  const equipos = sumSubtotals(equiposItems);
 
   // 5) Costos varios
   const recargaDatos = virtual ? 0 : qtyArl * rates.recargas;
-  const extras =
-    (input.extraCamisetasStaff ? 150000 : 0) +
-    (input.extraLavadoChalecos ? 48000 : 0) +
-    (input.extraCompraAgua ? 50000 : 0) +
-    (input.extraCompraBloqueadorSolar ? 50000 : 0) +
-    (input.extraActividadCierre ? 350000 : 0);
-  const costosVarios = recargaDatos + extras;
 
-  const costosVariosItems: LogisticsLineItem[] = [
-    { label: "Recarga de datos smartphones", quantity: qtyArl, rate: rates.recargas, subtotal: recargaDatos, basis: `${qtyArl} personas` },
-    ...(input.extraCamisetasStaff ? [{ label: "Camisetas para Staff", quantity: 1, rate: 150000, subtotal: 150000, basis: "Extra activado" }] : []),
-    ...(input.extraLavadoChalecos ? [{ label: "Lavado de chalecos", quantity: 1, rate: 48000, subtotal: 48000, basis: "Extra activado" }] : []),
-    ...(input.extraCompraAgua ? [{ label: "Compra de agua", quantity: 1, rate: 50000, subtotal: 50000, basis: "Extra activado" }] : []),
-    ...(input.extraCompraBloqueadorSolar ? [{ label: "Compra de bloqueador solar", quantity: 1, rate: 50000, subtotal: 50000, basis: "Extra activado" }] : []),
-    ...(input.extraActividadCierre ? [{ label: "Actividad de cierre", quantity: 1, rate: 350000, subtotal: 350000, basis: "Extra activado" }] : []),
-  ];
+  const costosVariosItems: LogisticsLineItem[] = withOverrides([
+    { label: "Recarga de datos smartphones", dias: 1, quantity: virtual ? 0 : qtyArl, rate: rates.recargas, subtotal: recargaDatos, basis: `${qtyArl} personas` },
+    ...(input.extraCamisetasStaff ? [{ label: "Camisetas para Staff", dias: 1, quantity: 1, rate: 150000, subtotal: 150000, basis: "Extra activado" }] : []),
+    ...(input.extraLavadoChalecos ? [{ label: "Lavado de chalecos", dias: 1, quantity: 1, rate: 48000, subtotal: 48000, basis: "Extra activado" }] : []),
+    ...(input.extraCompraAgua ? [{ label: "Compra de agua", dias: 1, quantity: 1, rate: 50000, subtotal: 50000, basis: "Extra activado" }] : []),
+    ...(input.extraCompraBloqueadorSolar ? [{ label: "Compra de bloqueador solar", dias: 1, quantity: 1, rate: 50000, subtotal: 50000, basis: "Extra activado" }] : []),
+    ...(input.extraActividadCierre ? [{ label: "Actividad de cierre", dias: 1, quantity: 1, rate: 350000, subtotal: 350000, basis: "Extra activado" }] : []),
+  ]);
+  const costosVarios = sumSubtotals(costosVariosItems);
 
   const subTotalCostoLogistica = honorarios + alimentacionHotel + transporte + equipos + costosVarios;
 
