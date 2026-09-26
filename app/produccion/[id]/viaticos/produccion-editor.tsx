@@ -18,6 +18,9 @@ type Categoria = (typeof CATEGORIAS)[number];
 interface Props {
   proposalId: string;
   eventName: string;
+  eventCity: string | null;
+  eventStartDate: string | null;
+  eventEndDate: string | null;
   initialStaff: EventStaff[];
   initialGiros: ViaticoGiro[];
   tarifasReferencia: TarifasReferencia;
@@ -41,6 +44,9 @@ const RUBROS_LIBRES = ["Honorarios", "Varios", "Otro"];
 export function ProduccionEditor({
   proposalId,
   eventName,
+  eventCity,
+  eventStartDate,
+  eventEndDate,
   initialStaff,
   initialGiros,
   tarifasReferencia,
@@ -220,15 +226,14 @@ export function ProduccionEditor({
     });
   }
 
-  const girosPorCategoria = useMemo(() => {
+  function categorizarGiros(lista: ViaticoGiro[]) {
     const map = new Map<Categoria, ViaticoGiro[]>();
     for (const cat of CATEGORIAS) map.set(cat, []);
-    for (const g of giros) {
+    for (const g of lista) {
       map.get(categoriaDeRubro(g.rubro))!.push(g);
     }
     return map;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [giros, tarifasReferencia]);
+  }
 
   async function downloadPdf() {
     if (!printAreaRef.current) return;
@@ -242,6 +247,8 @@ export function ProduccionEditor({
           image: { type: "jpeg", quality: 0.98 },
           html2canvas: { scale: 2, useCORS: true },
           jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
+          // html2pdf sí soporta `pagebreak`, pero sus tipos no lo incluyen.
+          ...({ pagebreak: { mode: ["css"] } } as object),
         })
         .from(printAreaRef.current)
         .save();
@@ -577,61 +584,165 @@ export function ProduccionEditor({
         </div>
       </div>
 
-      {/* Área imprimible oculta — el PDF sale de este bloque, agrupado por
-          rubro (Transporte, Alojamiento, Honorarios, Varios, Alimentación),
-          no del formulario de edición. */}
+      {/* Área imprimible oculta — el PDF sale de este bloque, una hoja de
+          "Liquidación de viáticos" por persona, con sus rubros agrupados por
+          categoría (Transporte, Alojamiento, Honorarios, Varios,
+          Alimentación) y un espacio de firma — no del formulario de edición. */}
       <div className="fixed left-[-9999px] top-0 -z-10">
-        <div ref={printAreaRef} className="w-[750px] bg-white p-8 text-black">
-          <h1 className="text-lg font-bold">Viáticos — {eventName}</h1>
-          <p className="mt-1 text-xs text-neutral-500">
-            Generado el {formatFechaCorta(new Date().toISOString().slice(0, 10))}
-          </p>
+        <div ref={printAreaRef} className="w-[750px] bg-white text-black">
+          {staff
+            .filter((s) => (girosByStaff[s.id] ?? []).length > 0)
+            .map((s, idx, arr) => {
+              const misGiros = girosByStaff[s.id] ?? [];
+              const misCategorias = categorizarGiros(misGiros);
+              const misTotal = misGiros.reduce((sum, g) => sum + g.monto, 0);
+              return (
+                <div
+                  key={s.id}
+                  className="border border-neutral-800 p-6"
+                  style={idx < arr.length - 1 ? { pageBreakAfter: "always" } : undefined}
+                >
+                  <div className="flex items-center justify-between border-b-2 border-neutral-800 pb-3">
+                    <span className="text-base font-extrabold tracking-tight text-emerald-700">
+                      ticketcode
+                    </span>
+                    <span className="text-sm font-bold uppercase">Liquidación de viáticos</span>
+                  </div>
 
-          {CATEGORIAS.map((cat) => {
-            const items = girosPorCategoria.get(cat) ?? [];
-            if (items.length === 0) return null;
-            const subtotal = items.reduce((sum, g) => sum + g.monto, 0);
-            return (
-              <div key={cat} className="mt-6">
-                <h2 className="border-b-2 border-neutral-800 pb-1 text-sm font-bold uppercase">{cat}</h2>
-                <table className="mt-2 w-full text-xs">
-                  <thead>
-                    <tr className="border-b border-neutral-300 text-left">
-                      <th className="py-1">Fecha</th>
-                      <th className="py-1">Persona</th>
-                      <th className="py-1">Concepto</th>
-                      <th className="py-1 text-right">Cant.</th>
-                      <th className="py-1 text-right">Vlr. unitario</th>
-                      <th className="py-1 text-right">Monto</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {items.map((g) => (
-                      <tr key={g.id} className="border-b border-neutral-100">
-                        <td className="py-1">{g.fecha_giro ? formatFechaCorta(g.fecha_giro) : "—"}</td>
-                        <td className="py-1">
-                          {staff.find((s) => s.id === g.staff_id)?.full_name || "—"}
-                        </td>
-                        <td className="py-1">{g.concepto || g.rubro || "—"}</td>
-                        <td className="py-1 text-right">{g.cantidad}</td>
-                        <td className="py-1 text-right">{formatCOP(g.valor_unitario)}</td>
-                        <td className="py-1 text-right">{formatCOP(g.monto)}</td>
+                  <table className="mt-3 w-full border border-neutral-800 text-xs">
+                    <tbody>
+                      <tr className="border-b border-neutral-800 bg-neutral-100">
+                        <th className="w-1/3 border-r border-neutral-800 py-1.5 font-semibold">
+                          Nombres y apellidos
+                        </th>
+                        <th className="w-1/3 border-r border-neutral-800 py-1.5 font-semibold">
+                          N° identidad
+                        </th>
+                        <th className="w-1/3 py-1.5 font-semibold">Evento</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-                <div className="mt-1 flex justify-end text-xs font-semibold">
-                  <span className="mr-2">Subtotal {cat}:</span>
-                  <span>{formatCOP(subtotal)}</span>
-                </div>
-              </div>
-            );
-          })}
+                      <tr className="border-b border-neutral-800 text-center">
+                        <td className="border-r border-neutral-800 py-1.5">{s.full_name || "—"}</td>
+                        <td className="border-r border-neutral-800 py-1.5">{s.cedula || "—"}</td>
+                        <td className="py-1.5">{eventName}</td>
+                      </tr>
+                      <tr className="border-b border-neutral-800 bg-neutral-100">
+                        <th className="border-r border-neutral-800 py-1.5 font-semibold">Desde</th>
+                        <th className="border-r border-neutral-800 py-1.5 font-semibold">Hasta</th>
+                        <th className="border-r border-neutral-800 py-1.5 font-semibold">Cargo</th>
+                        <th className="border-r border-neutral-800 py-1.5 font-semibold">Ciudad</th>
+                        <th className="py-1.5 font-semibold">Teléfono</th>
+                      </tr>
+                      <tr className="text-center">
+                        <td className="border-r border-neutral-800 py-1.5">
+                          {eventStartDate ? formatFechaCorta(eventStartDate) : "—"}
+                        </td>
+                        <td className="border-r border-neutral-800 py-1.5">
+                          {eventEndDate ? formatFechaCorta(eventEndDate) : "—"}
+                        </td>
+                        <td className="border-r border-neutral-800 py-1.5">{s.cargo || "—"}</td>
+                        <td className="border-r border-neutral-800 py-1.5">{eventCity || "—"}</td>
+                        <td className="py-1.5">{s.telefono || "—"}</td>
+                      </tr>
+                    </tbody>
+                  </table>
 
-          <div className="mt-6 flex justify-end border-t-2 border-neutral-800 pt-2 text-sm font-bold">
-            <span className="mr-2">Total general:</span>
-            <span>{formatCOP(totalGeneral)}</span>
-          </div>
+                  {CATEGORIAS.map((cat) => {
+                    const items = misCategorias.get(cat) ?? [];
+                    if (items.length === 0) return null;
+                    const subtotal = items.reduce((sum, g) => sum + g.monto, 0);
+                    return (
+                      <div key={cat} className="mt-4">
+                        <h2 className="border-b-2 border-neutral-800 pb-1 text-xs font-bold uppercase">
+                          {cat}
+                        </h2>
+                        <table className="mt-1 w-full text-xs">
+                          <thead>
+                            <tr className="border-b border-neutral-300 text-left">
+                              <th className="py-1">Fecha</th>
+                              <th className="py-1">Concepto</th>
+                              <th className="py-1 text-right">Cant.</th>
+                              <th className="py-1 text-right">Vlr. unitario</th>
+                              <th className="py-1 text-right">Monto</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {items.map((g) => (
+                              <tr key={g.id} className="border-b border-neutral-100">
+                                <td className="py-1">
+                                  {g.fecha_giro ? formatFechaCorta(g.fecha_giro) : "—"}
+                                </td>
+                                <td className="py-1">{g.concepto || g.rubro || "—"}</td>
+                                <td className="py-1 text-right">{g.cantidad}</td>
+                                <td className="py-1 text-right">{formatCOP(g.valor_unitario)}</td>
+                                <td className="py-1 text-right">{formatCOP(g.monto)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                        <div className="mt-1 flex justify-end text-xs font-semibold">
+                          <span className="mr-2">Subtotal {cat}:</span>
+                          <span>{formatCOP(subtotal)}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+
+                  <table className="mt-3 w-full border border-neutral-800 text-xs">
+                    <tbody>
+                      <tr className="bg-emerald-100">
+                        <th className="border-r border-neutral-800 py-1.5 text-left">Total viáticos</th>
+                        <td className="py-1.5 pr-2 text-right font-bold">{formatCOP(misTotal)}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+
+                  <table className="mt-4 w-full border border-neutral-800 text-xs">
+                    <thead>
+                      <tr className="bg-neutral-100">
+                        <th className="border-r border-b border-neutral-800 py-1.5"></th>
+                        <th className="border-r border-b border-neutral-800 py-1.5 font-semibold">
+                          Firma
+                        </th>
+                        <th className="border-b border-neutral-800 py-1.5 font-semibold">Fecha</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr className="border-b border-neutral-800">
+                        <th className="border-r border-neutral-800 py-6 text-left font-semibold">
+                          Trabajador
+                        </th>
+                        <td className="border-r border-neutral-800"></td>
+                        <td></td>
+                      </tr>
+                      <tr>
+                        <th className="border-r border-neutral-800 py-6 text-left font-semibold">
+                          Autorizado por
+                        </th>
+                        <td className="border-r border-neutral-800"></td>
+                        <td></td>
+                      </tr>
+                    </tbody>
+                  </table>
+
+                  <table className="mt-4 w-full border border-neutral-800 text-xs">
+                    <tbody>
+                      <tr className="border-b border-neutral-800">
+                        <th className="w-1/3 border-r border-neutral-800 bg-neutral-100 py-1.5 text-left">
+                          Depositar a cuenta N°
+                        </th>
+                        <td className="py-1.5 pl-2">{s.numero_cuenta || "—"}</td>
+                      </tr>
+                      <tr>
+                        <th className="border-r border-neutral-800 bg-neutral-100 py-1.5 text-left">
+                          Banco
+                        </th>
+                        <td className="py-1.5 pl-2">{s.banco || "—"}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              );
+            })}
         </div>
       </div>
     </div>
