@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import type { EventStaff, LegalizacionGasto, LegalizacionMeta, ViaticoGiro } from "@/lib/types";
+import type { EventStaff, LegalizacionGasto, LegalizacionMeta, ViaticoAnticipo } from "@/lib/types";
 import { formatCOP } from "@/lib/pricing/summary";
 import { formatFechaCorta } from "@/lib/fecha-local";
 import { saveLegalizacion, type SaveGastoRow } from "./actions";
@@ -10,7 +10,7 @@ interface Props {
   proposalId: string;
   meta: LegalizacionMeta | null;
   initialGastos: LegalizacionGasto[];
-  anticipos: ViaticoGiro[];
+  anticipos: ViaticoAnticipo[];
   staff: EventStaff[];
 }
 
@@ -52,7 +52,7 @@ export function LegalizacionEditor({ proposalId, meta, initialGastos, anticipos,
     [staff]
   );
 
-  const totalAnticipo = anticipos.reduce((s, a) => s + a.monto, 0);
+  const totalAnticipo = anticipos.reduce((s, a) => s + a.valor, 0);
   const totalSoportes = gastos.reduce((s, g) => s + g.valor, 0);
   const diferencia = totalAnticipo - totalSoportes;
 
@@ -152,11 +152,11 @@ export function LegalizacionEditor({ proposalId, meta, initialGastos, anticipos,
         <section className="rounded-xl border border-neutral-200 bg-white p-5">
           <h3 className="text-sm font-semibold text-neutral-900">Anticipos girados</h3>
           <p className="mt-1 text-xs text-neutral-500">
-            Se toman automáticamente de los giros marcados &quot;Girado&quot; en Viáticos.
+            Se toman automáticamente del cuadro de Anticipos / valores girados en Viáticos.
           </p>
           {anticipos.length === 0 ? (
             <p className="mt-3 text-sm text-neutral-400">
-              Todavía no hay giros marcados como &quot;Girado&quot; en Viáticos.
+              Todavía no hay anticipos registrados en Viáticos.
             </p>
           ) : (
             <table className="mt-3 w-full text-sm">
@@ -170,11 +170,9 @@ export function LegalizacionEditor({ proposalId, meta, initialGastos, anticipos,
               <tbody>
                 {anticipos.map((a) => (
                   <tr key={a.id} className="border-t border-neutral-100">
-                    <td className="py-1.5">
-                      {a.fecha_giro ? formatFechaCorta(a.fecha_giro) : "—"}
-                    </td>
+                    <td className="py-1.5">{a.fecha ? formatFechaCorta(a.fecha) : "—"}</td>
                     <td className="py-1.5">{staffById[a.staff_id] ?? "—"}</td>
-                    <td className="py-1.5 text-right">{formatCOP(a.monto)}</td>
+                    <td className="py-1.5 text-right">{formatCOP(a.valor)}</td>
                   </tr>
                 ))}
               </tbody>

@@ -209,6 +209,18 @@ export interface ViaticoGiro {
   updated_at: string;
 }
 
+export interface ViaticoAnticipo {
+  id: string;
+  proposal_id: string;
+  staff_id: string;
+  fecha: string | null;
+  valor: number;
+  notas: string | null;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
 export type ActivityMomento = "antes_evento" | "durante_evento" | "despues_evento";
 export type ActivityCategoria =
   | "produccion"

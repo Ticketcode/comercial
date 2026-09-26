@@ -1,10 +1,10 @@
 "use client";
 
 import { useMemo, useRef, useState, useTransition } from "react";
-import type { EventStaff, ViaticoGiro } from "@/lib/types";
+import type { EventStaff, ViaticoAnticipo, ViaticoGiro } from "@/lib/types";
 import { formatCOP } from "@/lib/pricing/summary";
 import { formatFechaCorta } from "@/lib/fecha-local";
-import { saveProduccion, type SaveStaffRow, type SaveGiroRow } from "./actions";
+import { saveProduccion, type SaveStaffRow, type SaveGiroRow, type SaveAnticipoRow } from "./actions";
 
 interface TarifasReferencia {
   alimentacion: Record<string, number>;
@@ -23,6 +23,7 @@ interface Props {
   eventEndDate: string | null;
   initialStaff: EventStaff[];
   initialGiros: ViaticoGiro[];
+  initialAnticipos: ViaticoAnticipo[];
   tarifasReferencia: TarifasReferencia;
 }
 
@@ -49,12 +50,15 @@ export function ProduccionEditor({
   eventEndDate,
   initialStaff,
   initialGiros,
+  initialAnticipos,
   tarifasReferencia,
 }: Props) {
   const [staff, setStaff] = useState<EventStaff[]>(initialStaff);
   const [deletedStaffIds, setDeletedStaffIds] = useState<string[]>([]);
   const [giros, setGiros] = useState<ViaticoGiro[]>(initialGiros);
   const [deletedGiroIds, setDeletedGiroIds] = useState<string[]>([]);
+  const [anticipos, setAnticipos] = useState<ViaticoAnticipo[]>(initialAnticipos);
+  const [deletedAnticipoIds, setDeletedAnticipoIds] = useState<string[]>([]);
   const [activeStaffId, setActiveStaffId] = useState<string | null>(initialStaff[0]?.id ?? null);
   const [isPending, startTransition] = useTransition();
   const [isDownloading, setIsDownloading] = useState(false);
@@ -98,6 +102,12 @@ export function ProduccionEditor({
     const orphaned = giros.filter((g) => g.staff_id === id);
     setGiros((prev) => prev.filter((g) => g.staff_id !== id));
     setDeletedGiroIds((prev) => [...prev, ...orphaned.filter((g) => !isTemp(g.id)).map((g) => g.id)]);
+    const orphanedAnticipos = anticipos.filter((a) => a.staff_id === id);
+    setAnticipos((prev) => prev.filter((a) => a.staff_id !== id));
+    setDeletedAnticipoIds((prev) => [
+      ...prev,
+      ...orphanedAnticipos.filter((a) => !isTemp(a.id)).map((a) => a.id),
+    ]);
     if (activeStaffId === id) {
       const remaining = staff.filter((s) => s.id !== id);
       setActiveStaffId(remaining[0]?.id ?? null);
@@ -134,11 +144,6 @@ export function ProduccionEditor({
         if (patch.cantidad !== undefined || patch.valor_unitario !== undefined) {
           next.monto = Math.round(next.cantidad * next.valor_unitario);
         }
-        // El estado (girado/pendiente) se deriva de si tiene fecha — ya no
-        // se marca a mano, la fecha es la única señal.
-        if (patch.fecha_giro !== undefined) {
-          next.estado = next.fecha_giro ? "girado" : "pendiente";
-        }
         return next;
       })
     );
@@ -157,6 +162,32 @@ export function ProduccionEditor({
     if (!isTemp(id)) setDeletedGiroIds((prev) => [...prev, id]);
   }
 
+  function addAnticipo(staffId: string) {
+    setAnticipos((prev) => [
+      ...prev,
+      {
+        id: tempId("anticipo"),
+        proposal_id: proposalId,
+        staff_id: staffId,
+        fecha: new Date().toISOString().slice(0, 10),
+        valor: 0,
+        notas: "",
+        sort_order: prev.length,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      },
+    ]);
+  }
+
+  function patchAnticipo(id: string, patch: Partial<ViaticoAnticipo>) {
+    setAnticipos((prev) => prev.map((a) => (a.id === id ? { ...a, ...patch } : a)));
+  }
+
+  function removeAnticipo(id: string) {
+    setAnticipos((prev) => prev.filter((a) => a.id !== id));
+    if (!isTemp(id)) setDeletedAnticipoIds((prev) => [...prev, id]);
+  }
+
   const girosByStaff = useMemo(() => {
     const map: Record<string, ViaticoGiro[]> = {};
     for (const g of giros) {
@@ -164,6 +195,14 @@ export function ProduccionEditor({
     }
     return map;
   }, [giros]);
+
+  const anticiposByStaff = useMemo(() => {
+    const map: Record<string, ViaticoAnticipo[]> = {};
+    for (const a of anticipos) {
+      (map[a.staff_id] ??= []).push(a);
+    }
+    return map;
+  }, [anticipos]);
 
   const totalPorPersona = useMemo(() => {
     const map: Record<string, number> = {};
@@ -173,8 +212,16 @@ export function ProduccionEditor({
     return map;
   }, [staff, girosByStaff]);
 
+  const totalAnticipadoPorPersona = useMemo(() => {
+    const map: Record<string, number> = {};
+    for (const s of staff) {
+      map[s.id] = (anticiposByStaff[s.id] ?? []).reduce((sum, a) => sum + a.valor, 0);
+    }
+    return map;
+  }, [staff, anticiposByStaff]);
+
   const totalGeneral = giros.reduce((s, g) => s + g.monto, 0);
-  const totalGirado = giros.filter((g) => g.estado === "girado").reduce((s, g) => s + g.monto, 0);
+  const totalGirado = anticipos.reduce((s, a) => s + a.valor, 0);
   const totalPendiente = totalGeneral - totalGirado;
 
   function handleSave() {
@@ -204,6 +251,14 @@ export function ProduccionEditor({
         notas: g.notas,
         sort_order: g.sort_order,
       });
+      const toAnticipoRow = (a: ViaticoAnticipo): SaveAnticipoRow => ({
+        id: a.id,
+        staff_id: a.staff_id,
+        fecha: a.fecha,
+        valor: a.valor,
+        notas: a.notas,
+        sort_order: a.sort_order,
+      });
 
       const result = await saveProduccion({
         proposalId,
@@ -217,11 +272,17 @@ export function ProduccionEditor({
           new: giros.filter((g) => isTemp(g.id)).map(toGiroRow),
           deletedIds: deletedGiroIds,
         },
+        anticipos: {
+          existing: anticipos.filter((a) => !isTemp(a.id)).map(toAnticipoRow),
+          new: anticipos.filter((a) => isTemp(a.id)).map(toAnticipoRow),
+          deletedIds: deletedAnticipoIds,
+        },
       });
       setMessage(result.error ? `Error: ${result.error}` : "Guardado.");
       if (!result.error) {
         setDeletedStaffIds([]);
         setDeletedGiroIds([]);
+        setDeletedAnticipoIds([]);
       }
     });
   }
@@ -259,6 +320,7 @@ export function ProduccionEditor({
 
   const activeStaff = staff.find((s) => s.id === activeStaffId) ?? null;
   const activeGiros = activeStaff ? girosByStaff[activeStaff.id] ?? [] : [];
+  const activeAnticipos = activeStaff ? anticiposByStaff[activeStaff.id] ?? [] : [];
 
   return (
     <div className="grid grid-cols-3 gap-6">
@@ -534,6 +596,93 @@ export function ProduccionEditor({
             </>
           )}
         </section>
+
+        {activeStaff && (
+          <section className="rounded-xl border border-neutral-200 bg-white p-5">
+            <div className="mb-3 flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-semibold text-neutral-900">
+                  Anticipos / valores girados — {activeStaff.full_name || "(sin nombre)"}
+                </h3>
+                <p className="mt-1 text-xs text-neutral-500">
+                  Registro de lo que realmente se le giró a la persona, con la fecha de la
+                  transacción — independiente del desglose de rubros de arriba.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => addAnticipo(activeStaff.id)}
+                className="shrink-0 rounded-md border border-neutral-300 px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
+              >
+                + Agregar anticipo
+              </button>
+            </div>
+            {activeAnticipos.length === 0 ? (
+              <p className="text-sm text-neutral-400">
+                Todavía no hay anticipos registrados para {activeStaff.full_name || "esta persona"}.
+              </p>
+            ) : (
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-xs text-neutral-400">
+                    <th className="w-36 py-2">Fecha de transacción</th>
+                    <th className="w-40 py-2">Valor</th>
+                    <th className="py-2">Notas</th>
+                    <th className="w-8 py-2"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {activeAnticipos.map((a) => (
+                    <tr key={a.id} className="border-t border-neutral-100">
+                      <td className="py-1.5 pr-2">
+                        <input
+                          type="date"
+                          value={a.fecha ?? ""}
+                          onChange={(e) => patchAnticipo(a.id, { fecha: e.target.value || null })}
+                          className={inputClass}
+                        />
+                      </td>
+                      <td className="py-1.5 pr-2">
+                        <input
+                          type="number"
+                          min={0}
+                          value={a.valor}
+                          onChange={(e) => patchAnticipo(a.id, { valor: Number(e.target.value) || 0 })}
+                          className={inputClass}
+                        />
+                      </td>
+                      <td className="py-1.5 pr-2">
+                        <input
+                          value={a.notas ?? ""}
+                          onChange={(e) => patchAnticipo(a.id, { notas: e.target.value })}
+                          className={inputClass}
+                        />
+                      </td>
+                      <td className="py-1.5">
+                        <button
+                          type="button"
+                          onClick={() => removeAnticipo(a.id)}
+                          className="text-neutral-400 hover:text-red-600"
+                          title="Eliminar"
+                        >
+                          ✕
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+            <div className="mt-2 flex items-center justify-between border-t border-neutral-200 pt-2">
+              <span className="text-sm font-semibold text-neutral-900">
+                Total girado a {activeStaff.full_name || "esta persona"}
+              </span>
+              <span className="text-sm font-semibold text-emerald-700">
+                {formatCOP(totalAnticipadoPorPersona[activeStaff.id] ?? 0)}
+              </span>
+            </div>
+          </section>
+        )}
       </div>
 
       <div className="col-span-1">

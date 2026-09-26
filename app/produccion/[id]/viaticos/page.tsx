@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { buildLogisticsRates, esBogota } from "@/lib/pricing/logistics";
-import type { EventStaff, ViaticoGiro } from "@/lib/types";
+import type { EventStaff, ViaticoAnticipo, ViaticoGiro } from "@/lib/types";
 import { ProduccionEditor } from "./produccion-editor";
 
 export const dynamic = "force-dynamic";
@@ -10,16 +10,18 @@ export default async function ProduccionPage({ params }: { params: Promise<{ id:
   const { id } = await params;
   const supabase = await createClient();
 
-  const [{ data: proposal }, { data: rateRows }, { data: staff }, { data: giros }] = await Promise.all([
-    supabase
-      .from("proposals")
-      .select("id, city, event_name, event_start_date, event_end_date")
-      .eq("id", id)
-      .single(),
-    supabase.from("logistics_rate_items").select("name, city, default_unit_cost"),
-    supabase.from("event_staff").select("*").eq("proposal_id", id).order("sort_order"),
-    supabase.from("viatico_giros").select("*").eq("proposal_id", id).order("sort_order"),
-  ]);
+  const [{ data: proposal }, { data: rateRows }, { data: staff }, { data: giros }, { data: anticipos }] =
+    await Promise.all([
+      supabase
+        .from("proposals")
+        .select("id, city, event_name, event_start_date, event_end_date")
+        .eq("id", id)
+        .single(),
+      supabase.from("logistics_rate_items").select("name, city, default_unit_cost"),
+      supabase.from("event_staff").select("*").eq("proposal_id", id).order("sort_order"),
+      supabase.from("viatico_giros").select("*").eq("proposal_id", id).order("sort_order"),
+      supabase.from("viatico_anticipos").select("*").eq("proposal_id", id).order("sort_order"),
+    ]);
 
   if (!proposal) notFound();
 
@@ -59,6 +61,7 @@ export default async function ProduccionPage({ params }: { params: Promise<{ id:
       eventEndDate={proposal.event_end_date}
       initialStaff={(staff ?? []) as EventStaff[]}
       initialGiros={(giros ?? []) as ViaticoGiro[]}
+      initialAnticipos={(anticipos ?? []) as ViaticoAnticipo[]}
       tarifasReferencia={tarifasReferencia}
     />
   );

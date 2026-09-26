@@ -31,10 +31,20 @@ export interface SaveGiroRow {
   sort_order: number;
 }
 
+export interface SaveAnticipoRow {
+  id: string;
+  staff_id: string;
+  fecha: string | null;
+  valor: number;
+  notas: string | null;
+  sort_order: number;
+}
+
 export interface SaveProduccionPayload {
   proposalId: string;
   staff: { existing: SaveStaffRow[]; new: SaveStaffRow[]; deletedIds: string[] };
   giros: { existing: SaveGiroRow[]; new: SaveGiroRow[]; deletedIds: string[] };
+  anticipos: { existing: SaveAnticipoRow[]; new: SaveAnticipoRow[]; deletedIds: string[] };
 }
 
 export async function saveProduccion(payload: SaveProduccionPayload) {
@@ -50,6 +60,13 @@ export async function saveProduccion(payload: SaveProduccionPayload) {
   }
   if (payload.giros.deletedIds.length > 0) {
     const { error } = await supabase.from("viatico_giros").delete().in("id", payload.giros.deletedIds);
+    if (error) return { error: error.message };
+  }
+  if (payload.anticipos.deletedIds.length > 0) {
+    const { error } = await supabase
+      .from("viatico_anticipos")
+      .delete()
+      .in("id", payload.anticipos.deletedIds);
     if (error) return { error: error.message };
   }
 
@@ -138,6 +155,37 @@ export async function saveProduccion(payload: SaveProduccionPayload) {
         fecha_giro: g.fecha_giro || null,
         notas: g.notas,
         sort_order: g.sort_order,
+      }))
+    );
+    if (error) return { error: error.message };
+  }
+
+  const anticipoResults = await Promise.all(
+    payload.anticipos.existing.map((a) =>
+      supabase
+        .from("viatico_anticipos")
+        .update({
+          staff_id: resolveStaffId(a.staff_id),
+          fecha: a.fecha || null,
+          valor: a.valor,
+          notas: a.notas,
+          sort_order: a.sort_order,
+        })
+        .eq("id", a.id)
+    )
+  );
+  const anticipoFailed = anticipoResults.find((r) => r.error);
+  if (anticipoFailed?.error) return { error: anticipoFailed.error.message };
+
+  if (payload.anticipos.new.length > 0) {
+    const { error } = await supabase.from("viatico_anticipos").insert(
+      payload.anticipos.new.map((a) => ({
+        proposal_id: payload.proposalId,
+        staff_id: resolveStaffId(a.staff_id),
+        fecha: a.fecha || null,
+        valor: a.valor,
+        notas: a.notas,
+        sort_order: a.sort_order,
       }))
     );
     if (error) return { error: error.message };
