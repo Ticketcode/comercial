@@ -300,19 +300,31 @@ export function ProduccionEditor({
     if (!printAreaRef.current) return;
     setIsDownloading(true);
     try {
-      const html2pdf = (await import("html2pdf.js")).default;
-      await html2pdf()
-        .set({
-          filename: `Viaticos-${proposalId}.pdf`,
-          margin: 8,
-          image: { type: "jpeg", quality: 0.98 },
-          html2canvas: { scale: 2, useCORS: true, windowWidth: 700 },
-          jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
-          // html2pdf sí soporta `pagebreak`, pero sus tipos no lo incluyen.
-          ...({ pagebreak: { mode: ["css"] } } as object),
-        })
-        .from(printAreaRef.current)
-        .save();
+      // Se arma el PDF a mano (una página por persona) en vez de usar el
+      // "pagebreak" automático de html2pdf.js: ese modo calcula los cortes
+      // sobre una sola imagen larga y dejaba una hoja casi en blanco cada
+      // vez que sobraba espacio de la página anterior. Aquí cada hoja de
+      // persona se captura por separado y se agrega como su propia página
+      // del PDF, sin espacios de sobra.
+      const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
+        import("html2canvas"),
+        import("jspdf"),
+      ]);
+
+      const pageEls = printAreaRef.current.querySelectorAll<HTMLElement>("[data-pdf-page]");
+      const pdf = new jsPDF({ unit: "mm", format: "a4", orientation: "portrait" });
+      const marginMm = 8;
+      const usableWidthMm = 210 - marginMm * 2;
+
+      for (let i = 0; i < pageEls.length; i++) {
+        const canvas = await html2canvas(pageEls[i], { scale: 2, useCORS: true, windowWidth: 700 });
+        const imgData = canvas.toDataURL("image/jpeg", 0.98);
+        const imgHeightMm = (canvas.height * usableWidthMm) / canvas.width;
+        if (i > 0) pdf.addPage();
+        pdf.addImage(imgData, "JPEG", marginMm, marginMm, usableWidthMm, imgHeightMm);
+      }
+
+      pdf.save(`Viaticos-${proposalId}.pdf`);
     } finally {
       setIsDownloading(false);
     }
@@ -741,15 +753,15 @@ export function ProduccionEditor({
         <div ref={printAreaRef} className="w-[700px] bg-white text-black">
           {staff
             .filter((s) => (girosByStaff[s.id] ?? []).length > 0)
-            .map((s, idx, arr) => {
+            .map((s) => {
               const misGiros = girosByStaff[s.id] ?? [];
               const misCategorias = categorizarGiros(misGiros);
               const misTotal = misGiros.reduce((sum, g) => sum + g.monto, 0);
               return (
                 <div
                   key={s.id}
-                  className="border border-neutral-800 p-6"
-                  style={idx < arr.length - 1 ? { pageBreakAfter: "always" } : undefined}
+                  data-pdf-page
+                  className="mb-4 border border-neutral-800 p-6"
                 >
                   <div className="flex items-center justify-between border-b-2 border-neutral-800 pb-3">
                     <span className="text-base font-extrabold tracking-tight text-emerald-700">
