@@ -243,9 +243,9 @@ export function ProduccionEditor({
       await html2pdf()
         .set({
           filename: `Viaticos-${proposalId}.pdf`,
-          margin: 10,
+          margin: 8,
           image: { type: "jpeg", quality: 0.98 },
-          html2canvas: { scale: 2, useCORS: true },
+          html2canvas: { scale: 2, useCORS: true, windowWidth: 700 },
           jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
           // html2pdf sí soporta `pagebreak`, pero sus tipos no lo incluyen.
           ...({ pagebreak: { mode: ["css"] } } as object),
@@ -589,7 +589,7 @@ export function ProduccionEditor({
           categoría (Transporte, Alojamiento, Honorarios, Varios,
           Alimentación) y un espacio de firma — no del formulario de edición. */}
       <div className="fixed left-[-9999px] top-0 -z-10">
-        <div ref={printAreaRef} className="w-[750px] bg-white text-black">
+        <div ref={printAreaRef} className="w-[700px] bg-white text-black">
           {staff
             .filter((s) => (girosByStaff[s.id] ?? []).length > 0)
             .map((s, idx, arr) => {
