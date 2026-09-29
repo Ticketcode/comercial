@@ -23,7 +23,7 @@ export default async function ProduccionEventLayout({
   const client = Array.isArray(proposal.clients) ? proposal.clients[0] : proposal.clients;
 
   return (
-    <div className="mx-auto max-w-6xl px-6 py-10">
+    <div className="mx-auto max-w-[1600px] px-6 py-10">
       <Link href="/produccion" className="no-print text-sm text-neutral-500 hover:underline">
         ← Todos los eventos
       </Link>

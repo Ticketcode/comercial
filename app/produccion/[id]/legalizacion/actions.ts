@@ -15,6 +15,7 @@ async function assertAccess() {
 
 export interface SaveGastoRow {
   id: string;
+  staff_id: string;
   fecha: string | null;
   numero_recibo: string | null;
   tercero: string | null;
@@ -24,24 +25,37 @@ export interface SaveGastoRow {
   sort_order: number;
 }
 
+export interface SaveMetaRow {
+  staff_id: string;
+  responsable: string | null;
+  actividad: string | null;
+  ciudad_elaboracion: string | null;
+  fecha_elaboracion: string | null;
+}
+
 export interface SaveLegalizacionPayload {
   proposalId: string;
-  meta: {
-    responsable: string | null;
-    actividad: string | null;
-    ciudad_elaboracion: string | null;
-    fecha_elaboracion: string | null;
-  };
+  metas: SaveMetaRow[];
   gastos: { existing: SaveGastoRow[]; new: SaveGastoRow[]; deletedIds: string[] };
 }
 
 export async function saveLegalizacion(payload: SaveLegalizacionPayload) {
   const supabase = await assertAccess();
 
-  const { error: metaError } = await supabase
-    .from("legalizacion_meta")
-    .upsert({ proposal_id: payload.proposalId, ...payload.meta });
-  if (metaError) return { error: metaError.message };
+  if (payload.metas.length > 0) {
+    const { error: metaError } = await supabase.from("legalizacion_meta").upsert(
+      payload.metas.map((m) => ({
+        proposal_id: payload.proposalId,
+        staff_id: m.staff_id,
+        responsable: m.responsable,
+        actividad: m.actividad,
+        ciudad_elaboracion: m.ciudad_elaboracion,
+        fecha_elaboracion: m.fecha_elaboracion,
+      })),
+      { onConflict: "proposal_id,staff_id" }
+    );
+    if (metaError) return { error: metaError.message };
+  }
 
   if (payload.gastos.deletedIds.length > 0) {
     const { error } = await supabase
@@ -56,6 +70,7 @@ export async function saveLegalizacion(payload: SaveLegalizacionPayload) {
       supabase
         .from("legalizacion_gastos")
         .update({
+          staff_id: g.staff_id,
           fecha: g.fecha || null,
           numero_recibo: g.numero_recibo,
           tercero: g.tercero,
@@ -74,6 +89,7 @@ export async function saveLegalizacion(payload: SaveLegalizacionPayload) {
     const { error } = await supabase.from("legalizacion_gastos").insert(
       payload.gastos.new.map((g) => ({
         proposal_id: payload.proposalId,
+        staff_id: g.staff_id,
         fecha: g.fecha || null,
         numero_recibo: g.numero_recibo,
         tercero: g.tercero,

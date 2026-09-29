@@ -286,6 +286,7 @@ export interface CuentaCobro {
 
 export interface LegalizacionMeta {
   proposal_id: string;
+  staff_id: string;
   responsable: string | null;
   actividad: string | null;
   ciudad_elaboracion: string | null;
@@ -296,6 +297,7 @@ export interface LegalizacionMeta {
 export interface LegalizacionGasto {
   id: string;
   proposal_id: string;
+  staff_id: string;
   fecha: string | null;
   numero_recibo: string | null;
   tercero: string | null;
@@ -312,6 +314,7 @@ export interface PresupuestoItem {
   proposal_id: string;
   categoria: string;
   nombre: string;
+  iva_aplica: boolean;
   dias_proyectado: number | null;
   cantidad_proyectado: number | null;
   valor_unitario_proyectado: number | null;

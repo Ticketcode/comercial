@@ -8,17 +8,17 @@ export default async function LegalizacionPage({ params }: { params: Promise<{ i
   const { id } = await params;
   const supabase = await createClient();
 
-  const [{ data: meta }, { data: gastos }, { data: anticipos }, { data: staff }] = await Promise.all([
-    supabase.from("legalizacion_meta").select("*").eq("proposal_id", id).maybeSingle(),
+  const [{ data: metas }, { data: gastos }, { data: anticipos }, { data: staff }] = await Promise.all([
+    supabase.from("legalizacion_meta").select("*").eq("proposal_id", id),
     supabase.from("legalizacion_gastos").select("*").eq("proposal_id", id).order("sort_order"),
     supabase.from("viatico_anticipos").select("*").eq("proposal_id", id).order("fecha"),
-    supabase.from("event_staff").select("*").eq("proposal_id", id),
+    supabase.from("event_staff").select("*").eq("proposal_id", id).order("sort_order"),
   ]);
 
   return (
     <LegalizacionEditor
       proposalId={id}
-      meta={meta as LegalizacionMeta | null}
+      initialMetas={(metas ?? []) as LegalizacionMeta[]}
       initialGastos={(gastos ?? []) as LegalizacionGasto[]}
       anticipos={(anticipos ?? []) as ViaticoAnticipo[]}
       staff={(staff ?? []) as EventStaff[]}

@@ -26,6 +26,19 @@ body {
   }
 }
 
+/* Quita las flechas de incremento/decremento de los inputs numéricos en
+   toda la app — no aportan en cuadros densos como Presupuesto/Viáticos y
+   solo restan espacio a columnas angostas. */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
 @media print {
   .no-print {
     display: none !important;

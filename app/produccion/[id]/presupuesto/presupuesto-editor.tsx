@@ -4,7 +4,7 @@ import { useMemo, useState, useTransition } from "react";
 import type { PresupuestoItem, Proposal } from "@/lib/types";
 import { PRESUPUESTO_CATEGORIAS } from "@/lib/data/presupuesto-template";
 import { formatCOP } from "@/lib/pricing/summary";
-import { savePresupuesto, type SavePresupuestoItemRow } from "./actions";
+import { savePresupuesto, pullValoresTarifario, type SavePresupuestoItemRow } from "./actions";
 
 interface Props {
   proposalId: string;
@@ -30,13 +30,44 @@ function num(v: string): number | null {
   return Number.isNaN(n) ? null : n;
 }
 
+const IVA_RATE = 0.19;
+
+/** Total = días × cantidad × valor unitario, + 19% de IVA si el ítem lo
+ * marca. Ya no se digita a mano — se recalcula siempre de estos 4 campos. */
+function calcIvaYTotal(
+  dias: number | null,
+  cantidad: number | null,
+  valorUnitario: number | null,
+  ivaAplica: boolean
+) {
+  const base = (dias ?? 0) * (cantidad ?? 0) * (valorUnitario ?? 0);
+  const iva = ivaAplica ? base * IVA_RATE : 0;
+  return { iva, total: base + iva };
+}
+
 export function PresupuestoEditor({ proposalId, proposal, initialItems }: Props) {
   const [aforoReal, setAforoReal] = useState<number | null>(proposal.aforo_real ?? null);
   const [items, setItems] = useState<PresupuestoItem[]>(initialItems);
   const [deletedIds, setDeletedIds] = useState<string[]>([]);
   const [openCategories, setOpenCategories] = useState<Record<string, boolean>>({});
   const [isPending, startTransition] = useTransition();
+  const [isPulling, setIsPulling] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+
+  async function handlePullTarifario() {
+    setIsPulling(true);
+    setMessage(null);
+    const result = await pullValoresTarifario(proposalId);
+    if (result.error) {
+      setIsPulling(false);
+      setMessage(`Error: ${result.error}`);
+    } else {
+      // El estado del formulario vive en useState desde initialItems — un
+      // router.refresh() no lo vuelve a sincronizar porque el componente ya
+      // está montado, así que se recarga la página entera.
+      window.location.reload();
+    }
+  }
 
   const itemsByCategoria = useMemo(() => {
     const map: Record<string, PresupuestoItem[]> = {};
@@ -59,7 +90,43 @@ export function PresupuestoEditor({ proposalId, proposal, initialItems }: Props)
   }
 
   function patchItem(id: string, patch: Partial<PresupuestoItem>) {
-    setItems((prev) => prev.map((i) => (i.id === id ? { ...i, ...patch } : i)));
+    setItems((prev) =>
+      prev.map((i) => {
+        if (i.id !== id) return i;
+        const next = { ...i, ...patch };
+        if (
+          patch.dias_proyectado !== undefined ||
+          patch.cantidad_proyectado !== undefined ||
+          patch.valor_unitario_proyectado !== undefined ||
+          patch.iva_aplica !== undefined
+        ) {
+          const { iva, total } = calcIvaYTotal(
+            next.dias_proyectado,
+            next.cantidad_proyectado,
+            next.valor_unitario_proyectado,
+            next.iva_aplica
+          );
+          next.iva_proyectado = iva;
+          next.total_proyectado = total;
+        }
+        if (
+          patch.dias_ajustado !== undefined ||
+          patch.cantidad_ajustado !== undefined ||
+          patch.valor_unitario_ajustado !== undefined ||
+          patch.iva_aplica !== undefined
+        ) {
+          const { iva, total } = calcIvaYTotal(
+            next.dias_ajustado,
+            next.cantidad_ajustado,
+            next.valor_unitario_ajustado,
+            next.iva_aplica
+          );
+          next.iva_ajustado = iva;
+          next.total_ajustado = total;
+        }
+        return next;
+      })
+    );
   }
 
   function addItem(categoria: string) {
@@ -70,6 +137,7 @@ export function PresupuestoEditor({ proposalId, proposal, initialItems }: Props)
         proposal_id: proposalId,
         categoria,
         nombre: "",
+        iva_aplica: false,
         dias_proyectado: null,
         cantidad_proyectado: null,
         valor_unitario_proyectado: null,
@@ -103,6 +171,7 @@ export function PresupuestoEditor({ proposalId, proposal, initialItems }: Props)
         id: i.id,
         categoria: i.categoria,
         nombre: i.nombre,
+        iva_aplica: i.iva_aplica,
         dias_proyectado: i.dias_proyectado,
         cantidad_proyectado: i.cantidad_proyectado,
         valor_unitario_proyectado: i.valor_unitario_proyectado,
@@ -136,6 +205,20 @@ export function PresupuestoEditor({ proposalId, proposal, initialItems }: Props)
   return (
     <div className="space-y-6">
       <section className="rounded-xl border border-neutral-200 bg-white p-5">
+        <div className="mb-4 flex items-center justify-between">
+          <p className="text-xs text-neutral-500">
+            Trae los valores de Honorarios, Alimentación, Transporte y Equipos que ya se calcularon
+            en el Tarifario — el resto de los ítems se completan a mano. Todo queda editable.
+          </p>
+          <button
+            type="button"
+            onClick={handlePullTarifario}
+            disabled={isPulling}
+            className="shrink-0 rounded-md border border-neutral-300 px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50 disabled:opacity-50"
+          >
+            {isPulling ? "Trayendo..." : "Traer valores del Tarifario"}
+          </button>
+        </div>
         <div className="grid grid-cols-4 gap-4 text-sm">
           <div>
             <p className="text-xs text-neutral-400">Ciudad</p>
@@ -203,10 +286,31 @@ export function PresupuestoEditor({ proposalId, proposal, initialItems }: Props)
             </button>
             {open && (
               <div className="overflow-x-auto px-4 pb-4">
-                <table className="w-full min-w-[1400px] text-xs">
+                <table className="table-fixed border-collapse text-xs" style={{ width: 1426 }}>
+                  <colgroup>
+                    <col style={{ width: 200 }} />
+                    <col style={{ width: 34 }} />
+                    <col style={{ width: 46 }} />
+                    <col style={{ width: 46 }} />
+                    <col style={{ width: 84 }} />
+                    <col style={{ width: 76 }} />
+                    <col style={{ width: 88 }} />
+                    <col style={{ width: 46 }} />
+                    <col style={{ width: 46 }} />
+                    <col style={{ width: 84 }} />
+                    <col style={{ width: 76 }} />
+                    <col style={{ width: 88 }} />
+                    <col style={{ width: 108 }} />
+                    <col style={{ width: 64 }} />
+                    <col style={{ width: 84 }} />
+                    <col style={{ width: 88 }} />
+                    <col style={{ width: 140 }} />
+                    <col style={{ width: 28 }} />
+                  </colgroup>
                   <thead>
                     <tr className="text-left text-neutral-400">
-                      <th className="w-56 py-1">Ítem</th>
+                      <th className="py-1">Ítem</th>
+                      <th className="py-1 text-center">IVA</th>
                       <th colSpan={5} className="border-l border-neutral-100 py-1 pl-2 text-center">
                         Proyectado inicial
                       </th>
@@ -220,10 +324,11 @@ export function PresupuestoEditor({ proposalId, proposal, initialItems }: Props)
                         Ejecución
                       </th>
                       <th className="border-l border-neutral-100 py-1 pl-2">Comentarios</th>
-                      <th className="w-6"></th>
+                      <th></th>
                     </tr>
                     <tr className="text-left text-neutral-400">
                       <th></th>
+                      <th className="text-center">19%</th>
                       <th className="border-l border-neutral-100 pl-2">Días</th>
                       <th>Cant.</th>
                       <th>Vlr Unit.</th>
@@ -254,6 +359,14 @@ export function PresupuestoEditor({ proposalId, proposal, initialItems }: Props)
                               className={cellInput}
                             />
                           </td>
+                          <td className="py-1 text-center">
+                            <input
+                              type="checkbox"
+                              checked={item.iva_aplica}
+                              onChange={(e) => patchItem(item.id, { iva_aplica: e.target.checked })}
+                              title="Este rubro lleva IVA (19%)"
+                            />
+                          </td>
                           <td className="border-l border-neutral-100 py-1 pl-2 pr-1">
                             <input
                               type="number"
@@ -282,23 +395,11 @@ export function PresupuestoEditor({ proposalId, proposal, initialItems }: Props)
                               className={cellInput}
                             />
                           </td>
-                          <td className="py-1 pr-1">
-                            <input
-                              type="number"
-                              value={item.iva_proyectado ?? ""}
-                              onChange={(e) => patchItem(item.id, { iva_proyectado: num(e.target.value) })}
-                              className={cellInput}
-                            />
+                          <td className="py-1 pr-1 text-right text-neutral-500">
+                            {formatCOP(item.iva_proyectado ?? 0)}
                           </td>
-                          <td className="py-1 pr-1">
-                            <input
-                              type="number"
-                              value={item.total_proyectado ?? 0}
-                              onChange={(e) =>
-                                patchItem(item.id, { total_proyectado: Number(e.target.value) || 0 })
-                              }
-                              className={cellInput}
-                            />
+                          <td className="py-1 pr-1 text-right font-medium text-neutral-700">
+                            {formatCOP(item.total_proyectado ?? 0)}
                           </td>
                           <td className="border-l border-neutral-100 py-1 pl-2 pr-1">
                             <input
@@ -328,23 +429,11 @@ export function PresupuestoEditor({ proposalId, proposal, initialItems }: Props)
                               className={cellInput}
                             />
                           </td>
-                          <td className="py-1 pr-1">
-                            <input
-                              type="number"
-                              value={item.iva_ajustado ?? ""}
-                              onChange={(e) => patchItem(item.id, { iva_ajustado: num(e.target.value) })}
-                              className={cellInput}
-                            />
+                          <td className="py-1 pr-1 text-right text-neutral-500">
+                            {formatCOP(item.iva_ajustado ?? 0)}
                           </td>
-                          <td className="py-1 pr-1">
-                            <input
-                              type="number"
-                              value={item.total_ajustado ?? 0}
-                              onChange={(e) =>
-                                patchItem(item.id, { total_ajustado: Number(e.target.value) || 0 })
-                              }
-                              className={cellInput}
-                            />
+                          <td className="py-1 pr-1 text-right font-medium text-neutral-700">
+                            {formatCOP(item.total_ajustado ?? 0)}
                           </td>
                           <td className="border-l border-neutral-100 py-1 pl-2 pr-1">
                             <input
@@ -360,7 +449,7 @@ export function PresupuestoEditor({ proposalId, proposal, initialItems }: Props)
                             <input
                               value={item.transferido_a ?? ""}
                               onChange={(e) => patchItem(item.id, { transferido_a: e.target.value })}
-                              className={`${cellInput} w-16`}
+                              className={cellInput}
                             />
                           </td>
                           <td className="border-l border-neutral-100 py-1 pl-2 pr-1">
@@ -384,7 +473,7 @@ export function PresupuestoEditor({ proposalId, proposal, initialItems }: Props)
                             <input
                               value={item.comentario ?? ""}
                               onChange={(e) => patchItem(item.id, { comentario: e.target.value })}
-                              className={`${cellInput} w-40`}
+                              className={cellInput}
                             />
                           </td>
                           <td className="py-1">
