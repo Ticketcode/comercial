@@ -1,9 +1,10 @@
 "use client";
 
-import { useMemo, useRef, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import type { EventStaff, ViaticoAnticipo, ViaticoGiro } from "@/lib/types";
 import { formatCOP } from "@/lib/pricing/summary";
 import { formatFechaCorta } from "@/lib/fecha-local";
+import { SaveStatus, useConfirm, useUnsavedChanges } from "@/app/components/ui-guard";
 import { saveProduccion, type SaveStaffRow, type SaveGiroRow, type SaveAnticipoRow } from "./actions";
 
 interface TarifasReferencia {
@@ -64,6 +65,43 @@ export function ProduccionEditor({
   const [isDownloading, setIsDownloading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const printAreaRef = useRef<HTMLDivElement>(null);
+  const confirm = useConfirm();
+  const { dirty, resetTo } = useUnsavedChanges({
+    staff,
+    giros,
+    anticipos,
+    deletedStaffIds,
+    deletedGiroIds,
+    deletedAnticipoIds,
+  });
+  // Tras guardar, las filas nuevas dejan de ser temporales: se adopta lo que quedó en la
+  // base de datos para que un segundo guardado no las inserte otra vez.
+  const awaitingSync = useRef(false);
+  const activeIndexAtSave = useRef(0);
+
+  useEffect(() => {
+    if (!awaitingSync.current) return;
+    awaitingSync.current = false;
+    setStaff(initialStaff);
+    setGiros(initialGiros);
+    setAnticipos(initialAnticipos);
+    setDeletedStaffIds([]);
+    setDeletedGiroIds([]);
+    setDeletedAnticipoIds([]);
+    setActiveStaffId((prev) =>
+      prev && !isTemp(prev) && initialStaff.some((s) => s.id === prev)
+        ? prev
+        : initialStaff[activeIndexAtSave.current]?.id ?? initialStaff[0]?.id ?? null
+    );
+    resetTo({
+      staff: initialStaff,
+      giros: initialGiros,
+      anticipos: initialAnticipos,
+      deletedStaffIds: [],
+      deletedGiroIds: [],
+      deletedAnticipoIds: [],
+    });
+  }, [initialStaff, initialGiros, initialAnticipos, resetTo]);
 
   function categoriaDeRubro(rubro: string | null): Categoria {
     if (!rubro) return "Varios";
@@ -96,7 +134,22 @@ export function ProduccionEditor({
     setStaff((prev) => prev.map((s) => (s.id === id ? { ...s, ...patch } : s)));
   }
 
-  function removeStaff(id: string) {
+  async function removeStaff(id: string) {
+    const nGiros = giros.filter((g) => g.staff_id === id).length;
+    const nAnticipos = anticipos.filter((a) => a.staff_id === id).length;
+    const name = staff.find((s) => s.id === id)?.full_name || "esta persona";
+    if (!isTemp(id) || nGiros > 0 || nAnticipos > 0) {
+      const ok = await confirm({
+        title: `¿Quitar a ${name}?`,
+        message:
+          nGiros + nAnticipos > 0
+            ? `También se quitarán sus ${nGiros} rubro(s) y ${nAnticipos} anticipo(s). El cambio se aplica al pulsar Guardar.`
+            : "El cambio se aplica al pulsar Guardar.",
+        confirmLabel: "Quitar",
+        danger: true,
+      });
+      if (!ok) return;
+    }
     setStaff((prev) => prev.filter((s) => s.id !== id));
     if (!isTemp(id)) setDeletedStaffIds((prev) => [...prev, id]);
     const orphaned = giros.filter((g) => g.staff_id === id);
@@ -157,7 +210,16 @@ export function ProduccionEditor({
     });
   }
 
-  function removeGiro(id: string) {
+  async function removeGiro(id: string) {
+    if (!isTemp(id)) {
+      const ok = await confirm({
+        title: "¿Quitar este rubro?",
+        message: "El cambio se aplica al pulsar Guardar.",
+        confirmLabel: "Quitar",
+        danger: true,
+      });
+      if (!ok) return;
+    }
     setGiros((prev) => prev.filter((g) => g.id !== id));
     if (!isTemp(id)) setDeletedGiroIds((prev) => [...prev, id]);
   }
@@ -183,7 +245,16 @@ export function ProduccionEditor({
     setAnticipos((prev) => prev.map((a) => (a.id === id ? { ...a, ...patch } : a)));
   }
 
-  function removeAnticipo(id: string) {
+  async function removeAnticipo(id: string) {
+    if (!isTemp(id)) {
+      const ok = await confirm({
+        title: "¿Quitar este anticipo?",
+        message: "El cambio se aplica al pulsar Guardar.",
+        confirmLabel: "Quitar",
+        danger: true,
+      });
+      if (!ok) return;
+    }
     setAnticipos((prev) => prev.filter((a) => a.id !== id));
     if (!isTemp(id)) setDeletedAnticipoIds((prev) => [...prev, id]);
   }
@@ -226,6 +297,11 @@ export function ProduccionEditor({
 
   function handleSave() {
     setMessage(null);
+    awaitingSync.current = true;
+    activeIndexAtSave.current = Math.max(
+      0,
+      staff.findIndex((s) => s.id === activeStaffId)
+    );
     startTransition(async () => {
       const toStaffRow = (s: EventStaff): SaveStaffRow => ({
         id: s.id,
@@ -278,12 +354,8 @@ export function ProduccionEditor({
           deletedIds: deletedAnticipoIds,
         },
       });
+      if (result.error) awaitingSync.current = false;
       setMessage(result.error ? `Error: ${result.error}` : "Guardado.");
-      if (!result.error) {
-        setDeletedStaffIds([]);
-        setDeletedGiroIds([]);
-        setDeletedAnticipoIds([]);
-      }
     });
   }
 
@@ -740,7 +812,7 @@ export function ProduccionEditor({
             >
               {isPending ? "Guardando..." : "Guardar"}
             </button>
-            {message && <p className="text-center text-xs text-neutral-500">{message}</p>}
+            <SaveStatus dirty={dirty} isPending={isPending} message={message} className="text-center" />
           </div>
         </div>
       </div>

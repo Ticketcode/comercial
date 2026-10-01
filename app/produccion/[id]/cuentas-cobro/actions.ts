@@ -65,6 +65,18 @@ export async function markFirmada(id: string, proposalId: string, firmada: boole
   return { error: null };
 }
 
+export async function deleteCuentaCobro(id: string, proposalId: string) {
+  const supabase = await assertAccess();
+  const { error } = await supabase
+    .from("cuentas_cobro")
+    .delete()
+    .eq("id", id)
+    .eq("proposal_id", proposalId);
+  if (error) return { error: error.message };
+  revalidatePath(`/produccion/${proposalId}/cuentas-cobro`);
+  return { error: null };
+}
+
 export async function deleteAllCuentasCobro(proposalId: string) {
   const supabase = await assertAccess();
   const { error } = await supabase.from("cuentas_cobro").delete().eq("proposal_id", proposalId);

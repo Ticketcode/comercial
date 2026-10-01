@@ -1,7 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type {
   ActivityChecklistGroup,
   ActivityChecklistItem,
@@ -30,21 +29,30 @@ const MOMENTO_LABEL: Record<string, { label: string; className: string }> = {
   despues_evento: { label: "después del evento", className: "bg-red-700 text-white" },
 };
 
+interface Handlers {
+  onToggleItem: (id: string, completado: boolean) => void;
+  onDeleteItem: (id: string) => void;
+  onAddItem: (groupId: string, texto: string, sortOrder: number) => void;
+  onAddGroup: (activityId: string, nombre: string, sortOrder: number) => void;
+  onPatchActivity: (
+    id: string,
+    patch: { estado?: ActivityEstado; fecha_limite?: string | null; responsable?: string | null }
+  ) => void;
+}
+
 const inputClass =
   "h-8 rounded-md border border-neutral-300 px-2 text-xs outline-none focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900";
 
 function ChecklistGroupBlock({
   group,
   items,
-  proposalId,
+  handlers,
 }: {
   group: ActivityChecklistGroup;
   items: ActivityChecklistItem[];
-  proposalId: string;
+  handlers: Handlers;
 }) {
   const [newText, setNewText] = useState("");
-  const [, startTransition] = useTransition();
-  const router = useRouter();
   const done = items.filter((i) => i.completado).length;
 
   return (
@@ -58,23 +66,13 @@ function ChecklistGroupBlock({
             <input
               type="checkbox"
               checked={item.completado}
-              onChange={(e) =>
-                startTransition(async () => {
-                  await toggleChecklistItem(item.id, proposalId, e.target.checked);
-                  router.refresh();
-                })
-              }
+              onChange={(e) => handlers.onToggleItem(item.id, e.target.checked)}
               className="h-3.5 w-3.5"
             />
             <span className={item.completado ? "text-neutral-400 line-through" : ""}>{item.texto}</span>
             <button
               type="button"
-              onClick={() =>
-                startTransition(async () => {
-                  await deleteChecklistItem(item.id, proposalId);
-                  router.refresh();
-                })
-              }
+              onClick={() => handlers.onDeleteItem(item.id)}
               className="ml-auto text-neutral-300 hover:text-red-600"
             >
               ✕
@@ -86,11 +84,8 @@ function ChecklistGroupBlock({
         onSubmit={(e) => {
           e.preventDefault();
           if (!newText.trim()) return;
-          startTransition(async () => {
-            await addChecklistItem(group.id, proposalId, newText.trim(), items.length);
-            setNewText("");
-            router.refresh();
-          });
+          handlers.onAddItem(group.id, newText.trim(), items.length);
+          setNewText("");
         }}
         className="mt-2 flex gap-1"
       >
@@ -109,17 +104,15 @@ function ActivityRow({
   activity,
   groups,
   itemsByGroup,
-  proposalId,
+  handlers,
 }: {
   activity: ProposalActivity;
   groups: ActivityChecklistGroup[];
   itemsByGroup: Record<string, ActivityChecklistItem[]>;
-  proposalId: string;
+  handlers: Handlers;
 }) {
   const [open, setOpen] = useState(false);
   const [newGroupName, setNewGroupName] = useState("");
-  const [, startTransition] = useTransition();
-  const router = useRouter();
 
   const totalItems = groups.reduce((s, g) => s + (itemsByGroup[g.id]?.length ?? 0), 0);
   const doneItems = groups.reduce(
@@ -163,34 +156,31 @@ function ActivityRow({
           type="text"
           placeholder="Responsable"
           defaultValue={activity.responsable ?? ""}
-          onBlur={(e) =>
-            startTransition(async () => {
-              await updateActivity(activity.id, proposalId, { responsable: e.target.value || null });
-              router.refresh();
-            })
-          }
+          onBlur={(e) => {
+            const value = e.target.value || null;
+            if (value !== (activity.responsable ?? null)) {
+              handlers.onPatchActivity(activity.id, { responsable: value });
+            }
+          }}
           className={`${inputClass} w-28`}
         />
         <input
           type="date"
           defaultValue={activity.fecha_limite ?? ""}
-          onBlur={(e) =>
-            startTransition(async () => {
-              await updateActivity(activity.id, proposalId, { fecha_limite: e.target.value || null });
-              router.refresh();
-            })
-          }
+          onBlur={(e) => {
+            const value = e.target.value || null;
+            if (value !== (activity.fecha_limite ?? null)) {
+              handlers.onPatchActivity(activity.id, { fecha_limite: value });
+            }
+          }}
           className={inputClass}
         />
         <button
           type="button"
           title={activity.estado === "completada" ? "Marcar como pendiente" : "Marcar como completada"}
           onClick={() =>
-            startTransition(async () => {
-              const nextEstado: ActivityEstado =
-                activity.estado === "completada" ? "pendiente" : "completada";
-              await updateActivity(activity.id, proposalId, { estado: nextEstado });
-              router.refresh();
+            handlers.onPatchActivity(activity.id, {
+              estado: activity.estado === "completada" ? "pendiente" : "completada",
             })
           }
           className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2 text-xs font-bold transition-colors ${
@@ -210,18 +200,15 @@ function ActivityRow({
               key={g.id}
               group={g}
               items={itemsByGroup[g.id] ?? []}
-              proposalId={proposalId}
+              handlers={handlers}
             />
           ))}
           <form
             onSubmit={(e) => {
               e.preventDefault();
               if (!newGroupName.trim()) return;
-              startTransition(async () => {
-                await addChecklistGroup(activity.id, proposalId, newGroupName.trim(), groups.length);
-                setNewGroupName("");
-                router.refresh();
-              });
+              handlers.onAddGroup(activity.id, newGroupName.trim(), groups.length);
+              setNewGroupName("");
             }}
           >
             <input
@@ -237,7 +224,80 @@ function ActivityRow({
   );
 }
 
-export function ActividadesEditor({ proposalId, activities, groups, items }: Props) {
+export function ActividadesEditor({
+  proposalId,
+  activities: activitiesProp,
+  groups: groupsProp,
+  items: itemsProp,
+}: Props) {
+  // Estado local: los cambios se ven al instante y se guardan por detrás.
+  const [activities, setActivities] = useState(activitiesProp);
+  const [groups, setGroups] = useState(groupsProp);
+  const [items, setItems] = useState(itemsProp);
+  const [error, setError] = useState<string | null>(null);
+  const pending = useRef(0);
+
+  // Cuando llegan datos frescos del servidor y no hay guardados en curso, se adoptan.
+  useEffect(() => {
+    if (pending.current > 0) return;
+    setActivities(activitiesProp);
+    setGroups(groupsProp);
+    setItems(itemsProp);
+  }, [activitiesProp, groupsProp, itemsProp]);
+
+  function save(action: () => Promise<{ error: string | null }>) {
+    pending.current += 1;
+    action()
+      .then((r) => {
+        if (r.error) throw new Error(r.error);
+      })
+      .catch((e: unknown) => {
+        setError(
+          `No se pudo guardar el cambio: ${e instanceof Error ? e.message : "error"}. Recarga la página.`
+        );
+        setActivities(activitiesProp);
+        setGroups(groupsProp);
+        setItems(itemsProp);
+      })
+      .finally(() => {
+        pending.current -= 1;
+      });
+  }
+
+  const handlers: Handlers = {
+    onToggleItem(id, completado) {
+      setError(null);
+      setItems((prev) => prev.map((i) => (i.id === id ? { ...i, completado } : i)));
+      save(() => toggleChecklistItem(id, proposalId, completado));
+    },
+    onDeleteItem(id) {
+      setError(null);
+      setItems((prev) => prev.filter((i) => i.id !== id));
+      save(() => deleteChecklistItem(id, proposalId));
+    },
+    onAddItem(groupId, texto, sortOrder) {
+      setError(null);
+      setItems((prev) => [
+        ...prev,
+        { id: `tmp-${Date.now()}`, group_id: groupId, texto, completado: false, sort_order: sortOrder },
+      ]);
+      save(() => addChecklistItem(groupId, proposalId, texto, sortOrder));
+    },
+    onAddGroup(activityId, nombre, sortOrder) {
+      setError(null);
+      setGroups((prev) => [
+        ...prev,
+        { id: `tmp-${Date.now()}`, activity_id: activityId, nombre, sort_order: sortOrder },
+      ]);
+      save(() => addChecklistGroup(activityId, proposalId, nombre, sortOrder));
+    },
+    onPatchActivity(id, patch) {
+      setError(null);
+      setActivities((prev) => prev.map((a) => (a.id === id ? { ...a, ...patch } : a)));
+      save(() => updateActivity(id, proposalId, patch));
+    },
+  };
+
   const itemsByGroup = useMemo(() => {
     const map: Record<string, ActivityChecklistItem[]> = {};
     for (const item of items) {
@@ -270,6 +330,7 @@ export function ActividadesEditor({ proposalId, activities, groups, items }: Pro
 
   return (
     <div className="space-y-4">
+      {error && <p className="rounded-md bg-red-50 p-3 text-xs text-red-700">{error}</p>}
       {ACTIVITY_CATEGORIES.map((cat) => {
         const catActivities = activitiesByCategoria[cat.key] ?? [];
         if (catActivities.length === 0) return null;
@@ -298,7 +359,7 @@ export function ActividadesEditor({ proposalId, activities, groups, items }: Pro
                     activity={a}
                     groups={groupsByActivity[a.id] ?? []}
                     itemsByGroup={itemsByGroup}
-                    proposalId={proposalId}
+                    handlers={handlers}
                   />
                 ))}
               </div>

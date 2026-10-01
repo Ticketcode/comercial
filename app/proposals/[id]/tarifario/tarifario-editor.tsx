@@ -10,6 +10,7 @@ import type {
 } from "@/lib/pricing/logistics";
 import { staffingForAforo, logisticosPorSalon, totalLogisticosSalones } from "@/lib/pricing/logistics";
 import { computeTarifarioSummary, formatCOP } from "@/lib/pricing/summary";
+import { SaveStatus, useUnsavedChanges } from "@/app/components/ui-guard";
 import { saveTarifario, type SaveTarifarioPayload } from "./actions";
 
 interface Props {
@@ -87,6 +88,13 @@ export function TarifarioEditor({
   const [logisticsOverrides, setLogisticsOverrides] = useState<
     Record<string, { dias?: number; quantity?: number }>
   >(() => proposal.logistics_overrides ?? {});
+
+  const { dirty, snapshot, markSaved } = useUnsavedChanges({
+    eventFields,
+    serviceRows,
+    salonesAforos,
+    logisticsOverrides,
+  });
 
   function setOverride(label: string, field: "dias" | "quantity", value: number | null) {
     setLogisticsOverrides((prev) => {
@@ -200,6 +208,7 @@ export function TarifarioEditor({
 
   function handleSave() {
     setMessage(null);
+    const snap = snapshot();
     startTransition(async () => {
       const result = await saveTarifario({
         proposalId: proposal.id,
@@ -208,6 +217,7 @@ export function TarifarioEditor({
         salonesInternosAforos: salonesAforos,
         logisticsOverrides,
       });
+      if (!result.error) markSaved(snap);
       setMessage(result.error ? `Error: ${result.error}` : "Guardado.");
     });
   }
@@ -597,11 +607,7 @@ export function TarifarioEditor({
           >
             {isPending ? "Guardando..." : "Guardar tarifario"}
           </button>
-          {message && (
-            <p className={`text-sm ${message.startsWith("Error") ? "text-red-600" : "text-emerald-600"}`}>
-              {message}
-            </p>
-          )}
+          <SaveStatus dirty={dirty} isPending={isPending} message={message} />
         </div>
       </div>
     </div>

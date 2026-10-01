@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useTransition } from "react";
 import type { CatalogItem, LogisticsRateItem, PriceScaleItem } from "@/lib/types";
+import { SaveStatus, useUnsavedChanges } from "@/app/components/ui-guard";
 import { saveCatalog } from "./actions";
 
 const SCALE_GROUP_LABELS: Record<PriceScaleItem["scale_group"], string> = {
@@ -89,10 +90,17 @@ export function CatalogEditor({
   const [isPending, startTransition] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
 
+  const { dirty, snapshot, markSaved } = useUnsavedChanges({
+    logisticsPrices,
+    servicePrices,
+    scaleValues,
+  });
+
   const scaleGroups = Array.from(new Set(priceScaleItems.map((i) => i.scale_group)));
 
   function handleSave() {
     setMessage(null);
+    const snap = snapshot();
     startTransition(async () => {
       const result = await saveCatalog({
         logisticsItems: logisticsItems.map((i) => ({
@@ -108,6 +116,7 @@ export function CatalogEditor({
           unit_value: scaleValues[i.id],
         })),
       });
+      if (!result.error) markSaved(snap);
       setMessage(result.error ? `Error: ${result.error}` : "Guardado.");
     });
   }
@@ -235,15 +244,7 @@ export function CatalogEditor({
         >
           {isPending ? "Guardando..." : "Guardar catálogo"}
         </button>
-        {message && (
-          <span
-            className={`text-sm ${
-              message.startsWith("Error") ? "text-red-600" : "text-emerald-600"
-            }`}
-          >
-            {message}
-          </span>
-        )}
+        <SaveStatus dirty={dirty} isPending={isPending} message={message} className="text-sm" />
       </div>
     </div>
   );

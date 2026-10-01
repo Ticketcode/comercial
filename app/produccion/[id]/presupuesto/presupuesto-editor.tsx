@@ -1,9 +1,10 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import type { PresupuestoItem, Proposal } from "@/lib/types";
 import { PRESUPUESTO_CATEGORIAS } from "@/lib/data/presupuesto-template";
 import { formatCOP } from "@/lib/pricing/summary";
+import { SaveStatus, useConfirm, useUnsavedChanges } from "@/app/components/ui-guard";
 import { savePresupuesto, pullValoresTarifario, type SavePresupuestoItemRow } from "./actions";
 
 interface Props {
@@ -53,8 +54,31 @@ export function PresupuestoEditor({ proposalId, proposal, initialItems }: Props)
   const [isPending, startTransition] = useTransition();
   const [isPulling, setIsPulling] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const confirm = useConfirm();
+  const { dirty, markSaved, resetTo } = useUnsavedChanges({ aforoReal, items, deletedIds });
+  // Tras guardar, las líneas nuevas dejan de ser temporales: se adopta lo guardado en la base
+  // de datos para que un segundo guardado no las inserte otra vez.
+  const awaitingSync = useRef(false);
+
+  useEffect(() => {
+    if (!awaitingSync.current) return;
+    awaitingSync.current = false;
+    setItems(initialItems);
+    setDeletedIds([]);
+    setAforoReal(proposal.aforo_real ?? null);
+    resetTo({ aforoReal: proposal.aforo_real ?? null, items: initialItems, deletedIds: [] });
+  }, [initialItems, proposal.aforo_real, resetTo]);
 
   async function handlePullTarifario() {
+    const ok = await confirm({
+      title: "¿Traer los valores del Tarifario?",
+      message:
+        "Se reemplazan los valores de \"Proyectado inicial\" de los ítems que coinciden con el Tarifario (Honorarios, Alimentación, Transporte y Equipos). Si algún ítem no tiene ajustes, también se actualiza su \"Presupuesto ajustado\"." +
+        (dirty ? "\n\nTienes cambios sin guardar en esta pantalla y se perderán." : ""),
+      confirmLabel: "Traer valores",
+      danger: dirty,
+    });
+    if (!ok) return;
     setIsPulling(true);
     setMessage(null);
     const result = await pullValoresTarifario(proposalId);
@@ -65,6 +89,7 @@ export function PresupuestoEditor({ proposalId, proposal, initialItems }: Props)
       // El estado del formulario vive en useState desde initialItems — un
       // router.refresh() no lo vuelve a sincronizar porque el componente ya
       // está montado, así que se recarga la página entera.
+      markSaved(); // el usuario ya aceptó perder los cambios: evita el aviso del navegador
       window.location.reload();
     }
   }
@@ -159,13 +184,24 @@ export function PresupuestoEditor({ proposalId, proposal, initialItems }: Props)
     ]);
   }
 
-  function removeItem(id: string) {
+  async function removeItem(id: string) {
+    if (!isTemp(id)) {
+      const nombre = items.find((i) => i.id === id)?.nombre || "esta línea";
+      const ok = await confirm({
+        title: `¿Quitar "${nombre}"?`,
+        message: "El cambio se aplica al pulsar Guardar.",
+        confirmLabel: "Quitar",
+        danger: true,
+      });
+      if (!ok) return;
+    }
     setItems((prev) => prev.filter((i) => i.id !== id));
     if (!isTemp(id)) setDeletedIds((prev) => [...prev, id]);
   }
 
   function handleSave() {
     setMessage(null);
+    awaitingSync.current = true;
     startTransition(async () => {
       const toRow = (i: PresupuestoItem): SavePresupuestoItemRow => ({
         id: i.id,
@@ -197,8 +233,8 @@ export function PresupuestoEditor({ proposalId, proposal, initialItems }: Props)
           deletedIds,
         },
       });
+      if (result.error) awaitingSync.current = false;
       setMessage(result.error ? `Error: ${result.error}` : "Guardado.");
-      if (!result.error) setDeletedIds([]);
     });
   }
 
@@ -512,7 +548,7 @@ export function PresupuestoEditor({ proposalId, proposal, initialItems }: Props)
         >
           {isPending ? "Guardando..." : "Guardar"}
         </button>
-        {message && <p className="text-xs text-neutral-500">{message}</p>}
+        <SaveStatus dirty={dirty} isPending={isPending} message={message} />
       </div>
     </div>
   );

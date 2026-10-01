@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import type { EventStaff, LegalizacionGasto, LegalizacionMeta, ViaticoAnticipo } from "@/lib/types";
 import { formatCOP } from "@/lib/pricing/summary";
 import { formatFechaCorta } from "@/lib/fecha-local";
+import { SaveStatus, useConfirm, useUnsavedChanges } from "@/app/components/ui-guard";
 import { saveLegalizacionPersona, type SaveGastoRow } from "./actions";
 
 interface Props {
@@ -60,6 +61,34 @@ export function LegalizarForm({
   const [deletedIds, setDeletedIds] = useState<string[]>([]);
   const [isPending, startTransition] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
+  const confirm = useConfirm();
+  const { dirty, resetTo } = useUnsavedChanges({
+    responsable,
+    actividad,
+    ciudadElaboracion,
+    fechaElaboracion,
+    gastos,
+    deletedIds,
+  });
+  // Tras guardar, los gastos nuevos dejan de ser temporales: se adopta lo guardado en la base
+  // de datos para que guardar otra vez no los inserte duplicados.
+  const awaitingSync = useRef(false);
+
+  useEffect(() => {
+    if (!awaitingSync.current) return;
+    awaitingSync.current = false;
+    setGastos(initialGastos);
+    setDeletedIds([]);
+    resetTo({
+      responsable,
+      actividad,
+      ciudadElaboracion,
+      fechaElaboracion,
+      gastos: initialGastos,
+      deletedIds: [],
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialGastos]);
 
   const totalAnticipo = anticipos.reduce((s, a) => s + a.valor, 0);
   const totalSoportes = gastos.reduce((s, g) => s + g.valor, 0);
@@ -89,13 +118,23 @@ export function LegalizarForm({
     setGastos((prev) => prev.map((g) => (g.id === id ? { ...g, ...patch } : g)));
   }
 
-  function removeGasto(id: string) {
+  async function removeGasto(id: string) {
+    if (!isTemp(id)) {
+      const ok = await confirm({
+        title: "¿Quitar este gasto?",
+        message: "El cambio se aplica al pulsar Guardar.",
+        confirmLabel: "Quitar",
+        danger: true,
+      });
+      if (!ok) return;
+    }
     setGastos((prev) => prev.filter((g) => g.id !== id));
     if (!isTemp(id)) setDeletedIds((prev) => [...prev, id]);
   }
 
   function handleSave() {
     setMessage(null);
+    awaitingSync.current = true;
     startTransition(async () => {
       const toRow = (g: LegalizacionGasto): SaveGastoRow => ({
         id: g.id,
@@ -122,8 +161,8 @@ export function LegalizarForm({
           deletedIds,
         },
       });
-      setMessage(result.error ? `Error: ${result.error}` : "Guardado ✓ — puedes seguir editando si falta algo.");
-      if (!result.error) setDeletedIds([]);
+      if (result.error) awaitingSync.current = false;
+      setMessage(result.error ? `Error: ${result.error}` : "Guardado — puedes seguir editando si falta algo.");
     });
   }
 
@@ -309,7 +348,7 @@ export function LegalizarForm({
       >
         {isPending ? "Guardando..." : "Guardar mi legalización"}
       </button>
-      {message && <p className="text-center text-xs text-neutral-500">{message}</p>}
+      <SaveStatus dirty={dirty} isPending={isPending} message={message} className="text-center" />
     </div>
   );
 }

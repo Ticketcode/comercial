@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import type {
   CatalogItem,
   Proposal,
@@ -12,6 +12,7 @@ import type {
 } from "@/lib/types";
 import type { TarifarioSummary } from "@/lib/pricing/summary";
 import { applyCommercialDiscount, formatCOP } from "@/lib/pricing/summary";
+import { SaveStatus, useConfirm, useUnsavedChanges } from "@/app/components/ui-guard";
 import { savePropuesta } from "./actions";
 import { addMilestone, removeMilestone, updateMilestonePct, type Milestone } from "./milestones";
 
@@ -121,6 +122,51 @@ export function PropuestaEditor({
   const [message, setMessage] = useState<string | null>(null);
   const [isDownloading, setIsDownloading] = useState(false);
   const printAreaRef = useRef<HTMLDivElement>(null);
+  const confirm = useConfirm();
+  const { dirty, resetTo } = useUnsavedChanges({
+    lugar,
+    selections,
+    agreementRows,
+    globalPct,
+    scheduleRows,
+    deletedScheduleIds,
+    milestones,
+    deletedMilestoneIds,
+    requirements,
+    deletedRequirementIds,
+  });
+  // Tras guardar, las filas nuevas dejan de ser temporales: se adopta lo guardado en la base
+  // de datos para que un segundo guardado no las inserte otra vez.
+  const awaitingSync = useRef(false);
+
+  useEffect(() => {
+    if (!awaitingSync.current) return;
+    awaitingSync.current = false;
+    const next = {
+      lugar: proposal.lugar ?? "",
+      selections: Object.fromEntries(initialSelections.map((s) => [s.catalog_item_id, { ...s }])),
+      agreementRows: initialAgreementItems.map((a) => ({ ...a })),
+      globalPct: Number(proposal.acuerdo_comercial_pct_global),
+      scheduleRows: initialScheduleItems.map((s) => ({ ...s })),
+      deletedScheduleIds: [] as string[],
+      milestones: initialMilestones.map((m) => ({ ...m, pct: Number(m.pct) })),
+      deletedMilestoneIds: [] as string[],
+      requirements: initialRequirements.map((r) => ({ ...r })),
+      deletedRequirementIds: [] as string[],
+    };
+    setLugar(next.lugar);
+    setSelections(next.selections);
+    setAgreementRows(next.agreementRows);
+    setGlobalPct(next.globalPct);
+    setScheduleRows(next.scheduleRows);
+    setDeletedScheduleIds(next.deletedScheduleIds);
+    setMilestones(next.milestones);
+    setDeletedMilestoneIds(next.deletedMilestoneIds);
+    setRequirements(next.requirements);
+    setDeletedRequirementIds(next.deletedRequirementIds);
+    resetTo(next);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialScheduleItems, initialMilestones, initialRequirements]);
 
   async function handleDownloadPdf() {
     if (!printAreaRef.current) return;
@@ -180,12 +226,30 @@ export function PropuestaEditor({
     ]);
   }
 
-  function removeScheduleRow(id: string) {
+  async function removeScheduleRow(id: string) {
+    if (!id.startsWith("new-")) {
+      const ok = await confirm({
+        title: "¿Quitar este hito del cronograma?",
+        message: "El cambio se aplica al pulsar Guardar propuesta.",
+        confirmLabel: "Quitar",
+        danger: true,
+      });
+      if (!ok) return;
+    }
     setScheduleRows((prev) => prev.filter((s) => s.id !== id));
     if (!id.startsWith("new-")) setDeletedScheduleIds((prev) => [...prev, id]);
   }
 
-  function removeMilestoneRow(id: string) {
+  async function removeMilestoneRow(id: string) {
+    if (!id.startsWith("new-")) {
+      const ok = await confirm({
+        title: "¿Quitar este hito de pago?",
+        message: "Los porcentajes se reajustan. El cambio se aplica al pulsar Guardar propuesta.",
+        confirmLabel: "Quitar",
+        danger: true,
+      });
+      if (!ok) return;
+    }
     setMilestones((prev) => removeMilestone(prev, id));
     if (!id.startsWith("new-")) setDeletedMilestoneIds((prev) => [...prev, id]);
   }
@@ -197,13 +261,23 @@ export function PropuestaEditor({
     ]);
   }
 
-  function removeRequirement(id: string) {
+  async function removeRequirement(id: string) {
+    if (!id.startsWith("new-")) {
+      const ok = await confirm({
+        title: "¿Quitar este requerimiento?",
+        message: "El cambio se aplica al pulsar Guardar propuesta.",
+        confirmLabel: "Quitar",
+        danger: true,
+      });
+      if (!ok) return;
+    }
     setRequirements((prev) => prev.filter((r) => r.id !== id));
     if (!id.startsWith("new-")) setDeletedRequirementIds((prev) => [...prev, id]);
   }
 
   function handleSave() {
     setMessage(null);
+    awaitingSync.current = true;
     startTransition(async () => {
       const existingSchedule = scheduleRows.filter((s) => !s.id.startsWith("new-"));
       const newSchedule = scheduleRows.filter((s) => s.id.startsWith("new-"));
@@ -242,6 +316,7 @@ export function PropuestaEditor({
           deletedIds: deletedRequirementIds,
         },
       });
+      if (result.error) awaitingSync.current = false;
       setMessage(result.error ? `Error: ${result.error}` : "Guardado.");
     });
   }
@@ -604,11 +679,7 @@ export function PropuestaEditor({
         >
           {isPending ? "Guardando..." : "Guardar propuesta"}
         </button>
-        {message && (
-          <span className={`text-sm ${message.startsWith("Error") ? "text-red-600" : "text-emerald-600"}`}>
-            {message}
-          </span>
-        )}
+        <SaveStatus dirty={dirty} isPending={isPending} message={message} />
       </div>
     </div>
   );

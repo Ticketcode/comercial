@@ -1,11 +1,48 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
+import { useConfirm } from "@/app/components/ui-guard";
 import { useRouter } from "next/navigation";
 import type { CuentaCobro } from "@/lib/types";
 import { formatCOP } from "@/lib/pricing/summary";
 import { formatFechaCorta } from "@/lib/fecha-local";
-import { uploadCuentasCobro, markFirmada, deleteAllCuentasCobro } from "./actions";
+import {
+  uploadCuentasCobro,
+  markFirmada,
+  deleteAllCuentasCobro,
+  deleteCuentaCobro,
+} from "./actions";
+
+async function downloadTemplate() {
+  const xlsx = await import("xlsx");
+  const headers = [
+    "Nombre",
+    "Cédula",
+    "Ciudad de expedición",
+    "Banco",
+    "Tipo de cuenta",
+    "Número de cuenta",
+    "Concepto",
+    "Valor",
+    "Ciudad del evento",
+  ];
+  const ejemplo = [
+    "Juan Pérez",
+    "1234567890",
+    "Bogotá",
+    "Bancolombia",
+    "Ahorros",
+    "12345678901",
+    "Apoyo logístico en evento",
+    500000,
+    "Medellín",
+  ];
+  const ws = xlsx.utils.aoa_to_sheet([headers, ejemplo]);
+  ws["!cols"] = headers.map((h) => ({ wch: Math.max(h.length + 4, 18) }));
+  const wb = xlsx.utils.book_new();
+  xlsx.utils.book_append_sheet(wb, ws, "Cuentas de cobro");
+  xlsx.writeFile(wb, "plantilla-cuentas-de-cobro.xlsx");
+}
 
 export function CuentasCobroEditor({
   proposalId,
@@ -17,8 +54,11 @@ export function CuentasCobroEditor({
   const [isPending, startTransition] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  // "all" o el id de la cuenta que está esperando confirmación de borrado
+  const [confirming, setConfirming] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
+  const confirm = useConfirm();
 
   function copySignLink(id: string) {
     const url = `${window.location.origin}/firmar/${id}`;
@@ -28,13 +68,74 @@ export function CuentasCobroEditor({
     });
   }
 
+  function runDelete(target: string) {
+    setMessage(null);
+    startTransition(async () => {
+      try {
+        const result =
+          target === "all"
+            ? await deleteAllCuentasCobro(proposalId)
+            : await deleteCuentaCobro(target, proposalId);
+        if (result.error) setMessage(`Error al borrar: ${result.error}`);
+        else
+          setMessage(
+            target === "all" ? "Se borraron todas las cuentas de cobro." : "Cuenta de cobro borrada."
+          );
+      } catch (err) {
+        setMessage(`Error al borrar: ${err instanceof Error ? err.message : "no se pudo borrar."}`);
+      }
+      setConfirming(null);
+      router.refresh();
+    });
+  }
+
+  function renderDelete(target: string, label: string, className: string) {
+    if (confirming === target) {
+      return (
+        <span className="inline-flex items-center gap-1 text-xs">
+          <span className="text-neutral-600">¿Seguro?</span>
+          <button
+            type="button"
+            disabled={isPending}
+            onClick={() => runDelete(target)}
+            style={{ backgroundColor: "#dc2626", color: "#ffffff" }}
+            className="rounded px-2 py-1 font-medium hover:opacity-90 disabled:opacity-50"
+          >
+            Sí, borrar
+          </button>
+          <button
+            type="button"
+            onClick={() => setConfirming(null)}
+            className="rounded border border-neutral-300 px-2 py-1 text-neutral-600 hover:bg-neutral-50"
+          >
+            No
+          </button>
+        </span>
+      );
+    }
+    return (
+      <button type="button" onClick={() => setConfirming(target)} className={className}>
+        {label}
+      </button>
+    );
+  }
+
   const totalValor = cuentas.reduce((s, c) => s + c.valor, 0);
   const firmadas = cuentas.filter((c) => c.estado === "firmada").length;
 
-  function handleUpload(e: React.FormEvent<HTMLFormElement>) {
+  async function handleUpload(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const file = fileInputRef.current?.files?.[0];
     if (!file) return;
+    if (cuentas.length > 0) {
+      const ok = await confirm({
+        title: "¿Reemplazar las cuentas de cobro actuales?",
+        message: `Este evento ya tiene ${cuentas.length} cuenta(s) de cobro cargadas (${firmadas} firmada(s)). Al subir este archivo se reemplazan todas, y las firmas ya registradas se pierden.`,
+        confirmLabel: "Reemplazar",
+        danger: true,
+      });
+      if (!ok) return;
+    }
     const formData = new FormData();
     formData.append("file", file);
     setMessage(null);
@@ -76,6 +177,13 @@ export function CuentasCobroEditor({
             {isPending ? "Procesando..." : "Cargar archivo"}
           </button>
         </form>
+        <button
+          type="button"
+          onClick={downloadTemplate}
+          className="mt-3 text-xs font-medium text-neutral-700 underline hover:text-neutral-900"
+        >
+          Descargar plantilla de Excel
+        </button>
         {message && <p className="mt-2 text-xs text-neutral-600">{message}</p>}
       </section>
 
@@ -92,18 +200,11 @@ export function CuentasCobroEditor({
               >
                 Descargar paquete .docx
               </a>
-              <button
-                type="button"
-                onClick={() =>
-                  startTransition(async () => {
-                    await deleteAllCuentasCobro(proposalId);
-                    router.refresh();
-                  })
-                }
-                className="rounded-md border border-neutral-300 px-3 py-2 text-xs font-medium text-neutral-500 hover:bg-neutral-50"
-              >
-                Borrar todas
-              </button>
+              {renderDelete(
+                "all",
+                "Borrar todas",
+                "rounded-md border border-neutral-300 px-3 py-2 text-xs font-medium text-neutral-500 hover:bg-neutral-50"
+              )}
             </div>
           </div>
           <p className="mb-3 text-xs text-neutral-500">
@@ -117,6 +218,7 @@ export function CuentasCobroEditor({
                 <th className="py-2">Concepto</th>
                 <th className="py-2 text-right">Valor</th>
                 <th className="w-48 py-2">Firma</th>
+                <th className="w-44 py-2"></th>
               </tr>
             </thead>
             <tbody>
@@ -166,6 +268,9 @@ export function CuentasCobroEditor({
                         </button>
                       </div>
                     )}
+                  </td>
+                  <td className="py-1.5 text-right">
+                    {renderDelete(c.id, "Borrar", "text-xs text-red-500 hover:text-red-700")}
                   </td>
                 </tr>
               ))}

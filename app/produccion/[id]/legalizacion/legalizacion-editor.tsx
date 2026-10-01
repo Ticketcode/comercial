@@ -1,9 +1,10 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import type { EventStaff, LegalizacionGasto, LegalizacionMeta, ViaticoAnticipo } from "@/lib/types";
 import { formatCOP } from "@/lib/pricing/summary";
 import { formatFechaCorta } from "@/lib/fecha-local";
+import { SaveStatus, useConfirm, useUnsavedChanges } from "@/app/components/ui-guard";
 import { saveLegalizacion, type SaveGastoRow, type SaveMetaRow } from "./actions";
 
 interface Props {
@@ -44,6 +45,23 @@ function isTemp(id: string) {
   return id.startsWith("temp-");
 }
 
+function buildMetaByStaff(staff: EventStaff[], metas: LegalizacionMeta[]): Record<string, MetaFields> {
+  return Object.fromEntries(
+    staff.map((s) => {
+      const m = metas.find((m) => m.staff_id === s.id);
+      return [
+        s.id,
+        {
+          responsable: m?.responsable ?? s.full_name ?? "",
+          actividad: m?.actividad ?? "Producción",
+          ciudad_elaboracion: m?.ciudad_elaboracion ?? "",
+          fecha_elaboracion: m?.fecha_elaboracion ?? "",
+        },
+      ];
+    })
+  );
+}
+
 export function LegalizacionEditor({
   proposalId,
   initialMetas,
@@ -62,25 +80,27 @@ export function LegalizacionEditor({
     });
   }
   const [metaByStaff, setMetaByStaff] = useState<Record<string, MetaFields>>(() =>
-    Object.fromEntries(
-      staff.map((s) => {
-        const m = initialMetas.find((m) => m.staff_id === s.id);
-        return [
-          s.id,
-          {
-            responsable: m?.responsable ?? s.full_name ?? "",
-            actividad: m?.actividad ?? "Producción",
-            ciudad_elaboracion: m?.ciudad_elaboracion ?? "",
-            fecha_elaboracion: m?.fecha_elaboracion ?? "",
-          },
-        ];
-      })
-    )
+    buildMetaByStaff(staff, initialMetas)
   );
   const [gastos, setGastos] = useState<LegalizacionGasto[]>(initialGastos);
   const [deletedIds, setDeletedIds] = useState<string[]>([]);
   const [isPending, startTransition] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
+  const confirm = useConfirm();
+  const { dirty, resetTo } = useUnsavedChanges({ metaByStaff, gastos, deletedIds });
+  // Tras guardar, los gastos nuevos dejan de ser temporales: se adopta lo guardado en la base
+  // de datos para que un segundo guardado no los inserte otra vez.
+  const awaitingSync = useRef(false);
+
+  useEffect(() => {
+    if (!awaitingSync.current) return;
+    awaitingSync.current = false;
+    const metas = buildMetaByStaff(staff, initialMetas);
+    setMetaByStaff(metas);
+    setGastos(initialGastos);
+    setDeletedIds([]);
+    resetTo({ metaByStaff: metas, gastos: initialGastos, deletedIds: [] });
+  }, [initialMetas, initialGastos, staff, resetTo]);
 
   function patchMeta(staffId: string, patch: Partial<MetaFields>) {
     setMetaByStaff((prev) => ({ ...prev, [staffId]: { ...prev[staffId], ...patch } }));
@@ -146,13 +166,23 @@ export function LegalizacionEditor({
     setGastos((prev) => prev.map((g) => (g.id === id ? { ...g, ...patch } : g)));
   }
 
-  function removeGasto(id: string) {
+  async function removeGasto(id: string) {
+    if (!isTemp(id)) {
+      const ok = await confirm({
+        title: "¿Quitar este gasto?",
+        message: "El cambio se aplica al pulsar Guardar.",
+        confirmLabel: "Quitar",
+        danger: true,
+      });
+      if (!ok) return;
+    }
     setGastos((prev) => prev.filter((g) => g.id !== id));
     if (!isTemp(id)) setDeletedIds((prev) => [...prev, id]);
   }
 
   function handleSave() {
     setMessage(null);
+    awaitingSync.current = true;
     startTransition(async () => {
       const toRow = (g: LegalizacionGasto): SaveGastoRow => ({
         id: g.id,
@@ -184,8 +214,8 @@ export function LegalizacionEditor({
           deletedIds,
         },
       });
+      if (result.error) awaitingSync.current = false;
       setMessage(result.error ? `Error: ${result.error}` : "Guardado.");
-      if (!result.error) setDeletedIds([]);
     });
   }
 
@@ -452,7 +482,7 @@ export function LegalizacionEditor({
           >
             {isPending ? "Guardando..." : "Guardar"}
           </button>
-          {message && <p className="text-center text-xs text-neutral-500">{message}</p>}
+          <SaveStatus dirty={dirty} isPending={isPending} message={message} className="text-center" />
         </div>
       </div>
     </div>

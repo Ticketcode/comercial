@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import type { Proposal, ProposalContractFields } from "@/lib/types";
+import { SaveStatus, useUnsavedChanges } from "@/app/components/ui-guard";
 import { saveContractFields, type ContractFieldsInput } from "./actions";
 
 const inputClass =
@@ -42,6 +43,7 @@ export function ContratoEditor({
   const [form, setForm] = useState<ContractFieldsInput>(defaults(fields));
   const [isPending, startTransition] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
+  const { dirty, snapshot, markSaved } = useUnsavedChanges(form);
 
   function patch<K extends keyof ContractFieldsInput>(key: K, value: ContractFieldsInput[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -49,8 +51,10 @@ export function ContratoEditor({
 
   function handleSave() {
     setMessage(null);
+    const snap = snapshot();
     startTransition(async () => {
       const result = await saveContractFields(proposal.id, form);
+      if (!result.error) markSaved(snap);
       setMessage(result.error ? `Error: ${result.error}` : "Guardado.");
     });
   }
@@ -224,11 +228,7 @@ export function ContratoEditor({
         >
           Descargar contrato (.docx)
         </a>
-        {message && (
-          <span className={`text-sm ${message.startsWith("Error") ? "text-red-600" : "text-emerald-600"}`}>
-            {message}
-          </span>
-        )}
+        <SaveStatus dirty={dirty} isPending={isPending} message={message} className="text-sm" />
       </div>
       <p className="text-xs text-neutral-400">
         Guarda primero los datos para que el contrato descargado los incluya — el valor y la forma de
