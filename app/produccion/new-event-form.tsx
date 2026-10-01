@@ -14,7 +14,7 @@ function SubmitButton() {
     <button
       type="submit"
       disabled={pending}
-      className="h-9 rounded-md bg-neutral-900 px-4 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-60"
+      className="btn btn-primary"
     >
       {pending ? "Creando..." : "Crear evento"}
     </button>
@@ -30,7 +30,7 @@ export function NewEventForm() {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="rounded-md border border-neutral-300 px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
+        className="btn btn-secondary"
       >
         + Agregar evento operativo
       </button>

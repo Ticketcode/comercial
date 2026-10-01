@@ -15,7 +15,7 @@ function SubmitButton() {
     <button
       type="submit"
       disabled={pending}
-      className="h-10 rounded-md bg-neutral-900 px-5 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-60"
+      className="btn btn-primary"
     >
       {pending ? "Creando..." : "Crear propuesta y continuar al Tarifario"}
     </button>

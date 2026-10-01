@@ -17,7 +17,7 @@ const geistMono = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "Ticketcode Comercial",
+  title: { default: "Ticketcode Comercial", template: "%s · Ticketcode" },
   description: "Herramienta interna para armar propuestas comerciales de Ticketcode.",
 };
 
@@ -29,7 +29,7 @@ export default function RootLayout({
   return (
     <html lang="es">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-neutral-50 text-neutral-900`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-neutral-50 pb-20 text-neutral-900 lg:pb-0`}
       >
         <NumberInputFix />
         <NavigationProgress />

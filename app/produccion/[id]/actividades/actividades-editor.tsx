@@ -75,7 +75,7 @@ function ChecklistGroupBlock({
               type="button"
               onClick={() => handlers.onDeleteItem(item.id)}
               aria-label={`Quitar "${item.texto}"`}
-              className="ml-auto rounded p-1 text-neutral-500 hover:text-red-600"
+              className="icon-btn ml-auto"
             >
               ✕
             </button>

@@ -1,8 +1,16 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import type { Metadata } from "next";
+import { getProposalBasic } from "@/lib/data/proposal-basic";
 import { ProposalStepsNav } from "./proposal-steps-nav";
 import { MarkCerradaButton } from "./mark-cerrada-button";
+
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
+  const { id } = await params;
+  const proposal = await getProposalBasic(id);
+  const name = proposal?.event_name ?? "Evento";
+  return { title: { default: name, template: `%s · ${name} · Ticketcode` } };
+}
 
 export default async function ProposalLayout({
   children,
@@ -12,12 +20,7 @@ export default async function ProposalLayout({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const supabase = await createClient();
-  const { data: proposal } = await supabase
-    .from("proposals")
-    .select("id, event_name, status, clients(name, company)")
-    .eq("id", id)
-    .single();
+  const proposal = await getProposalBasic(id);
 
   if (!proposal) notFound();
 

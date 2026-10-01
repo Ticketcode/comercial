@@ -6,7 +6,7 @@ import { formatCOP } from "@/lib/pricing/summary";
 import { formatFechaCorta } from "@/lib/fecha-local";
 import { LabeledField } from "@/app/components/labeled-field";
 import { MoneyInput } from "@/app/components/money-input";
-import { SaveStatus, useConfirm, useUnsavedChanges } from "@/app/components/ui-guard";
+import { MobileSaveBar, SaveStatus, useConfirm, useUnsavedChanges } from "@/app/components/ui-guard";
 import { callSafe, problemsMessage, saveErrorMessage } from "@/lib/errors";
 import { saveLegalizacionPersona, type SaveGastoRow } from "./actions";
 
@@ -261,7 +261,7 @@ export function LegalizarForm({
           <button
             type="button"
             onClick={addGasto}
-            className="rounded-md border border-neutral-300 px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
+            className="btn btn-secondary btn-sm"
           >
             + Agregar gasto
           </button>
@@ -277,7 +277,7 @@ export function LegalizarForm({
                   <button
                     type="button"
                     onClick={() => removeGasto(g.id)}
-                    className="rounded p-1.5 text-neutral-400 hover:text-red-600"
+                    className="icon-btn"
                     title="Quitar gasto"
                     aria-label="Quitar este gasto"
                   >
@@ -365,11 +365,12 @@ export function LegalizarForm({
         </p>
       </section>
 
+      <MobileSaveBar dirty={dirty} isPending={isPending} message={message} onSave={handleSave} label="Guardar mi legalización" />
       <button
         type="button"
         disabled={isPending}
         onClick={handleSave}
-        className="w-full rounded-md bg-neutral-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-50"
+        className="btn btn-primary w-full"
       >
         {isPending ? "Guardando..." : "Guardar mi legalización"}
       </button>

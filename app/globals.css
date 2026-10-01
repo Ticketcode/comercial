@@ -33,6 +33,39 @@ body {
   }
 }
 
+/* Botones: un solo estilo para toda la app (primario, secundario, peligro e ícono). */
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .btn-sm {
+    @apply px-3 py-1.5 text-xs;
+  }
+  .btn-primary {
+    @apply bg-neutral-900 text-white hover:bg-neutral-800;
+  }
+  .btn-secondary {
+    @apply border border-neutral-300 bg-white text-neutral-700 hover:bg-neutral-50;
+  }
+  .btn-danger {
+    background-color: #dc2626;
+    color: #ffffff;
+  }
+  .btn-danger:hover {
+    background-color: #b91c1c;
+  }
+  /* Botón de solo ícono (✕, ✎...): área de toque cómoda, más grande en pantallas táctiles. */
+  .icon-btn {
+    @apply inline-flex min-h-[2rem] min-w-[2rem] shrink-0 items-center justify-center rounded text-neutral-500 hover:text-red-600;
+  }
+  @media (pointer: coarse) {
+    .icon-btn {
+      min-height: 2.75rem;
+      min-width: 2.75rem;
+    }
+  }
+}
+
 /* Quita las flechas de incremento/decremento de los inputs numéricos en
    toda la app — no aportan en cuadros densos como Presupuesto/Viáticos y
    solo restan espacio a columnas angostas. */

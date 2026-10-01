@@ -16,3 +16,4 @@ export default async function CuentasCobroPage({ params }: { params: Promise<{ i
 
   return <CuentasCobroEditor proposalId={id} cuentas={(cuentas ?? []) as CuentaCobro[]} />;
 }
+export const metadata = { title: "Cuentas de cobro" };

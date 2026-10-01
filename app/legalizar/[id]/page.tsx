@@ -53,3 +53,4 @@ export default async function LegalizarPage({ params }: { params: Promise<{ id: 
     </div>
   );
 }
+export const metadata = { title: "Legalización de viáticos" };

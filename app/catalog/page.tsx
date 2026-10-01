@@ -44,3 +44,4 @@ export default async function CatalogPage() {
     </div>
   );
 }
+export const metadata = { title: "Catálogo de precios" };

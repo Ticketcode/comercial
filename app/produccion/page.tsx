@@ -88,3 +88,4 @@ export default async function ProduccionPage() {
     </div>
   );
 }
+export const metadata = { title: "Producción" };

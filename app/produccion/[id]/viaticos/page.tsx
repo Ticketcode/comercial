@@ -66,3 +66,4 @@ export default async function ProduccionPage({ params }: { params: Promise<{ id:
     />
   );
 }
+export const metadata = { title: "Viáticos" };

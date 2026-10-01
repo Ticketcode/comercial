@@ -12,7 +12,7 @@ import type {
 } from "@/lib/types";
 import type { TarifarioSummary } from "@/lib/pricing/summary";
 import { applyCommercialDiscount, formatCOP } from "@/lib/pricing/summary";
-import { SaveStatus, useConfirm, useUnsavedChanges } from "@/app/components/ui-guard";
+import { MobileSaveBar, SaveStatus, useConfirm, useUnsavedChanges } from "@/app/components/ui-guard";
 import { callSafe, problemsMessage, saveErrorMessage } from "@/lib/errors";
 import { formatFechaCorta } from "@/lib/fecha-local";
 import { savePropuesta } from "./actions";
@@ -367,7 +367,7 @@ export function PropuestaEditor({
         <button
           onClick={handleDownloadPdf}
           disabled={isDownloading}
-          className="h-10 rounded-md border border-neutral-300 px-4 text-sm font-medium text-neutral-700 hover:bg-neutral-50 disabled:opacity-60"
+          className="btn btn-secondary"
         >
           {isDownloading ? "Generando PDF..." : "Descargar PDF"}
         </button>
@@ -711,11 +711,12 @@ export function PropuestaEditor({
         </Slide>
       </div>
 
+      <MobileSaveBar dirty={dirty} isPending={isPending} message={message} onSave={handleSave} label="Guardar propuesta" />
       <div className="no-print flex items-center gap-4">
         <button
           onClick={handleSave}
           disabled={isPending}
-          className="h-10 rounded-md bg-neutral-900 px-5 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-60"
+          className="btn btn-primary"
         >
           {isPending ? "Guardando..." : "Guardar propuesta"}
         </button>

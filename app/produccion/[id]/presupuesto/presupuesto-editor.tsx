@@ -6,7 +6,7 @@ import { PRESUPUESTO_CATEGORIAS } from "@/lib/data/presupuesto-template";
 import { formatCOP } from "@/lib/pricing/summary";
 import { formatFechaCorta } from "@/lib/fecha-local";
 import { MoneyInput } from "@/app/components/money-input";
-import { SaveStatus, useConfirm, useUnsavedChanges } from "@/app/components/ui-guard";
+import { MobileSaveBar, SaveStatus, useConfirm, useUnsavedChanges } from "@/app/components/ui-guard";
 import { callSafe, problemsMessage, saveErrorMessage } from "@/lib/errors";
 import { savePresupuesto, pullValoresTarifario, type SavePresupuestoItemRow } from "./actions";
 
@@ -266,7 +266,7 @@ export function PresupuestoEditor({ proposalId, proposal, initialItems }: Props)
             type="button"
             onClick={handlePullTarifario}
             disabled={isPulling}
-            className="shrink-0 rounded-md border border-neutral-300 px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50 disabled:opacity-50"
+            className="btn btn-secondary btn-sm shrink-0"
           >
             {isPulling ? "Trayendo..." : "Traer valores del Tarifario"}
           </button>
@@ -324,14 +324,14 @@ export function PresupuestoEditor({ proposalId, proposal, initialItems }: Props)
         <button
           type="button"
           onClick={() => setOpenCategories(Object.fromEntries(allCategorias.map((c) => [c, true])))}
-          className="rounded-md border border-neutral-300 px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
+          className="btn btn-secondary btn-sm"
         >
           Expandir todo
         </button>
         <button
           type="button"
           onClick={() => setOpenCategories({})}
-          className="rounded-md border border-neutral-300 px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
+          className="btn btn-secondary btn-sm"
         >
           Contraer todo
         </button>
@@ -560,7 +560,7 @@ export function PresupuestoEditor({ proposalId, proposal, initialItems }: Props)
                             <button
                               type="button"
                               onClick={() => removeItem(item.id)}
-                              className="rounded p-1 text-neutral-400 hover:text-red-600"
+                              className="icon-btn"
                               title="Quitar línea"
                               aria-label={`Quitar ${item.nombre || "línea"}`}
                             >
@@ -575,7 +575,7 @@ export function PresupuestoEditor({ proposalId, proposal, initialItems }: Props)
                 <button
                   type="button"
                   onClick={() => addItem(cat)}
-                  className="mt-2 rounded-md border border-neutral-300 px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
+                  className="btn btn-secondary btn-sm mt-2"
                 >
                   + Agregar línea
                 </button>
@@ -585,12 +585,13 @@ export function PresupuestoEditor({ proposalId, proposal, initialItems }: Props)
         );
       })}
 
+      <MobileSaveBar dirty={dirty} isPending={isPending} message={message} onSave={handleSave} />
       <div className="flex items-center gap-3">
         <button
           type="button"
           disabled={isPending}
           onClick={handleSave}
-          className="rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-50"
+          className="btn btn-primary"
         >
           {isPending ? "Guardando..." : "Guardar"}
         </button>

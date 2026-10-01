@@ -11,7 +11,7 @@ import type {
 import { staffingForAforo, logisticosPorSalon, totalLogisticosSalones } from "@/lib/pricing/logistics";
 import { computeTarifarioSummary, formatCOP } from "@/lib/pricing/summary";
 import { MoneyInput } from "@/app/components/money-input";
-import { SaveStatus, useUnsavedChanges } from "@/app/components/ui-guard";
+import { MobileSaveBar, SaveStatus, useUnsavedChanges } from "@/app/components/ui-guard";
 import { callSafe, problemsMessage, saveErrorMessage } from "@/lib/errors";
 import { saveTarifario, type SaveTarifarioPayload } from "./actions";
 
@@ -333,7 +333,7 @@ export function TarifarioEditor({
                 <button
                   type="button"
                   onClick={recalcularSegunAforo}
-                  className="rounded-md border border-neutral-300 bg-white px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
+                  className="btn btn-secondary btn-sm"
                 >
                   Recalcular según aforo ({eventFields.aforo})
                 </button>
@@ -590,6 +590,7 @@ export function TarifarioEditor({
         </section>
       </div>
 
+      <MobileSaveBar dirty={dirty} isPending={isPending} message={message} onSave={handleSave} label="Guardar tarifario" />
       <div className="lg:col-span-1">
         <div className="space-y-2 rounded-xl border border-neutral-200 bg-white p-5 lg:sticky lg:top-6">
           <h3 className="mb-2 text-sm font-semibold text-neutral-900">Resumen</h3>
@@ -617,7 +618,7 @@ export function TarifarioEditor({
           <button
             onClick={handleSave}
             disabled={isPending}
-            className="mt-3 h-10 w-full rounded-md bg-neutral-900 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-60"
+            className="btn btn-primary mt-3 w-full"
           >
             {isPending ? "Guardando..." : "Guardar tarifario"}
           </button>
@@ -858,7 +859,7 @@ function EditableItemRow({
                   onOverride("dias", null);
                   onOverride("quantity", null);
                 }}
-                className="text-neutral-500 hover:text-red-600"
+                className="icon-btn"
               >
                 ↺
               </button>

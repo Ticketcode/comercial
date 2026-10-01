@@ -99,15 +99,14 @@ export function CuentasCobroEditor({
             type="button"
             disabled={isPending}
             onClick={() => runDelete(target)}
-            style={{ backgroundColor: "#dc2626", color: "#ffffff" }}
-            className="rounded px-2 py-1 font-medium hover:opacity-90 disabled:opacity-50"
+            className="btn btn-danger btn-sm"
           >
             Sí, borrar
           </button>
           <button
             type="button"
             onClick={() => setConfirming(null)}
-            className="rounded border border-neutral-300 px-2 py-1 text-neutral-600 hover:bg-neutral-50"
+            className="btn btn-secondary btn-sm"
           >
             No
           </button>
@@ -173,7 +172,7 @@ export function CuentasCobroEditor({
           <button
             type="submit"
             disabled={isPending}
-            className="rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-50"
+            className="btn btn-primary"
           >
             {isPending ? "Procesando..." : "Cargar archivo"}
           </button>
@@ -197,7 +196,7 @@ export function CuentasCobroEditor({
             <div className="flex gap-2">
               <a
                 href={`/api/cuentas-cobro/${proposalId}`}
-                className="rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800"
+                className="btn btn-primary"
               >
                 Descargar paquete .docx
               </a>

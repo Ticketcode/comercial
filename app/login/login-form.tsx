@@ -14,7 +14,7 @@ function SubmitButton() {
     <button
       type="submit"
       disabled={pending}
-      className="h-11 w-full rounded-md bg-neutral-900 text-base font-medium text-white transition hover:bg-neutral-800 disabled:opacity-60"
+      className="btn btn-primary w-full"
     >
       {pending ? "Ingresando..." : "Ingresar"}
     </button>

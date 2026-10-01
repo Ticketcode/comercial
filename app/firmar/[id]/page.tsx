@@ -87,3 +87,4 @@ export default async function FirmarCuentaCobroPage({
     </div>
   );
 }
+export const metadata = { title: "Cuenta de cobro" };

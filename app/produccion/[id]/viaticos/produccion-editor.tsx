@@ -6,7 +6,7 @@ import { formatCOP } from "@/lib/pricing/summary";
 import { formatFechaCorta } from "@/lib/fecha-local";
 import { LabeledField } from "@/app/components/labeled-field";
 import { MoneyInput } from "@/app/components/money-input";
-import { SaveStatus, useConfirm, useUnsavedChanges } from "@/app/components/ui-guard";
+import { MobileSaveBar, SaveStatus, useConfirm, useUnsavedChanges } from "@/app/components/ui-guard";
 import { callSafe, problemsMessage, saveErrorMessage } from "@/lib/errors";
 import { saveProduccion, type SaveStaffRow, type SaveGiroRow, type SaveAnticipoRow } from "./actions";
 
@@ -441,7 +441,7 @@ export function ProduccionEditor({
             <button
               type="button"
               onClick={addStaff}
-              className="rounded-md border border-neutral-300 px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
+              className="btn btn-secondary btn-sm"
             >
               + Agregar persona
             </button>
@@ -505,7 +505,7 @@ export function ProduccionEditor({
                   <button
                     type="button"
                     onClick={() => removeStaff(s.id)}
-                    className="mb-1.5 shrink-0 rounded p-1.5 text-neutral-400 hover:text-red-600"
+                    className="icon-btn mb-1.5"
                     title="Quitar persona"
                     aria-label={`Quitar a ${s.full_name || "esta persona"}`}
                   >
@@ -586,7 +586,7 @@ export function ProduccionEditor({
                     <button
                       type="button"
                       onClick={() => addGiro(activeStaff.id)}
-                      className="rounded-md border border-neutral-300 px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
+                      className="btn btn-secondary btn-sm"
                     >
                       + Agregar rubro
                     </button>
@@ -698,7 +698,7 @@ export function ProduccionEditor({
                             <button
                               type="button"
                               onClick={() => removeGiro(g.id)}
-                              className="rounded p-1.5 text-neutral-400 hover:text-red-600"
+                              className="icon-btn"
                               title="Quitar rubro"
                               aria-label="Quitar rubro"
                             >
@@ -742,7 +742,7 @@ export function ProduccionEditor({
               <button
                 type="button"
                 onClick={() => addAnticipo(activeStaff.id)}
-                className="shrink-0 rounded-md border border-neutral-300 px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
+                className="btn btn-secondary btn-sm shrink-0"
               >
                 + Agregar anticipo
               </button>
@@ -794,7 +794,7 @@ export function ProduccionEditor({
                         <button
                           type="button"
                           onClick={() => removeAnticipo(a.id)}
-                          className="rounded p-1.5 text-neutral-400 hover:text-red-600"
+                          className="icon-btn"
                           title="Quitar anticipo"
                           aria-label="Quitar anticipo"
                         >
@@ -850,7 +850,7 @@ export function ProduccionEditor({
               type="button"
               onClick={downloadPdf}
               disabled={isDownloading}
-              className="w-full rounded-md border border-neutral-300 px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50 disabled:opacity-50"
+              className="btn btn-secondary w-full"
             >
               {isDownloading ? "Generando PDF..." : "Descargar PDF para contabilidad"}
             </button>
@@ -858,7 +858,7 @@ export function ProduccionEditor({
               type="button"
               disabled={isPending}
               onClick={handleSave}
-              className="w-full rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-50"
+              className="btn btn-primary w-full"
             >
               {isPending ? "Guardando..." : "Guardar"}
             </button>
@@ -867,6 +867,7 @@ export function ProduccionEditor({
         </div>
       </div>
 
+      <MobileSaveBar dirty={dirty} isPending={isPending} message={message} onSave={handleSave} />
       {/* Área imprimible oculta — el PDF sale de este bloque, una hoja de
           "Liquidación de viáticos" por persona, con sus rubros agrupados por
           categoría (Transporte, Alojamiento, Honorarios, Varios,

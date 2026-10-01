@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useTransition } from "react";
 import type { CatalogItem, LogisticsRateItem, PriceScaleItem } from "@/lib/types";
-import { SaveStatus, useUnsavedChanges } from "@/app/components/ui-guard";
+import { MobileSaveBar, SaveStatus, useUnsavedChanges } from "@/app/components/ui-guard";
 import { callSafe, problemsMessage, saveErrorMessage } from "@/lib/errors";
 import { saveCatalog } from "./actions";
 
@@ -260,11 +260,12 @@ export function CatalogEditor({
         );
       })}
 
+      <MobileSaveBar dirty={dirty} isPending={isPending} message={message} onSave={handleSave} label="Guardar catálogo" />
       <div className="flex items-center gap-4">
         <button
           onClick={handleSave}
           disabled={isPending}
-          className="h-10 rounded-md bg-neutral-900 px-5 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-60"
+          className="btn btn-primary"
         >
           {isPending ? "Guardando..." : "Guardar catálogo"}
         </button>

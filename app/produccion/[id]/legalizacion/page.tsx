@@ -25,3 +25,4 @@ export default async function LegalizacionPage({ params }: { params: Promise<{ i
     />
   );
 }
+export const metadata = { title: "Legalización" };

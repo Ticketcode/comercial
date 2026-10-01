@@ -6,7 +6,7 @@ import { formatCOP } from "@/lib/pricing/summary";
 import { formatFechaCorta } from "@/lib/fecha-local";
 import { LabeledField } from "@/app/components/labeled-field";
 import { MoneyInput } from "@/app/components/money-input";
-import { SaveStatus, useConfirm, useUnsavedChanges } from "@/app/components/ui-guard";
+import { MobileSaveBar, SaveStatus, useConfirm, useUnsavedChanges } from "@/app/components/ui-guard";
 import { callSafe, problemsMessage, saveErrorMessage } from "@/lib/errors";
 import { saveLegalizacion, type SaveGastoRow, type SaveMetaRow } from "./actions";
 
@@ -285,7 +285,7 @@ export function LegalizacionEditor({
                 <button
                   type="button"
                   onClick={() => copyLegalizarLink(activeStaff.id)}
-                  className="shrink-0 rounded-md border border-neutral-300 px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
+                  className="btn btn-secondary btn-sm shrink-0"
                 >
                   {copiedId === activeStaff.id ? "¡Copiado!" : "Copiar link para que él/ella lo llene"}
                 </button>
@@ -363,7 +363,7 @@ export function LegalizacionEditor({
                 <button
                   type="button"
                   onClick={() => addGasto(activeStaff.id)}
-                  className="rounded-md border border-neutral-300 px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
+                  className="btn btn-secondary btn-sm"
                 >
                   + Agregar gasto
                 </button>
@@ -443,7 +443,7 @@ export function LegalizacionEditor({
                           <button
                             type="button"
                             onClick={() => removeGasto(g.id)}
-                            className="rounded p-1.5 text-neutral-400 hover:text-red-600"
+                            className="icon-btn"
                             title="Quitar gasto"
                             aria-label="Quitar gasto"
                           >
@@ -490,6 +490,7 @@ export function LegalizacionEditor({
         )}
       </div>
 
+      <MobileSaveBar dirty={dirty} isPending={isPending} message={message} onSave={handleSave} />
       <div className="lg:col-span-1">
         <div className="space-y-2 rounded-xl border border-neutral-200 bg-white p-5 lg:sticky lg:top-6">
           <h3 className="mb-2 text-sm font-semibold text-neutral-900">Resumen general del evento</h3>
@@ -511,7 +512,7 @@ export function LegalizacionEditor({
             type="button"
             disabled={isPending}
             onClick={handleSave}
-            className="mt-2 w-full rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-50"
+            className="btn btn-primary mt-2 w-full"
           >
             {isPending ? "Guardando..." : "Guardar"}
           </button>

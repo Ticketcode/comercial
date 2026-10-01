@@ -24,13 +24,13 @@ export default async function ProduccionSectionLayout({ children }: { children: 
               {/* <a> a propósito: fuerza una carga completa de la página */}
               <a
                 href="/produccion"
-                className="rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800"
+                className="btn btn-primary"
               >
                 Recargar
               </a>
               <Link
                 href="/login"
-                className="rounded-md border border-neutral-300 px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
+                className="btn btn-secondary"
               >
                 Iniciar sesión
               </Link>

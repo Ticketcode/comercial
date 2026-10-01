@@ -124,17 +124,14 @@ function Modal({
             ref={cancelRef}
             type="button"
             onClick={onCancel}
-            className="rounded-md border border-neutral-300 px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
+            className="btn btn-secondary"
           >
             {cancelLabel}
           </button>
           <button
             type="button"
             onClick={onConfirm}
-            style={danger ? { backgroundColor: "#dc2626", color: "#ffffff" } : undefined}
-            className={`rounded-md px-4 py-2 text-sm font-medium hover:opacity-90 ${
-              danger ? "" : "bg-neutral-900 text-white"
-            }`}
+            className={`btn ${danger ? "btn-danger" : "btn-primary"}`}
           >
             {confirmLabel}
           </button>
@@ -265,5 +262,33 @@ export function SaveStatus({
     <p role="status" aria-live="polite" className={`text-xs ${tone} ${className}`}>
       {text}
     </p>
+  );
+}
+
+/**
+ * Barra fija abajo en móvil con el botón Guardar y el estado, para no tener que bajar hasta
+ * el final de la página. Solo aparece cuando hay algo que mostrar (cambios, guardando, mensaje).
+ */
+export function MobileSaveBar({
+  dirty,
+  isPending,
+  message,
+  onSave,
+  label = "Guardar",
+}: {
+  dirty: boolean;
+  isPending: boolean;
+  message: string | null;
+  onSave: () => void;
+  label?: string;
+}) {
+  if (!dirty && !isPending && !message) return null;
+  return (
+    <div className="no-print fixed inset-x-0 bottom-0 z-40 flex items-center gap-3 border-t border-neutral-200 bg-white px-4 py-3 shadow-[0_-2px_8px_rgba(0,0,0,0.06)] lg:hidden">
+      <button type="button" onClick={onSave} disabled={isPending} className="btn btn-primary shrink-0">
+        {isPending ? "Guardando…" : label}
+      </button>
+      <SaveStatus dirty={dirty} isPending={false} message={message} className="min-w-0 flex-1" />
+    </div>
   );
 }

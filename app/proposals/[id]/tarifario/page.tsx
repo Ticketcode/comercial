@@ -65,3 +65,4 @@ export default async function TarifarioPage({
     </div>
   );
 }
+export const metadata = { title: "Tarifario" };

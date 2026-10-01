@@ -14,3 +14,4 @@ export default function NewProposalPage() {
     </div>
   );
 }
+export const metadata = { title: "Nueva propuesta" };
