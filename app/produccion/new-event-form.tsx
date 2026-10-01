@@ -44,12 +44,12 @@ export function NewEventForm() {
         Para eventos que ya operan y no pasaron por el flujo comercial (Tarifario/Propuesta/
         Contrato) — entra directo a Producción sin llenar el Tarifario.
       </p>
-      <form action={formAction} className="grid grid-cols-2 gap-3">
-        <input name="event_name" placeholder="Nombre del evento" required className={inputClass} />
-        <input name="client_name" placeholder="Cliente" required className={inputClass} />
-        <input name="client_company" placeholder="Empresa (opcional)" className={inputClass} />
-        <input name="city" placeholder="Ciudad" className={inputClass} />
-        <select name="modality" defaultValue="presencial" className={inputClass}>
+      <form action={formAction} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <input name="event_name" aria-label="Nombre del evento" placeholder="Nombre del evento" required className={inputClass} />
+        <input name="client_name" aria-label="Cliente" placeholder="Cliente" required className={inputClass} />
+        <input name="client_company" aria-label="Empresa (opcional)" placeholder="Empresa (opcional)" className={inputClass} />
+        <input name="city" aria-label="Ciudad" placeholder="Ciudad" className={inputClass} />
+        <select name="modality" aria-label="Modalidad" defaultValue="presencial" className={inputClass}>
           <option value="presencial">Presencial</option>
           <option value="virtual">Virtual</option>
           <option value="hibrido">Híbrido</option>

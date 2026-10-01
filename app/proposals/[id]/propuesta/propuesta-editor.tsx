@@ -14,6 +14,7 @@ import type { TarifarioSummary } from "@/lib/pricing/summary";
 import { applyCommercialDiscount, formatCOP } from "@/lib/pricing/summary";
 import { SaveStatus, useConfirm, useUnsavedChanges } from "@/app/components/ui-guard";
 import { callSafe, problemsMessage, saveErrorMessage } from "@/lib/errors";
+import { formatFechaCorta } from "@/lib/fecha-local";
 import { savePropuesta } from "./actions";
 import { addMilestone, removeMilestone, updateMilestonePct, type Milestone } from "./milestones";
 
@@ -382,6 +383,7 @@ export function PropuestaEditor({
                 Lugar
               </p>
               <input
+                aria-label="Lugar del evento"
                 value={lugar}
                 onChange={(e) => setLugar(e.target.value)}
                 placeholder="Ej. Centro de Convenciones..."
@@ -395,7 +397,7 @@ export function PropuestaEditor({
               label="Fechas"
               value={
                 proposal.event_start_date
-                  ? `${proposal.event_start_date}${proposal.event_end_date ? ` a ${proposal.event_end_date}` : ""}`
+                  ? `${formatFechaCorta(proposal.event_start_date)}${proposal.event_end_date ? ` a ${formatFechaCorta(proposal.event_end_date)}` : ""}`
                   : "—"
               }
             />
@@ -461,7 +463,7 @@ export function PropuestaEditor({
           title="Acuerdo comercial — lo que podemos negociar"
           accent={BRAND.orange}
         >
-          <div className="mb-5 flex items-center gap-4 rounded-xl p-4" style={{ backgroundColor: BRAND.lightGrey }}>
+          <div className="mb-5 flex flex-wrap items-center gap-4 rounded-xl p-4" style={{ backgroundColor: BRAND.lightGrey }}>
             <label className="text-sm font-semibold" style={{ color: BRAND.dark }}>
               % del acuerdo comercial (descuento real que se aplica)
             </label>
@@ -469,6 +471,7 @@ export function PropuestaEditor({
               type="number"
               min={0}
               max={100}
+              aria-label="Porcentaje del acuerdo comercial"
               value={globalPct}
               onChange={(e) => setGlobalPct(Number(e.target.value) || 0)}
               className="h-10 w-24 rounded-md border border-neutral-300 px-2 text-right text-lg font-bold"
@@ -496,6 +499,7 @@ export function PropuestaEditor({
                   <td className="py-3">
                     <input
                       type="checkbox"
+                      aria-label={`Incluir ${row.label}`}
                       checked={row.included}
                       onChange={(e) => patchAgreement(row.id, { included: e.target.checked })}
                       className="h-4 w-4"
@@ -517,6 +521,7 @@ export function PropuestaEditor({
                       min={0}
                       max={100}
                       disabled={!row.included}
+                      aria-label={`Peso de ${row.label}`}
                       value={row.pct}
                       onChange={(e) => patchAgreement(row.id, { pct: Number(e.target.value) || 0 })}
                       className={`${inputClass} text-right`}
@@ -559,8 +564,9 @@ export function PropuestaEditor({
         <Slide kicker="Condiciones" title="Modelo de pagos" accent={BRAND.teal}>
           <div className="space-y-2">
             {milestones.map((m, idx) => (
-              <div key={m.id} className="flex items-center gap-3">
+              <div key={m.id} className="flex flex-wrap items-center gap-3">
                 <input
+                  aria-label="Descripción del hito de pago"
                   value={m.label}
                   onChange={(e) =>
                     setMilestones((prev) =>
@@ -574,6 +580,7 @@ export function PropuestaEditor({
                   type="number"
                   min={0}
                   max={100}
+                  aria-label="Porcentaje del hito de pago"
                   value={Math.round(m.pct * 100) / 100}
                   onChange={(e) =>
                     setMilestones((prev) => updateMilestonePct(prev, idx, Number(e.target.value) || 0))
@@ -622,6 +629,7 @@ export function PropuestaEditor({
                     .map((row) => (
                       <div key={row.id} className="rounded bg-white p-1.5 shadow-sm">
                         <input
+                          aria-label={`Hito del cronograma, semana ${row.week_number}`}
                           value={row.hito}
                           onChange={(e) => patchSchedule(row.id, { hito: e.target.value })}
                           placeholder="Hito"
@@ -671,6 +679,7 @@ export function PropuestaEditor({
               <li key={req.id} className="flex items-start gap-2">
                 <span className="mt-2.5 h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: BRAND.blue }} />
                 <input
+                  aria-label="Requerimiento operativo"
                   value={req.text}
                   onChange={(e) =>
                     setRequirements((prev) =>
@@ -787,6 +796,7 @@ function ChecklistBox({
             <li key={item.key} className="flex items-start gap-2">
               <input
                 type="checkbox"
+                aria-label={item.label}
                 checked={item.checked}
                 disabled={item.readOnly}
                 onChange={item.onToggle}

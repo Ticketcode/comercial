@@ -25,7 +25,7 @@ export default async function FirmarCuentaCobroPage({
   const firmada = cuenta.estado === "firmada";
 
   return (
-    <div className="mx-auto min-h-screen max-w-lg bg-neutral-50 px-6 py-10">
+    <div className="mx-auto min-h-screen max-w-lg bg-neutral-50 px-4 py-6 sm:px-6 sm:py-10">
       <div className="rounded-xl border border-neutral-200 bg-white p-6">
         <p className="text-xs text-neutral-400">Ciudad: {cuenta.ciudad_evento ?? "—"}</p>
         <h1 className="mt-1 text-center text-lg font-bold text-neutral-900">CUENTA DE COBRO</h1>

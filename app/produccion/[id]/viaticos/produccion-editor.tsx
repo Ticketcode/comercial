@@ -4,6 +4,8 @@ import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import type { EventStaff, ViaticoAnticipo, ViaticoGiro } from "@/lib/types";
 import { formatCOP } from "@/lib/pricing/summary";
 import { formatFechaCorta } from "@/lib/fecha-local";
+import { LabeledField } from "@/app/components/labeled-field";
+import { MoneyInput } from "@/app/components/money-input";
 import { SaveStatus, useConfirm, useUnsavedChanges } from "@/app/components/ui-guard";
 import { callSafe, problemsMessage, saveErrorMessage } from "@/lib/errors";
 import { saveProduccion, type SaveStaffRow, type SaveGiroRow, type SaveAnticipoRow } from "./actions";
@@ -431,8 +433,8 @@ export function ProduccionEditor({
   const activeAnticipos = activeStaff ? anticiposByStaff[activeStaff.id] ?? [] : [];
 
   return (
-    <div className="grid grid-cols-3 gap-6">
-      <div className="col-span-2 space-y-6">
+    <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+      <div className="min-w-0 space-y-6 lg:col-span-2">
         <section className="rounded-xl border border-neutral-200 bg-white p-5">
           <div className="mb-3 flex items-center justify-between">
             <h3 className="text-sm font-semibold text-neutral-900">Personal asignado al evento</h3>
@@ -449,49 +451,63 @@ export function ProduccionEditor({
               <p className="text-sm text-neutral-400">Todavía no hay personal asignado.</p>
             )}
             {staff.map((s) => (
-              <div key={s.id} className="grid grid-cols-7 gap-2 rounded-md border border-neutral-100 p-3">
-                <input
-                  placeholder="Nombre completo"
-                  value={s.full_name}
-                  onChange={(e) => patchStaff(s.id, { full_name: e.target.value })}
-                  className={`${inputClass} col-span-2`}
-                />
-                <input
-                  placeholder="Cargo (ej. Productor)"
-                  value={s.cargo ?? ""}
-                  onChange={(e) => patchStaff(s.id, { cargo: e.target.value })}
-                  className={inputClass}
-                />
-                <input
-                  placeholder="Cédula"
-                  value={s.cedula ?? ""}
-                  onChange={(e) => patchStaff(s.id, { cedula: e.target.value })}
-                  className={inputClass}
-                />
-                <input
-                  placeholder="Banco"
-                  value={s.banco ?? ""}
-                  onChange={(e) => patchStaff(s.id, { banco: e.target.value })}
-                  className={inputClass}
-                />
-                <input
-                  placeholder="Tipo cuenta"
-                  value={s.tipo_cuenta ?? ""}
-                  onChange={(e) => patchStaff(s.id, { tipo_cuenta: e.target.value })}
-                  className={inputClass}
-                />
-                <div className="flex gap-2">
+              <div
+                key={s.id}
+                className="grid grid-cols-2 gap-2 rounded-md border border-neutral-100 p-3 sm:grid-cols-4 lg:grid-cols-7"
+              >
+                <LabeledField label="Nombre completo" className="col-span-2">
                   <input
-                    placeholder="N° cuenta"
-                    value={s.numero_cuenta ?? ""}
-                    onChange={(e) => patchStaff(s.id, { numero_cuenta: e.target.value })}
+                    value={s.full_name}
+                    onChange={(e) => patchStaff(s.id, { full_name: e.target.value })}
                     className={inputClass}
                   />
+                </LabeledField>
+                <LabeledField label="Cargo">
+                  <input
+                    placeholder="Ej. Productor"
+                    value={s.cargo ?? ""}
+                    onChange={(e) => patchStaff(s.id, { cargo: e.target.value })}
+                    className={inputClass}
+                  />
+                </LabeledField>
+                <LabeledField label="Cédula">
+                  <input
+                    inputMode="numeric"
+                    value={s.cedula ?? ""}
+                    onChange={(e) => patchStaff(s.id, { cedula: e.target.value })}
+                    className={inputClass}
+                  />
+                </LabeledField>
+                <LabeledField label="Banco">
+                  <input
+                    value={s.banco ?? ""}
+                    onChange={(e) => patchStaff(s.id, { banco: e.target.value })}
+                    className={inputClass}
+                  />
+                </LabeledField>
+                <LabeledField label="Tipo de cuenta">
+                  <input
+                    placeholder="Ahorros / Corriente"
+                    value={s.tipo_cuenta ?? ""}
+                    onChange={(e) => patchStaff(s.id, { tipo_cuenta: e.target.value })}
+                    className={inputClass}
+                  />
+                </LabeledField>
+                <div className="col-span-2 flex items-end gap-2 sm:col-span-1">
+                  <LabeledField label="N° de cuenta" className="min-w-0 flex-1">
+                    <input
+                      inputMode="numeric"
+                      value={s.numero_cuenta ?? ""}
+                      onChange={(e) => patchStaff(s.id, { numero_cuenta: e.target.value })}
+                      className={inputClass}
+                    />
+                  </LabeledField>
                   <button
                     type="button"
                     onClick={() => removeStaff(s.id)}
-                    className="shrink-0 text-neutral-400 hover:text-red-600"
-                    title="Eliminar"
+                    className="mb-1.5 shrink-0 rounded p-1.5 text-neutral-400 hover:text-red-600"
+                    title="Quitar persona"
+                    aria-label={`Quitar a ${s.full_name || "esta persona"}`}
                   >
                     ✕
                   </button>
@@ -507,7 +523,7 @@ export function ProduccionEditor({
             Valores fijos de la empresa — se seleccionan solos al elegir un rubro de Alimentación,
             Alojamiento o Transporte en el cuadro de cada persona.
           </p>
-          <div className="mt-3 grid grid-cols-2 gap-x-6 gap-y-1 text-xs">
+          <div className="mt-3 grid grid-cols-1 gap-x-6 gap-y-1 text-xs sm:grid-cols-2">
             {Object.entries(tarifasReferencia.alimentacion).map(([label, valor]) => (
               <div key={label} className="flex items-center justify-between text-neutral-600">
                 <span>{label}</span>
@@ -539,11 +555,13 @@ export function ProduccionEditor({
             </p>
           ) : (
             <>
-              <div className="flex flex-wrap gap-1 border-b border-neutral-200 pb-2">
+              <div role="tablist" aria-label="Personas del evento" className="flex flex-wrap gap-1 border-b border-neutral-200 pb-2">
                 {staff.map((s) => (
                   <button
                     key={s.id}
                     type="button"
+                    role="tab"
+                    aria-selected={activeStaffId === s.id}
                     onClick={() => setActiveStaffId(s.id)}
                     className={`rounded-t-md px-3 py-1.5 text-xs font-medium ${
                       activeStaffId === s.id
@@ -573,7 +591,8 @@ export function ProduccionEditor({
                       + Agregar rubro
                     </button>
                   </div>
-                  <table className="w-full text-sm">
+                  <div className="overflow-x-auto">
+                  <table className="w-full min-w-[680px] text-sm">
                     <thead>
                       <tr className="text-left text-xs text-neutral-400">
                         <th className="w-32 py-2">Fecha</th>
@@ -591,6 +610,7 @@ export function ProduccionEditor({
                           <td className="py-1.5 pr-2">
                             <input
                               type="date"
+                              aria-label="Fecha del rubro"
                               value={g.fecha_giro ?? ""}
                               onChange={(e) => patchGiro(g.id, { fecha_giro: e.target.value || null })}
                               className={inputClass}
@@ -598,6 +618,7 @@ export function ProduccionEditor({
                           </td>
                           <td className="py-1.5 pr-2">
                             <select
+                              aria-label="Rubro"
                               value={g.rubro ?? "Otro"}
                               onChange={(e) => {
                                 const label = e.target.value;
@@ -646,6 +667,7 @@ export function ProduccionEditor({
                           </td>
                           <td className="py-1.5 pr-2">
                             <input
+                              aria-label="Concepto"
                               value={g.concepto ?? ""}
                               onChange={(e) => patchGiro(g.id, { concepto: e.target.value })}
                               className={inputClass}
@@ -655,19 +677,17 @@ export function ProduccionEditor({
                             <input
                               type="number"
                               min={0}
+                              aria-label="Cantidad"
                               value={g.cantidad}
                               onChange={(e) => patchGiro(g.id, { cantidad: Number(e.target.value) || 0 })}
                               className={inputClass}
                             />
                           </td>
                           <td className="py-1.5 pr-2">
-                            <input
-                              type="number"
-                              min={0}
+                            <MoneyInput
+                              aria-label="Valor unitario"
                               value={g.valor_unitario}
-                              onChange={(e) =>
-                                patchGiro(g.id, { valor_unitario: Number(e.target.value) || 0 })
-                              }
+                              onChange={(v) => patchGiro(g.id, { valor_unitario: v ?? 0 })}
                               className={inputClass}
                             />
                           </td>
@@ -678,8 +698,9 @@ export function ProduccionEditor({
                             <button
                               type="button"
                               onClick={() => removeGiro(g.id)}
-                              className="text-neutral-400 hover:text-red-600"
-                              title="Eliminar"
+                              className="rounded p-1.5 text-neutral-400 hover:text-red-600"
+                              title="Quitar rubro"
+                              aria-label="Quitar rubro"
                             >
                               ✕
                             </button>
@@ -688,6 +709,7 @@ export function ProduccionEditor({
                       ))}
                     </tbody>
                   </table>
+                  </div>
                   {activeGiros.length === 0 && (
                     <p className="py-3 text-sm text-neutral-400">
                       Todavía no hay rubros para {activeStaff.full_name || "esta persona"}.
@@ -730,7 +752,8 @@ export function ProduccionEditor({
                 Todavía no hay anticipos registrados para {activeStaff.full_name || "esta persona"}.
               </p>
             ) : (
-              <table className="w-full text-sm">
+              <div className="overflow-x-auto">
+              <table className="w-full min-w-[520px] text-sm">
                 <thead>
                   <tr className="text-left text-xs text-neutral-400">
                     <th className="w-36 py-2">Fecha de transacción</th>
@@ -745,22 +768,23 @@ export function ProduccionEditor({
                       <td className="py-1.5 pr-2">
                         <input
                           type="date"
+                          aria-label="Fecha de la transacción"
                           value={a.fecha ?? ""}
                           onChange={(e) => patchAnticipo(a.id, { fecha: e.target.value || null })}
                           className={inputClass}
                         />
                       </td>
                       <td className="py-1.5 pr-2">
-                        <input
-                          type="number"
-                          min={0}
+                        <MoneyInput
+                          aria-label="Valor del anticipo"
                           value={a.valor}
-                          onChange={(e) => patchAnticipo(a.id, { valor: Number(e.target.value) || 0 })}
+                          onChange={(v) => patchAnticipo(a.id, { valor: v ?? 0 })}
                           className={inputClass}
                         />
                       </td>
                       <td className="py-1.5 pr-2">
                         <input
+                          aria-label="Notas"
                           value={a.notas ?? ""}
                           onChange={(e) => patchAnticipo(a.id, { notas: e.target.value })}
                           className={inputClass}
@@ -770,8 +794,9 @@ export function ProduccionEditor({
                         <button
                           type="button"
                           onClick={() => removeAnticipo(a.id)}
-                          className="text-neutral-400 hover:text-red-600"
-                          title="Eliminar"
+                          className="rounded p-1.5 text-neutral-400 hover:text-red-600"
+                          title="Quitar anticipo"
+                          aria-label="Quitar anticipo"
                         >
                           ✕
                         </button>
@@ -780,6 +805,7 @@ export function ProduccionEditor({
                   ))}
                 </tbody>
               </table>
+              </div>
             )}
             <div className="mt-2 flex items-center justify-between border-t border-neutral-200 pt-2">
               <span className="text-sm font-semibold text-neutral-900">
@@ -793,8 +819,8 @@ export function ProduccionEditor({
         )}
       </div>
 
-      <div className="col-span-1">
-        <div className="sticky top-6 space-y-4 rounded-xl border border-neutral-200 bg-white p-5">
+      <div className="lg:col-span-1">
+        <div className="space-y-4 rounded-xl border border-neutral-200 bg-white p-5 lg:sticky lg:top-6">
           <div>
             <h3 className="mb-2 text-sm font-semibold text-neutral-900">Resumen para contabilidad</h3>
             {staff.map((s) =>

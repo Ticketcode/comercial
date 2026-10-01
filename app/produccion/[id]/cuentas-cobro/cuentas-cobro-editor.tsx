@@ -163,7 +163,7 @@ export function CuentasCobroEditor({
           de cuenta, Concepto, Valor, Ciudad del evento. Subir un archivo nuevo reemplaza las
           cuentas de cobro actuales de este evento.
         </p>
-        <form onSubmit={handleUpload} className="mt-3 flex items-center gap-3">
+        <form onSubmit={handleUpload} className="mt-3 flex flex-wrap items-center gap-3">
           <input
             ref={fileInputRef}
             type="file"
@@ -190,7 +190,7 @@ export function CuentasCobroEditor({
 
       {cuentas.length > 0 && (
         <section className="rounded-xl border border-neutral-200 bg-white p-5">
-          <div className="mb-3 flex items-center justify-between">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
             <h3 className="text-sm font-semibold text-neutral-900">
               Cuentas de cobro ({cuentas.length}) — Total {formatCOP(totalValor)}
             </h3>
@@ -216,7 +216,8 @@ export function CuentasCobroEditor({
               {message}
             </p>
           )}
-          <table className="w-full text-sm">
+          <div className="overflow-x-auto">
+          <table className="w-full min-w-[720px] text-sm">
             <thead>
               <tr className="text-left text-xs text-neutral-400">
                 <th className="py-2">Nombre</th>
@@ -283,6 +284,7 @@ export function CuentasCobroEditor({
               ))}
             </tbody>
           </table>
+          </div>
         </section>
       )}
     </div>

@@ -4,6 +4,8 @@ import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import type { EventStaff, LegalizacionGasto, LegalizacionMeta, ViaticoAnticipo } from "@/lib/types";
 import { formatCOP } from "@/lib/pricing/summary";
 import { formatFechaCorta } from "@/lib/fecha-local";
+import { LabeledField } from "@/app/components/labeled-field";
+import { MoneyInput } from "@/app/components/money-input";
 import { SaveStatus, useConfirm, useUnsavedChanges } from "@/app/components/ui-guard";
 import { callSafe, problemsMessage, saveErrorMessage } from "@/lib/errors";
 import { saveLegalizacion, type SaveGastoRow, type SaveMetaRow } from "./actions";
@@ -252,13 +254,15 @@ export function LegalizacionEditor({
   }
 
   return (
-    <div className="grid grid-cols-3 gap-6">
-      <div className="col-span-2 space-y-6">
-        <div className="flex flex-wrap gap-1 border-b border-neutral-200 pb-2">
+    <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+      <div className="min-w-0 space-y-6 lg:col-span-2">
+        <div role="tablist" aria-label="Personas del evento" className="flex flex-wrap gap-1 border-b border-neutral-200 pb-2">
           {staff.map((s) => (
             <button
               key={s.id}
               type="button"
+              role="tab"
+              aria-selected={activeStaffId === s.id}
               onClick={() => setActiveStaffId(s.id)}
               className={`rounded-t-md px-3 py-1.5 text-xs font-medium ${
                 activeStaffId === s.id
@@ -274,7 +278,7 @@ export function LegalizacionEditor({
         {activeStaff && activeMeta && (
           <>
             <section className="rounded-xl border border-neutral-200 bg-white p-5">
-              <div className="mb-3 flex items-center justify-between">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                 <h3 className="text-sm font-semibold text-neutral-900">
                   Datos de la legalización — {activeStaff.full_name || "(sin nombre)"}
                 </h3>
@@ -286,31 +290,36 @@ export function LegalizacionEditor({
                   {copiedId === activeStaff.id ? "¡Copiado!" : "Copiar link para que él/ella lo llene"}
                 </button>
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <input
-                  placeholder="Responsable"
-                  value={activeMeta.responsable}
-                  onChange={(e) => patchMeta(activeStaff.id, { responsable: e.target.value })}
-                  className={inputClass}
-                />
-                <input
-                  placeholder="Actividad"
-                  value={activeMeta.actividad}
-                  onChange={(e) => patchMeta(activeStaff.id, { actividad: e.target.value })}
-                  className={inputClass}
-                />
-                <input
-                  placeholder="Ciudad de elaboración"
-                  value={activeMeta.ciudad_elaboracion}
-                  onChange={(e) => patchMeta(activeStaff.id, { ciudad_elaboracion: e.target.value })}
-                  className={inputClass}
-                />
-                <input
-                  type="date"
-                  value={activeMeta.fecha_elaboracion}
-                  onChange={(e) => patchMeta(activeStaff.id, { fecha_elaboracion: e.target.value })}
-                  className={inputClass}
-                />
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <LabeledField label="Responsable">
+                  <input
+                    value={activeMeta.responsable}
+                    onChange={(e) => patchMeta(activeStaff.id, { responsable: e.target.value })}
+                    className={inputClass}
+                  />
+                </LabeledField>
+                <LabeledField label="Actividad">
+                  <input
+                    value={activeMeta.actividad}
+                    onChange={(e) => patchMeta(activeStaff.id, { actividad: e.target.value })}
+                    className={inputClass}
+                  />
+                </LabeledField>
+                <LabeledField label="Ciudad de elaboración">
+                  <input
+                    value={activeMeta.ciudad_elaboracion}
+                    onChange={(e) => patchMeta(activeStaff.id, { ciudad_elaboracion: e.target.value })}
+                    className={inputClass}
+                  />
+                </LabeledField>
+                <LabeledField label="Fecha de elaboración">
+                  <input
+                    type="date"
+                    value={activeMeta.fecha_elaboracion}
+                    onChange={(e) => patchMeta(activeStaff.id, { fecha_elaboracion: e.target.value })}
+                    className={inputClass}
+                  />
+                </LabeledField>
               </div>
             </section>
 
@@ -364,7 +373,8 @@ export function LegalizacionEditor({
                   Todavía no hay soportes para {activeStaff.full_name || "esta persona"}.
                 </p>
               ) : (
-                <table className="w-full text-sm">
+                <div className="overflow-x-auto">
+                <table className="w-full min-w-[720px] text-sm">
                   <thead>
                     <tr className="text-left text-xs text-neutral-400">
                       <th className="w-28 py-1">Fecha</th>
@@ -382,6 +392,7 @@ export function LegalizacionEditor({
                         <td className="py-1 pr-1">
                           <input
                             type="date"
+                            aria-label="Fecha del gasto"
                             value={g.fecha ?? ""}
                             onChange={(e) => patchGasto(g.id, { fecha: e.target.value || null })}
                             className={inputClass}
@@ -389,6 +400,7 @@ export function LegalizacionEditor({
                         </td>
                         <td className="py-1 pr-1">
                           <input
+                            aria-label="Número de recibo"
                             value={g.numero_recibo ?? ""}
                             onChange={(e) => patchGasto(g.id, { numero_recibo: e.target.value })}
                             className={inputClass}
@@ -396,6 +408,7 @@ export function LegalizacionEditor({
                         </td>
                         <td className="py-1 pr-1">
                           <input
+                            aria-label="Tercero"
                             value={g.tercero ?? ""}
                             onChange={(e) => patchGasto(g.id, { tercero: e.target.value })}
                             className={inputClass}
@@ -404,6 +417,7 @@ export function LegalizacionEditor({
                         <td className="py-1 pr-1">
                           <input
                             list="rubros-list"
+                            aria-label="Rubro"
                             value={g.rubro ?? ""}
                             onChange={(e) => patchGasto(g.id, { rubro: e.target.value })}
                             className={inputClass}
@@ -411,17 +425,17 @@ export function LegalizacionEditor({
                         </td>
                         <td className="py-1 pr-1">
                           <input
+                            aria-label="Concepto"
                             value={g.concepto ?? ""}
                             onChange={(e) => patchGasto(g.id, { concepto: e.target.value })}
                             className={inputClass}
                           />
                         </td>
                         <td className="py-1 pr-1">
-                          <input
-                            type="number"
-                            min={0}
+                          <MoneyInput
+                            aria-label="Valor del gasto"
                             value={g.valor}
-                            onChange={(e) => patchGasto(g.id, { valor: Number(e.target.value) || 0 })}
+                            onChange={(v) => patchGasto(g.id, { valor: v ?? 0 })}
                             className={`${inputClass} text-right`}
                           />
                         </td>
@@ -429,7 +443,9 @@ export function LegalizacionEditor({
                           <button
                             type="button"
                             onClick={() => removeGasto(g.id)}
-                            className="text-neutral-400 hover:text-red-600"
+                            className="rounded p-1.5 text-neutral-400 hover:text-red-600"
+                            title="Quitar gasto"
+                            aria-label="Quitar gasto"
                           >
                             ✕
                           </button>
@@ -438,6 +454,7 @@ export function LegalizacionEditor({
                     ))}
                   </tbody>
                 </table>
+                </div>
               )}
               <datalist id="rubros-list">
                 {RUBROS.map((r) => (
@@ -473,8 +490,8 @@ export function LegalizacionEditor({
         )}
       </div>
 
-      <div className="col-span-1">
-        <div className="sticky top-6 space-y-2 rounded-xl border border-neutral-200 bg-white p-5">
+      <div className="lg:col-span-1">
+        <div className="space-y-2 rounded-xl border border-neutral-200 bg-white p-5 lg:sticky lg:top-6">
           <h3 className="mb-2 text-sm font-semibold text-neutral-900">Resumen general del evento</h3>
           <div className="flex items-center justify-between text-sm">
             <span className="text-neutral-500">Total anticipos</span>

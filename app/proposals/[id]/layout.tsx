@@ -25,11 +25,11 @@ export default async function ProposalLayout({
   const isCerrada = proposal.status === "cerrada";
 
   return (
-    <div className="mx-auto max-w-6xl px-6 py-10">
+    <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-10">
       <Link href="/proposals" className="no-print text-sm text-neutral-500 hover:underline">
         ← Todas las propuestas
       </Link>
-      <div className="mt-2 flex items-center justify-between">
+      <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold text-neutral-900">{proposal.event_name}</h1>
           <p className="text-sm text-neutral-500">

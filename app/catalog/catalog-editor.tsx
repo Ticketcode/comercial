@@ -37,9 +37,11 @@ function parseEsCO(text: string): number {
 function ThousandsInput({
   valuePesos,
   onChangePesos,
+  label,
 }: {
   valuePesos: number;
   onChangePesos: (pesos: number) => void;
+  label: string;
 }) {
   const [focused, setFocused] = useState(false);
   const [text, setText] = useState(() => formatEsCO(valuePesos));
@@ -52,6 +54,7 @@ function ThousandsInput({
     <input
       type="text"
       inputMode="decimal"
+      aria-label={label}
       value={text}
       onFocus={() => setFocused(true)}
       onChange={(e) => {
@@ -141,7 +144,7 @@ export function CatalogEditor({
 
   return (
     <div className="space-y-8">
-      <section className="overflow-hidden rounded-xl border border-neutral-200 bg-white">
+      <section className="overflow-x-auto rounded-xl border border-neutral-200 bg-white">
         <div className="border-b border-neutral-200 px-4 py-3">
           <h2 className="text-sm font-semibold text-neutral-900">Rubros Logística</h2>
         </div>
@@ -170,6 +173,7 @@ export function CatalogEditor({
                 </td>
                 <td className="px-4 py-2 text-right">
                   <ThousandsInput
+                    label={`Valor unitario de ${item.name}`}
                     valuePesos={logisticsPrices[item.id]}
                     onChangePesos={(pesos) =>
                       setLogisticsPrices((prev) => ({ ...prev, [item.id]: pesos }))
@@ -182,7 +186,7 @@ export function CatalogEditor({
         </table>
       </section>
 
-      <section className="overflow-hidden rounded-xl border border-neutral-200 bg-white">
+      <section className="overflow-x-auto rounded-xl border border-neutral-200 bg-white">
         <div className="border-b border-neutral-200 px-4 py-3">
           <h2 className="text-sm font-semibold text-neutral-900">
             2. Servicios personalizados de la plataforma
@@ -203,6 +207,7 @@ export function CatalogEditor({
                 <td className="px-2 py-2 text-neutral-800">{item.name}</td>
                 <td className="px-4 py-2 text-right">
                   <ThousandsInput
+                    label={`Precio de ${item.name}`}
                     valuePesos={servicePrices[item.id]}
                     onChangePesos={(pesos) =>
                       setServicePrices((prev) => ({ ...prev, [item.id]: pesos }))
@@ -221,7 +226,7 @@ export function CatalogEditor({
           .sort((a, b) => a.sort_order - b.sort_order);
         const isAforo = group === "honorarios_productor";
         return (
-          <section key={group} className="overflow-hidden rounded-xl border border-neutral-200 bg-white">
+          <section key={group} className="overflow-x-auto rounded-xl border border-neutral-200 bg-white">
             <div className="border-b border-neutral-200 px-4 py-3">
               <h2 className="text-sm font-semibold text-neutral-900">{SCALE_GROUP_LABELS[group]}</h2>
             </div>
@@ -240,6 +245,7 @@ export function CatalogEditor({
                     <td className="px-4 py-2 text-neutral-800">{tierLabel(item, isAforo)}</td>
                     <td className="px-4 py-2 text-right">
                       <ThousandsInput
+                        label={`Valor del tramo ${tierLabel(item, isAforo)}`}
                         valuePesos={scaleValues[item.id]}
                         onChangePesos={(pesos) =>
                           setScaleValues((prev) => ({ ...prev, [item.id]: pesos }))

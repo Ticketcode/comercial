@@ -14,11 +14,12 @@ export function TopNavLinks({ showProduccion }: { showProduccion: boolean }) {
   ];
 
   return (
-    <nav className="flex gap-1">
+    <nav aria-label="Principal" className="flex gap-1">
       {tabs.map((tab) => (
         <Link
           key={tab.href}
           href={tab.href}
+          aria-current={tab.active ? "page" : undefined}
           className={`rounded-md px-3 py-1.5 text-sm font-medium ${
             tab.active ? "bg-neutral-900 text-white" : "text-neutral-600 hover:bg-neutral-100"
           }`}

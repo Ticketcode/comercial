@@ -32,7 +32,7 @@ export default async function LegalizarPage({ params }: { params: Promise<{ id: 
   ]);
 
   return (
-    <div className="mx-auto min-h-screen max-w-2xl bg-neutral-50 px-6 py-10">
+    <div className="mx-auto min-h-screen max-w-2xl bg-neutral-50 px-4 py-6 sm:px-6 sm:py-10">
       <div className="rounded-xl border border-neutral-200 bg-white p-6">
         <span className="text-base font-extrabold tracking-tight text-emerald-700">ticketcode</span>
         <h1 className="mt-1 text-lg font-bold text-neutral-900">Legalización de viáticos</h1>

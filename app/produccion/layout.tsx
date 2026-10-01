@@ -13,7 +13,7 @@ export default async function ProduccionSectionLayout({ children }: { children: 
     return (
       <>
         <TopNav />
-        <div className="mx-auto max-w-6xl px-6 py-10">
+        <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-10">
           <div className="rounded-xl border border-neutral-200 bg-white p-6 text-sm text-neutral-700">
             <p className="font-medium text-neutral-900">No pudimos verificar tu sesión.</p>
             <p className="mt-1">
@@ -45,7 +45,7 @@ export default async function ProduccionSectionLayout({ children }: { children: 
     return (
       <>
         <TopNav />
-        <div className="mx-auto max-w-6xl px-6 py-10">
+        <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-10">
           <div className="rounded-xl border border-amber-200 bg-amber-50 p-6 text-sm text-amber-800">
             No tienes acceso a Producción. Este apartado es solo para el equipo de
             producción/administración.

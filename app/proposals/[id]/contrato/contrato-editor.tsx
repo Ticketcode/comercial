@@ -83,7 +83,7 @@ export function ContratoEditor({
 
       <section className="rounded-xl border border-neutral-200 bg-white p-5">
         <h3 className="mb-4 text-sm font-semibold text-neutral-900">Datos del contrato</h3>
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <Field label="Número de contrato">
             <input
               className={inputClass}
@@ -120,7 +120,7 @@ export function ContratoEditor({
 
       <section className="rounded-xl border border-neutral-200 bg-white p-5">
         <h3 className="mb-4 text-sm font-semibold text-neutral-900">EL CONTRATANTE</h3>
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <Field label="Representante legal (nombre completo)">
             <input
               className={inputClass}
@@ -192,7 +192,7 @@ export function ContratoEditor({
               placeholder="Se usa un texto por defecto si lo dejas vacío."
             />
           </Field>
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <Field label="Servicio — inicio">
               <input
                 type="date"
@@ -229,7 +229,7 @@ export function ContratoEditor({
         </div>
       </section>
 
-      <div className="flex items-center gap-4">
+      <div className="flex flex-wrap items-center gap-4">
         <button
           onClick={handleSave}
           disabled={isPending}
@@ -255,9 +255,9 @@ export function ContratoEditor({
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="space-y-1">
-      <label className={labelClass}>{label}</label>
+    <label className="block space-y-1">
+      <span className={labelClass}>{label}</span>
       {children}
-    </div>
+    </label>
   );
 }

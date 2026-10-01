@@ -4,6 +4,8 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import type { EventStaff, LegalizacionGasto, LegalizacionMeta, ViaticoAnticipo } from "@/lib/types";
 import { formatCOP } from "@/lib/pricing/summary";
 import { formatFechaCorta } from "@/lib/fecha-local";
+import { LabeledField } from "@/app/components/labeled-field";
+import { MoneyInput } from "@/app/components/money-input";
 import { SaveStatus, useConfirm, useUnsavedChanges } from "@/app/components/ui-guard";
 import { callSafe, problemsMessage, saveErrorMessage } from "@/lib/errors";
 import { saveLegalizacionPersona, type SaveGastoRow } from "./actions";
@@ -188,31 +190,36 @@ export function LegalizarForm({
     <div className="mt-5 space-y-5">
       <section>
         <h2 className="mb-2 text-sm font-semibold text-neutral-900">Tus datos</h2>
-        <div className="grid grid-cols-2 gap-3">
-          <input
-            placeholder="Responsable"
-            value={responsable}
-            onChange={(e) => setResponsable(e.target.value)}
-            className={inputClass}
-          />
-          <input
-            placeholder="Actividad"
-            value={actividad}
-            onChange={(e) => setActividad(e.target.value)}
-            className={inputClass}
-          />
-          <input
-            placeholder="Ciudad de elaboración"
-            value={ciudadElaboracion}
-            onChange={(e) => setCiudadElaboracion(e.target.value)}
-            className={inputClass}
-          />
-          <input
-            type="date"
-            value={fechaElaboracion}
-            onChange={(e) => setFechaElaboracion(e.target.value)}
-            className={inputClass}
-          />
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <LabeledField label="Responsable">
+            <input
+              value={responsable}
+              onChange={(e) => setResponsable(e.target.value)}
+              className={inputClass}
+            />
+          </LabeledField>
+          <LabeledField label="Actividad">
+            <input
+              value={actividad}
+              onChange={(e) => setActividad(e.target.value)}
+              className={inputClass}
+            />
+          </LabeledField>
+          <LabeledField label="Ciudad de elaboración">
+            <input
+              value={ciudadElaboracion}
+              onChange={(e) => setCiudadElaboracion(e.target.value)}
+              className={inputClass}
+            />
+          </LabeledField>
+          <LabeledField label="Fecha de elaboración">
+            <input
+              type="date"
+              value={fechaElaboracion}
+              onChange={(e) => setFechaElaboracion(e.target.value)}
+              className={inputClass}
+            />
+          </LabeledField>
         </div>
       </section>
 
@@ -270,12 +277,14 @@ export function LegalizarForm({
                   <button
                     type="button"
                     onClick={() => removeGasto(g.id)}
-                    className="text-neutral-400 hover:text-red-600"
+                    className="rounded p-1.5 text-neutral-400 hover:text-red-600"
+                    title="Quitar gasto"
+                    aria-label="Quitar este gasto"
                   >
                     ✕
                   </button>
                 </div>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                   <label className="text-xs text-neutral-500">
                     Fecha
                     <input
@@ -310,7 +319,7 @@ export function LegalizarForm({
                       className={`${inputClass} mt-1`}
                     />
                   </label>
-                  <label className="col-span-2 text-xs text-neutral-500">
+                  <label className="text-xs text-neutral-500 sm:col-span-2">
                     Concepto
                     <input
                       value={g.concepto ?? ""}
@@ -320,11 +329,9 @@ export function LegalizarForm({
                   </label>
                   <label className="text-xs text-neutral-500">
                     Valor
-                    <input
-                      type="number"
-                      min={0}
+                    <MoneyInput
                       value={g.valor}
-                      onChange={(e) => patchGasto(g.id, { valor: Number(e.target.value) || 0 })}
+                      onChange={(v) => patchGasto(g.id, { valor: v ?? 0 })}
                       className={`${inputClass} mt-1`}
                     />
                   </label>

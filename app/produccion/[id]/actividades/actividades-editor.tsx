@@ -74,7 +74,8 @@ function ChecklistGroupBlock({
             <button
               type="button"
               onClick={() => handlers.onDeleteItem(item.id)}
-              className="ml-auto text-neutral-300 hover:text-red-600"
+              aria-label={`Quitar "${item.texto}"`}
+              className="ml-auto rounded p-1 text-neutral-500 hover:text-red-600"
             >
               ✕
             </button>
@@ -124,12 +125,14 @@ function ActivityRow({
 
   return (
     <div className="border-t border-neutral-100 py-2">
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         {groups.length > 0 ? (
           <button
             type="button"
             onClick={() => setOpen((o) => !o)}
-            className="w-4 text-xs text-neutral-400"
+            aria-expanded={open}
+            aria-label={`${open ? "Ocultar" : "Ver"} el checklist de ${activity.nombre}`}
+            className="w-4 text-xs text-neutral-500"
           >
             {open ? "▼" : "▶"}
           </button>
@@ -137,7 +140,7 @@ function ActivityRow({
           <span className="w-4" />
         )}
         <span
-          className={`flex-1 text-sm ${
+          className={`min-w-[10rem] flex-1 text-sm ${
             activity.estado === "completada" ? "text-neutral-400 line-through" : "text-neutral-800"
           }`}
         >
@@ -156,6 +159,7 @@ function ActivityRow({
         <input
           type="text"
           placeholder="Responsable"
+          aria-label={`Responsable de ${activity.nombre}`}
           defaultValue={activity.responsable ?? ""}
           onBlur={(e) => {
             const value = e.target.value || null;
@@ -167,6 +171,7 @@ function ActivityRow({
         />
         <input
           type="date"
+          aria-label={`Fecha límite de ${activity.nombre}`}
           defaultValue={activity.fecha_limite ?? ""}
           onBlur={(e) => {
             const value = e.target.value || null;
@@ -179,6 +184,8 @@ function ActivityRow({
         <button
           type="button"
           title={activity.estado === "completada" ? "Marcar como pendiente" : "Marcar como completada"}
+          aria-pressed={activity.estado === "completada"}
+          aria-label={`${activity.nombre}: completada`}
           onClick={() =>
             handlers.onPatchActivity(activity.id, {
               estado: activity.estado === "completada" ? "pendiente" : "completada",
@@ -342,7 +349,8 @@ export function ActividadesEditor({
             <button
               type="button"
               onClick={() => toggleCategory(cat.key)}
-              className="flex w-full items-center gap-3 p-5"
+              aria-expanded={open}
+              className="flex w-full flex-wrap items-center gap-3 p-4 text-left sm:p-5"
             >
               <span className="text-xs text-neutral-400">{open ? "▼" : "▶"}</span>
               <span className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${cat.colorClass}`}>
