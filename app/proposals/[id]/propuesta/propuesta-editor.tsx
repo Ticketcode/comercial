@@ -13,6 +13,7 @@ import type {
 import type { TarifarioSummary } from "@/lib/pricing/summary";
 import { applyCommercialDiscount, formatCOP } from "@/lib/pricing/summary";
 import { SaveStatus, useConfirm, useUnsavedChanges } from "@/app/components/ui-guard";
+import { callSafe, problemsMessage, saveErrorMessage } from "@/lib/errors";
 import { savePropuesta } from "./actions";
 import { addMilestone, removeMilestone, updateMilestonePct, type Milestone } from "./milestones";
 
@@ -275,7 +276,37 @@ export function PropuestaEditor({
     if (!id.startsWith("new-")) setDeletedRequirementIds((prev) => [...prev, id]);
   }
 
-  function handleSave() {
+  function validar(): string[] {
+    const problems: string[] = [];
+    scheduleRows.forEach((s) => {
+      if (!s.hito.trim()) problems.push(`Hay un hito del cronograma sin texto (semana ${s.week_number})`);
+    });
+    milestones.forEach((m) => {
+      if (!m.label.trim()) problems.push("Hay un hito de pago sin descripción");
+    });
+    requirements.forEach((r) => {
+      if (!r.text.trim()) problems.push("Hay un requerimiento operativo vacío");
+    });
+    return Array.from(new Set(problems));
+  }
+
+  async function handleSave() {
+    const problems = validar();
+    if (problems.length > 0) {
+      setMessage(problemsMessage(problems));
+      return;
+    }
+    // Aviso (no bloquea): los pesos del acuerdo comercial deben repartir el 100%.
+    const incluidos = agreementRows.filter((a) => a.included);
+    if (incluidos.length > 0 && Math.abs(totalPesoConceptos - 100) > 0.01) {
+      const ok = await confirm({
+        title: "Los pesos del acuerdo comercial no suman 100%",
+        message: `Suman ${totalPesoConceptos}%. Deberían repartir exactamente el 100% del descuento entre los conceptos marcados. ¿Guardar de todos modos?`,
+        confirmLabel: "Guardar así",
+        cancelLabel: "Corregir",
+      });
+      if (!ok) return;
+    }
     setMessage(null);
     awaitingSync.current = true;
     startTransition(async () => {
@@ -286,7 +317,7 @@ export function PropuestaEditor({
       const existingRequirements = requirements.filter((r) => !r.id.startsWith("new-"));
       const newRequirements = requirements.filter((r) => r.id.startsWith("new-"));
 
-      const result = await savePropuesta({
+      const result = await callSafe(() => savePropuesta({
         proposalId: proposal.id,
         lugar,
         acuerdo_comercial_pct_global: globalPct,
@@ -315,9 +346,9 @@ export function PropuestaEditor({
           new: newRequirements,
           deletedIds: deletedRequirementIds,
         },
-      });
+      }));
       if (result.error) awaitingSync.current = false;
-      setMessage(result.error ? `Error: ${result.error}` : "Guardado.");
+      setMessage(result.error ? saveErrorMessage(result.error) : "Guardado.");
     });
   }
 

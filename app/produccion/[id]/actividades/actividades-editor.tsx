@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { friendlyError } from "@/lib/errors";
 import type {
   ActivityChecklistGroup,
   ActivityChecklistItem,
@@ -253,7 +254,7 @@ export function ActividadesEditor({
       })
       .catch((e: unknown) => {
         setError(
-          `No se pudo guardar el cambio: ${e instanceof Error ? e.message : "error"}. Recarga la página.`
+          `No se pudo guardar el último cambio: ${friendlyError(e)} Se restauró la pantalla; revisa que todo esté como esperas.`
         );
         setActivities(activitiesProp);
         setGroups(groupsProp);

@@ -5,6 +5,7 @@ import type { EventStaff, ViaticoAnticipo, ViaticoGiro } from "@/lib/types";
 import { formatCOP } from "@/lib/pricing/summary";
 import { formatFechaCorta } from "@/lib/fecha-local";
 import { SaveStatus, useConfirm, useUnsavedChanges } from "@/app/components/ui-guard";
+import { callSafe, problemsMessage, saveErrorMessage } from "@/lib/errors";
 import { saveProduccion, type SaveStaffRow, type SaveGiroRow, type SaveAnticipoRow } from "./actions";
 
 interface TarifasReferencia {
@@ -295,7 +296,30 @@ export function ProduccionEditor({
   const totalGirado = anticipos.reduce((s, a) => s + a.valor, 0);
   const totalPendiente = totalGeneral - totalGirado;
 
+  function validar(): string[] {
+    const problems: string[] = [];
+    const nombre = (staffId: string) =>
+      staff.find((s) => s.id === staffId)?.full_name.trim() || "una persona sin nombre";
+    staff.forEach((s, i) => {
+      if (!s.full_name.trim()) problems.push(`La persona #${i + 1} no tiene nombre`);
+    });
+    giros.forEach((g) => {
+      if (!(g.cantidad > 0)) problems.push(`Un rubro de ${nombre(g.staff_id)} tiene cantidad 0`);
+      else if (!(g.monto > 0)) problems.push(`Un rubro de ${nombre(g.staff_id)} tiene valor 0`);
+    });
+    anticipos.forEach((a) => {
+      if (!(a.valor > 0)) problems.push(`Un anticipo de ${nombre(a.staff_id)} tiene valor 0`);
+      if (!a.fecha) problems.push(`Un anticipo de ${nombre(a.staff_id)} no tiene fecha`);
+    });
+    return Array.from(new Set(problems));
+  }
+
   function handleSave() {
+    const problems = validar();
+    if (problems.length > 0) {
+      setMessage(problemsMessage(problems));
+      return;
+    }
     setMessage(null);
     awaitingSync.current = true;
     activeIndexAtSave.current = Math.max(
@@ -336,7 +360,7 @@ export function ProduccionEditor({
         sort_order: a.sort_order,
       });
 
-      const result = await saveProduccion({
+      const result = await callSafe(() => saveProduccion({
         proposalId,
         staff: {
           existing: staff.filter((s) => !isTemp(s.id)).map(toStaffRow),
@@ -353,9 +377,9 @@ export function ProduccionEditor({
           new: anticipos.filter((a) => isTemp(a.id)).map(toAnticipoRow),
           deletedIds: deletedAnticipoIds,
         },
-      });
+      }));
       if (result.error) awaitingSync.current = false;
-      setMessage(result.error ? `Error: ${result.error}` : "Guardado.");
+      setMessage(result.error ? saveErrorMessage(result.error) : "Guardado.");
     });
   }
 

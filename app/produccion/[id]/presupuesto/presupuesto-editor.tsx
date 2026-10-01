@@ -5,6 +5,7 @@ import type { PresupuestoItem, Proposal } from "@/lib/types";
 import { PRESUPUESTO_CATEGORIAS } from "@/lib/data/presupuesto-template";
 import { formatCOP } from "@/lib/pricing/summary";
 import { SaveStatus, useConfirm, useUnsavedChanges } from "@/app/components/ui-guard";
+import { callSafe, problemsMessage, saveErrorMessage } from "@/lib/errors";
 import { savePresupuesto, pullValoresTarifario, type SavePresupuestoItemRow } from "./actions";
 
 interface Props {
@@ -81,10 +82,10 @@ export function PresupuestoEditor({ proposalId, proposal, initialItems }: Props)
     if (!ok) return;
     setIsPulling(true);
     setMessage(null);
-    const result = await pullValoresTarifario(proposalId);
+    const result = await callSafe(() => pullValoresTarifario(proposalId));
     if (result.error) {
       setIsPulling(false);
-      setMessage(`Error: ${result.error}`);
+      setMessage(saveErrorMessage(result.error));
     } else {
       // El estado del formulario vive en useState desde initialItems — un
       // router.refresh() no lo vuelve a sincronizar porque el componente ya
@@ -199,7 +200,20 @@ export function PresupuestoEditor({ proposalId, proposal, initialItems }: Props)
     if (!isTemp(id)) setDeletedIds((prev) => [...prev, id]);
   }
 
+  function validar(): string[] {
+    const problems: string[] = [];
+    items.forEach((i) => {
+      if (!i.nombre.trim()) problems.push(`Hay una línea sin nombre en "${i.categoria}"`);
+    });
+    return Array.from(new Set(problems));
+  }
+
   function handleSave() {
+    const problems = validar();
+    if (problems.length > 0) {
+      setMessage(problemsMessage(problems));
+      return;
+    }
     setMessage(null);
     awaitingSync.current = true;
     startTransition(async () => {
@@ -224,7 +238,7 @@ export function PresupuestoEditor({ proposalId, proposal, initialItems }: Props)
         comentario: i.comentario,
         sort_order: i.sort_order,
       });
-      const result = await savePresupuesto({
+      const result = await callSafe(() => savePresupuesto({
         proposalId,
         aforoReal,
         items: {
@@ -232,9 +246,9 @@ export function PresupuestoEditor({ proposalId, proposal, initialItems }: Props)
           new: items.filter((i) => isTemp(i.id)).map(toRow),
           deletedIds,
         },
-      });
+      }));
       if (result.error) awaitingSync.current = false;
-      setMessage(result.error ? `Error: ${result.error}` : "Guardado.");
+      setMessage(result.error ? saveErrorMessage(result.error) : "Guardado.");
     });
   }
 

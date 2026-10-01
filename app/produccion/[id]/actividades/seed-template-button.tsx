@@ -1,11 +1,13 @@
 "use client";
 
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { callSafe, friendlyError } from "@/lib/errors";
 import { seedActivitiesFromTemplate } from "./actions";
 
 export function SeedTemplateButton({ proposalId }: { proposalId: string }) {
   const [isPending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
   const router = useRouter();
 
   return (
@@ -20,7 +22,12 @@ export function SeedTemplateButton({ proposalId }: { proposalId: string }) {
         disabled={isPending}
         onClick={() =>
           startTransition(async () => {
-            await seedActivitiesFromTemplate(proposalId);
+            setError(null);
+            const result = await callSafe(() => seedActivitiesFromTemplate(proposalId));
+            if (result.error) {
+              setError(friendlyError(result.error));
+              return;
+            }
             router.refresh();
           })
         }
@@ -28,6 +35,11 @@ export function SeedTemplateButton({ proposalId }: { proposalId: string }) {
       >
         {isPending ? "Cargando..." : "Cargar plantilla estándar"}
       </button>
+      {error && (
+        <p role="alert" className="mt-3 text-sm text-red-600">
+          Error: {error}
+        </p>
+      )}
     </div>
   );
 }

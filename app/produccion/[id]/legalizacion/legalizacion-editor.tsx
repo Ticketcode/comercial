@@ -5,6 +5,7 @@ import type { EventStaff, LegalizacionGasto, LegalizacionMeta, ViaticoAnticipo }
 import { formatCOP } from "@/lib/pricing/summary";
 import { formatFechaCorta } from "@/lib/fecha-local";
 import { SaveStatus, useConfirm, useUnsavedChanges } from "@/app/components/ui-guard";
+import { callSafe, problemsMessage, saveErrorMessage } from "@/lib/errors";
 import { saveLegalizacion, type SaveGastoRow, type SaveMetaRow } from "./actions";
 
 interface Props {
@@ -180,7 +181,22 @@ export function LegalizacionEditor({
     if (!isTemp(id)) setDeletedIds((prev) => [...prev, id]);
   }
 
+  function validar(): string[] {
+    const problems: string[] = [];
+    gastos.forEach((g) => {
+      const nombre = staff.find((s) => s.id === g.staff_id)?.full_name.trim() || "una persona";
+      if (!g.fecha) problems.push(`Un gasto de ${nombre} no tiene fecha`);
+      if (!(g.valor > 0)) problems.push(`Un gasto de ${nombre} tiene valor 0`);
+    });
+    return Array.from(new Set(problems));
+  }
+
   function handleSave() {
+    const problems = validar();
+    if (problems.length > 0) {
+      setMessage(problemsMessage(problems));
+      return;
+    }
     setMessage(null);
     awaitingSync.current = true;
     startTransition(async () => {
@@ -205,7 +221,7 @@ export function LegalizacionEditor({
           fecha_elaboracion: m.fecha_elaboracion || null,
         };
       });
-      const result = await saveLegalizacion({
+      const result = await callSafe(() => saveLegalizacion({
         proposalId,
         metas,
         gastos: {
@@ -213,9 +229,9 @@ export function LegalizacionEditor({
           new: gastos.filter((g) => isTemp(g.id)).map(toRow),
           deletedIds,
         },
-      });
+      }));
       if (result.error) awaitingSync.current = false;
-      setMessage(result.error ? `Error: ${result.error}` : "Guardado.");
+      setMessage(result.error ? saveErrorMessage(result.error) : "Guardado.");
     });
   }
 

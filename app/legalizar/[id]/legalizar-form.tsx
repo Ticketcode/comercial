@@ -5,6 +5,7 @@ import type { EventStaff, LegalizacionGasto, LegalizacionMeta, ViaticoAnticipo }
 import { formatCOP } from "@/lib/pricing/summary";
 import { formatFechaCorta } from "@/lib/fecha-local";
 import { SaveStatus, useConfirm, useUnsavedChanges } from "@/app/components/ui-guard";
+import { callSafe, problemsMessage, saveErrorMessage } from "@/lib/errors";
 import { saveLegalizacionPersona, type SaveGastoRow } from "./actions";
 
 interface Props {
@@ -132,7 +133,22 @@ export function LegalizarForm({
     if (!isTemp(id)) setDeletedIds((prev) => [...prev, id]);
   }
 
+  function validar(): string[] {
+    const problems: string[] = [];
+    if (!responsable.trim()) problems.push('Escribe tu nombre en "Responsable"');
+    gastos.forEach((g, i) => {
+      if (!g.fecha) problems.push(`El gasto ${i + 1} no tiene fecha`);
+      if (!(g.valor > 0)) problems.push(`El gasto ${i + 1} tiene valor 0`);
+    });
+    return problems;
+  }
+
   function handleSave() {
+    const problems = validar();
+    if (problems.length > 0) {
+      setMessage(problemsMessage(problems));
+      return;
+    }
     setMessage(null);
     awaitingSync.current = true;
     startTransition(async () => {
@@ -146,7 +162,7 @@ export function LegalizarForm({
         valor: g.valor,
         sort_order: g.sort_order,
       });
-      const result = await saveLegalizacionPersona({
+      const result = await callSafe(() => saveLegalizacionPersona({
         staffId,
         proposalId,
         meta: {
@@ -160,9 +176,11 @@ export function LegalizarForm({
           new: gastos.filter((g) => isTemp(g.id)).map(toRow),
           deletedIds,
         },
-      });
+      }));
       if (result.error) awaitingSync.current = false;
-      setMessage(result.error ? `Error: ${result.error}` : "Guardado — puedes seguir editando si falta algo.");
+      setMessage(
+        result.error ? saveErrorMessage(result.error) : "Guardado — puedes seguir editando si falta algo."
+      );
     });
   }
 

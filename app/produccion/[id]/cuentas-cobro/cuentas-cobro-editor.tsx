@@ -2,6 +2,7 @@
 
 import { useRef, useState, useTransition } from "react";
 import { useConfirm } from "@/app/components/ui-guard";
+import { callSafe, friendlyError } from "@/lib/errors";
 import { useRouter } from "next/navigation";
 import type { CuentaCobro } from "@/lib/types";
 import { formatCOP } from "@/lib/pricing/summary";
@@ -76,13 +77,13 @@ export function CuentasCobroEditor({
           target === "all"
             ? await deleteAllCuentasCobro(proposalId)
             : await deleteCuentaCobro(target, proposalId);
-        if (result.error) setMessage(`Error al borrar: ${result.error}`);
+        if (result.error) setMessage(`Error al borrar: ${friendlyError(result.error)}`);
         else
           setMessage(
             target === "all" ? "Se borraron todas las cuentas de cobro." : "Cuenta de cobro borrada."
           );
       } catch (err) {
-        setMessage(`Error al borrar: ${err instanceof Error ? err.message : "no se pudo borrar."}`);
+        setMessage(`Error al borrar: ${friendlyError(err)}`);
       }
       setConfirming(null);
       router.refresh();
@@ -140,11 +141,11 @@ export function CuentasCobroEditor({
     formData.append("file", file);
     setMessage(null);
     startTransition(async () => {
-      const result = await uploadCuentasCobro(proposalId, formData);
+      const result = await callSafe(() => uploadCuentasCobro(proposalId, formData));
       if (result.error) {
-        setMessage(`Error: ${result.error}`);
+        setMessage(`Error: ${friendlyError(result.error)}`);
       } else {
-        setMessage(`Se cargaron ${result.count} cuentas de cobro.`);
+        setMessage(`Se cargaron ${"count" in result ? result.count : 0} cuentas de cobro.`);
         if (fileInputRef.current) fileInputRef.current.value = "";
       }
       router.refresh();
@@ -210,6 +211,11 @@ export function CuentasCobroEditor({
           <p className="mb-3 text-xs text-neutral-500">
             {firmadas}/{cuentas.length} firmadas
           </p>
+          {message?.startsWith("Error") && (
+            <p role="alert" className="mb-3 rounded-md bg-red-50 p-3 text-xs text-red-700">
+              {message}
+            </p>
+          )}
           <table className="w-full text-sm">
             <thead>
               <tr className="text-left text-xs text-neutral-400">
@@ -257,7 +263,8 @@ export function CuentasCobroEditor({
                           type="button"
                           onClick={() =>
                             startTransition(async () => {
-                              await markFirmada(c.id, proposalId, true);
+                              const r = await callSafe(() => markFirmada(c.id, proposalId, true));
+                              if (r.error) setMessage(`Error al marcar como firmada: ${friendlyError(r.error)}`);
                               router.refresh();
                             })
                           }

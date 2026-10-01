@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import type { Proposal, ProposalContractFields } from "@/lib/types";
 import { SaveStatus, useUnsavedChanges } from "@/app/components/ui-guard";
+import { callSafe, problemsMessage, saveErrorMessage } from "@/lib/errors";
 import { saveContractFields, type ContractFieldsInput } from "./actions";
 
 const inputClass =
@@ -49,13 +50,27 @@ export function ContratoEditor({
     setForm((prev) => ({ ...prev, [key]: value }));
   }
 
+  function validar(): string[] {
+    const problems: string[] = [];
+    if (form.tiempo_servicio_inicio && form.tiempo_servicio_fin && form.tiempo_servicio_fin < form.tiempo_servicio_inicio)
+      problems.push("El fin del servicio es anterior a su inicio");
+    if (form.plazo_inicio && form.plazo_fin && form.plazo_fin < form.plazo_inicio)
+      problems.push("El fin del plazo de ejecución es anterior a su inicio");
+    return problems;
+  }
+
   function handleSave() {
+    const problems = validar();
+    if (problems.length > 0) {
+      setMessage(problemsMessage(problems));
+      return;
+    }
     setMessage(null);
     const snap = snapshot();
     startTransition(async () => {
-      const result = await saveContractFields(proposal.id, form);
+      const result = await callSafe(() => saveContractFields(proposal.id, form));
       if (!result.error) markSaved(snap);
-      setMessage(result.error ? `Error: ${result.error}` : "Guardado.");
+      setMessage(result.error ? saveErrorMessage(result.error) : "Guardado.");
     });
   }
 

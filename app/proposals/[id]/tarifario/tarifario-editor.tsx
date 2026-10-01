@@ -11,6 +11,7 @@ import type {
 import { staffingForAforo, logisticosPorSalon, totalLogisticosSalones } from "@/lib/pricing/logistics";
 import { computeTarifarioSummary, formatCOP } from "@/lib/pricing/summary";
 import { SaveStatus, useUnsavedChanges } from "@/app/components/ui-guard";
+import { callSafe, problemsMessage, saveErrorMessage } from "@/lib/errors";
 import { saveTarifario, type SaveTarifarioPayload } from "./actions";
 
 interface Props {
@@ -206,19 +207,30 @@ export function TarifarioEditor({
     [proposalForSummary, logisticsRates, serviceItemsForSummary, honorariosProductorScale]
   );
 
+  function validar(): string[] {
+    const problems: string[] = [];
+    if (!(eventFields.dias > 0)) problems.push('Los "Días" del evento deben ser al menos 1');
+    return problems;
+  }
+
   function handleSave() {
+    const problems = validar();
+    if (problems.length > 0) {
+      setMessage(problemsMessage(problems));
+      return;
+    }
     setMessage(null);
     const snap = snapshot();
     startTransition(async () => {
-      const result = await saveTarifario({
+      const result = await callSafe(() => saveTarifario({
         proposalId: proposal.id,
         eventFields,
         serviceItems: Object.values(serviceRows),
         salonesInternosAforos: salonesAforos,
         logisticsOverrides,
-      });
+      }));
       if (!result.error) markSaved(snap);
-      setMessage(result.error ? `Error: ${result.error}` : "Guardado.");
+      setMessage(result.error ? saveErrorMessage(result.error) : "Guardado.");
     });
   }
 

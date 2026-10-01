@@ -3,6 +3,7 @@
 import { useEffect, useState, useTransition } from "react";
 import type { CatalogItem, LogisticsRateItem, PriceScaleItem } from "@/lib/types";
 import { SaveStatus, useUnsavedChanges } from "@/app/components/ui-guard";
+import { callSafe, problemsMessage, saveErrorMessage } from "@/lib/errors";
 import { saveCatalog } from "./actions";
 
 const SCALE_GROUP_LABELS: Record<PriceScaleItem["scale_group"], string> = {
@@ -27,7 +28,7 @@ function formatEsCO(value: number): string {
 
 function parseEsCO(text: string): number {
   // "20.000" -> quita puntos de miles; "3,47" -> coma decimal a punto.
-  const normalized = text.replace(/\./g, "").replace(",", ".");
+  const normalized = text.replace(/[^0-9.,]/g, "").replace(/\./g, "").replace(",", ".");
   const n = parseFloat(normalized);
   return Number.isNaN(n) ? 0 : n;
 }
@@ -98,11 +99,28 @@ export function CatalogEditor({
 
   const scaleGroups = Array.from(new Set(priceScaleItems.map((i) => i.scale_group)));
 
+  function validar(): string[] {
+    const problems: string[] = [];
+    const todos = [
+      ...Object.values(logisticsPrices),
+      ...Object.values(servicePrices),
+      ...Object.values(scaleValues),
+    ];
+    if (todos.some((v) => !Number.isFinite(v) || v < 0))
+      problems.push("Hay precios vacíos, negativos o inválidos");
+    return problems;
+  }
+
   function handleSave() {
+    const problems = validar();
+    if (problems.length > 0) {
+      setMessage(problemsMessage(problems));
+      return;
+    }
     setMessage(null);
     const snap = snapshot();
     startTransition(async () => {
-      const result = await saveCatalog({
+      const result = await callSafe(() => saveCatalog({
         logisticsItems: logisticsItems.map((i) => ({
           id: i.id,
           default_unit_cost: logisticsPrices[i.id],
@@ -115,9 +133,9 @@ export function CatalogEditor({
           id: i.id,
           unit_value: scaleValues[i.id],
         })),
-      });
+      }));
       if (!result.error) markSaved(snap);
-      setMessage(result.error ? `Error: ${result.error}` : "Guardado.");
+      setMessage(result.error ? saveErrorMessage(result.error) : "Guardado.");
     });
   }
 

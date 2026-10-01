@@ -6,6 +6,7 @@ import { useEffect } from "react";
  * Ajuste global para los campos numéricos (Viáticos, Tarifario, Legalización,
  * Presupuesto...): al entrar a un campo se selecciona su contenido, así el "0"
  * se reemplaza al escribir, y si queda un cero a la izquierda ("03000") se quita.
+ * Además no admite negativos y respeta el atributo max.
  */
 export function NumberInputFix() {
   useEffect(() => {
@@ -34,8 +35,18 @@ export function NumberInputFix() {
     function onInput(e: Event) {
       const t = e.target;
       if (!isNumberInput(t)) return;
-      const cleaned = t.value.replace(/^(-?)0+(?=\d)/, "$1");
-      if (cleaned !== t.value) t.value = cleaned;
+      let cleaned = t.value.replace(/^(-?)0+(?=\d)/, "$1");
+      // Ningún campo numérico de la app admite negativos.
+      if (!t.hasAttribute("data-allow-negative")) cleaned = cleaned.replace(/^-/, "");
+      // Respeta el atributo max (por ejemplo, porcentajes hasta 100).
+      const max = t.max !== "" ? Number(t.max) : NaN;
+      if (cleaned !== "" && Number.isFinite(max) && Number(cleaned) > max) cleaned = String(max);
+      if (cleaned !== t.value) {
+        // Setter nativo: así React (campos controlados) sí detecta el cambio y dispara onChange.
+        const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
+        if (setter) setter.call(t, cleaned);
+        else t.value = cleaned;
+      }
     }
 
     document.addEventListener("focusin", onFocusIn);
