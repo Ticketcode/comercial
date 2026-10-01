@@ -5,6 +5,11 @@ import { numeroALetras } from "@/lib/numero-a-letras";
 import { formatFechaCorta } from "@/lib/fecha-local";
 import { FirmaForm } from "./firma-form";
 
+// Siempre en vivo: si Producción regenera un enlace o cierra la legalización, el cambio debe
+// notarse de inmediato (sin servir una copia guardada de la página ni de la consulta).
+export const dynamic = "force-dynamic";
+export const fetchCache = "force-no-store";
+
 export default async function FirmarCuentaCobroPage({
   params,
 }: {

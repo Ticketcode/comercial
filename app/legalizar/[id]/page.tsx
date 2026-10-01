@@ -8,6 +8,11 @@ import { LegalizarForm } from "./legalizar-form";
 // (no su id), que Producción puede regenerar para anular el enlace (mismo patrón que
 // /firmar/[token] para las cuentas de cobro). La tabla sigue bloqueada a anon; toda lectura/escritura
 // pasa por el cliente admin, server-side, acotada siempre a ese staff_id.
+// Siempre en vivo: si Producción regenera un enlace o cierra la legalización, el cambio debe
+// notarse de inmediato (sin servir una copia guardada de la página ni de la consulta).
+export const dynamic = "force-dynamic";
+export const fetchCache = "force-no-store";
+
 export default async function LegalizarPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const supabase = createAdminClient();
