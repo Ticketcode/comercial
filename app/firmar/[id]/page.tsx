@@ -13,7 +13,8 @@ export default async function FirmarCuentaCobroPage({
   const { id } = await params;
   const supabase = createAdminClient();
 
-  const { data: cuenta } = await supabase.from("cuentas_cobro").select("*").eq("id", id).maybeSingle();
+  // `id` de la URL es el token del enlace (no el id de la fila), así Producción puede anularlo.
+  const { data: cuenta } = await supabase.from("cuentas_cobro").select("*").eq("token", id).maybeSingle();
   if (!cuenta) notFound();
 
   const { data: proposal } = await supabase

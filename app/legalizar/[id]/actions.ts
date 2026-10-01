@@ -15,8 +15,8 @@ export interface SaveGastoRow {
 }
 
 export interface SaveLegalizarPersonaPayload {
-  staffId: string;
-  proposalId: string;
+  /** Token del enlace público /legalizar/[token]. */
+  token: string;
   meta: {
     responsable: string | null;
     actividad: string | null;
@@ -26,26 +26,33 @@ export interface SaveLegalizarPersonaPayload {
   gastos: { existing: SaveGastoRow[]; new: SaveGastoRow[]; deletedIds: string[] };
 }
 
-// Sin login: `staffId` es el token de acceso de la URL pública /legalizar/[id].
-// Toda escritura queda acotada a ese staff_id — un link solo puede tocar los
-// datos de esa persona.
+// Sin login: `token` es el de la URL pública /legalizar/[token]. Toda escritura queda acotada
+// a la persona dueña de ese token (el staff_id y el proposal_id salen de la base de datos, no
+// del cliente). Si Producción regeneró el enlace o cerró la legalización, se rechaza.
 export async function saveLegalizacionPersona(payload: SaveLegalizarPersonaPayload) {
   const supabase = createAdminClient();
 
   const { data: staffMember, error: staffError } = await supabase
     .from("event_staff")
-    .select("id, proposal_id")
-    .eq("id", payload.staffId)
+    .select("id, proposal_id, legalizacion_cerrada")
+    .eq("token", payload.token)
     .maybeSingle();
   if (staffError) return { error: staffError.message };
-  if (!staffMember || staffMember.proposal_id !== payload.proposalId) {
-    return { error: "Link inválido." };
+  if (!staffMember) {
+    return { error: "Este enlace ya no es válido. Pide a Producción que te envíe uno nuevo." };
   }
+  if (staffMember.legalizacion_cerrada) {
+    return {
+      error: "Esta legalización ya fue cerrada por Producción. Si necesitas cambiar algo, pídeles que la reabran.",
+    };
+  }
+  const staffId: string = staffMember.id;
+  const proposalId: string = staffMember.proposal_id;
 
   const { error: metaError } = await supabase.from("legalizacion_meta").upsert(
     {
-      proposal_id: payload.proposalId,
-      staff_id: payload.staffId,
+      proposal_id: proposalId,
+      staff_id: staffId,
       responsable: payload.meta.responsable,
       actividad: payload.meta.actividad,
       ciudad_elaboracion: payload.meta.ciudad_elaboracion,
@@ -60,7 +67,7 @@ export async function saveLegalizacionPersona(payload: SaveLegalizarPersonaPaylo
       .from("legalizacion_gastos")
       .delete()
       .in("id", payload.gastos.deletedIds)
-      .eq("staff_id", payload.staffId);
+      .eq("staff_id", staffId);
     if (error) return { error: error.message };
   }
 
@@ -78,7 +85,7 @@ export async function saveLegalizacionPersona(payload: SaveLegalizarPersonaPaylo
           sort_order: g.sort_order,
         })
         .eq("id", g.id)
-        .eq("staff_id", payload.staffId)
+        .eq("staff_id", staffId)
     )
   );
   const failed = results.find((r) => r.error);
@@ -87,8 +94,8 @@ export async function saveLegalizacionPersona(payload: SaveLegalizarPersonaPaylo
   if (payload.gastos.new.length > 0) {
     const { error } = await supabase.from("legalizacion_gastos").insert(
       payload.gastos.new.map((g) => ({
-        proposal_id: payload.proposalId,
-        staff_id: payload.staffId,
+        proposal_id: proposalId,
+        staff_id: staffId,
         fecha: g.fecha || null,
         numero_recibo: g.numero_recibo,
         tercero: g.tercero,
@@ -101,7 +108,7 @@ export async function saveLegalizacionPersona(payload: SaveLegalizarPersonaPaylo
     if (error) return { error: error.message };
   }
 
-  revalidatePath(`/legalizar/${payload.staffId}`);
-  revalidatePath(`/produccion/${payload.proposalId}/legalizacion`);
+  revalidatePath(`/legalizar/${payload.token}`);
+  revalidatePath(`/produccion/${proposalId}/legalizacion`);
   return { error: null };
 }

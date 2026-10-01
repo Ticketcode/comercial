@@ -8,7 +8,13 @@ import { LabeledField } from "@/app/components/labeled-field";
 import { MoneyInput } from "@/app/components/money-input";
 import { MobileSaveBar, SaveStatus, useConfirm, useUnsavedChanges } from "@/app/components/ui-guard";
 import { callSafe, problemsMessage, saveErrorMessage } from "@/lib/errors";
-import { saveLegalizacion, type SaveGastoRow, type SaveMetaRow } from "./actions";
+import {
+  saveLegalizacion,
+  regenerarEnlaceLegalizacion,
+  setLegalizacionCerrada,
+  type SaveGastoRow,
+  type SaveMetaRow,
+} from "./actions";
 
 interface Props {
   proposalId: string;
@@ -75,12 +81,58 @@ export function LegalizacionEditor({
   const [activeStaffId, setActiveStaffId] = useState<string | null>(staff[0]?.id ?? null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
-  function copyLegalizarLink(staffId: string) {
-    const url = `${window.location.origin}/legalizar/${staffId}`;
+  function copyLegalizarLink(s: EventStaff) {
+    const url = `${window.location.origin}/legalizar/${s.token ?? s.id}`;
     navigator.clipboard.writeText(url).then(() => {
-      setCopiedId(staffId);
+      setCopiedId(s.id);
       setTimeout(() => setCopiedId(null), 2000);
     });
+  }
+
+  async function regenerarLink(s: EventStaff) {
+    const ok = await confirm({
+      title: `¿Generar un enlace nuevo para ${s.full_name || "esta persona"}?`,
+      message:
+        "El enlace anterior dejará de funcionar (si ya se lo enviaste, no podrá abrirlo). Tendrás que enviarle el nuevo.",
+      confirmLabel: "Generar enlace nuevo",
+    });
+    if (!ok) return;
+    const r = await callSafe(() => regenerarEnlaceLegalizacion(s.id, proposalId));
+    if (r.error) {
+      setMessage(saveErrorMessage(r.error));
+      return;
+    }
+    let copied = false;
+    try {
+      if ("token" in r && r.token) {
+        await navigator.clipboard.writeText(`${window.location.origin}/legalizar/${r.token}`);
+        copied = true;
+      }
+    } catch {
+      copied = false;
+    }
+    setMessage(
+      copied
+        ? "Enlace nuevo generado y copiado. El anterior ya no funciona."
+        : 'Enlace nuevo generado. Pulsa "Copiar link" para enviarlo; el anterior ya no funciona.'
+    );
+  }
+
+  async function toggleCerrada(s: EventStaff) {
+    const cerrar = !s.legalizacion_cerrada;
+    const nombre = s.full_name || "esta persona";
+    const ok = await confirm({
+      title: cerrar ? `¿Cerrar la legalización de ${nombre}?` : `¿Reabrir la legalización de ${nombre}?`,
+      message: cerrar
+        ? "La persona ya no podrá editarla desde su enlace (solo verla). Tú sí podrás seguir editándola aquí, y puedes reabrirla cuando quieras."
+        : "La persona podrá volver a editar su legalización desde su enlace.",
+      confirmLabel: cerrar ? "Cerrar legalización" : "Reabrir",
+    });
+    if (!ok) return;
+    const r = await callSafe(() => setLegalizacionCerrada(s.id, proposalId, cerrar));
+    setMessage(
+      r.error ? saveErrorMessage(r.error) : cerrar ? "Legalización cerrada." : "Legalización reabierta."
+    );
   }
   const [metaByStaff, setMetaByStaff] = useState<Record<string, MetaFields>>(() =>
     buildMetaByStaff(staff, initialMetas)
@@ -282,13 +334,40 @@ export function LegalizacionEditor({
                 <h3 className="text-sm font-semibold text-neutral-900">
                   Datos de la legalización — {activeStaff.full_name || "(sin nombre)"}
                 </h3>
-                <button
-                  type="button"
-                  onClick={() => copyLegalizarLink(activeStaff.id)}
-                  className="btn btn-secondary btn-sm shrink-0"
-                >
-                  {copiedId === activeStaff.id ? "¡Copiado!" : "Copiar link para que él/ella lo llene"}
-                </button>
+                <div className="flex flex-wrap items-center gap-2">
+                  {activeStaff.legalizacion_cerrada && (
+                    <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-800">
+                      Cerrada
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => copyLegalizarLink(activeStaff)}
+                    className="btn btn-secondary btn-sm shrink-0"
+                  >
+                    {copiedId === activeStaff.id ? "¡Copiado!" : "Copiar link para que él/ella lo llene"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => regenerarLink(activeStaff)}
+                    className="btn btn-secondary btn-sm shrink-0"
+                    title="Genera un enlace nuevo; el anterior deja de funcionar"
+                  >
+                    Generar enlace nuevo
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => toggleCerrada(activeStaff)}
+                    className="btn btn-secondary btn-sm shrink-0"
+                    title={
+                      activeStaff.legalizacion_cerrada
+                        ? "Permite que la persona vuelva a editar desde su enlace"
+                        : "Impide que la persona siga editando desde su enlace"
+                    }
+                  >
+                    {activeStaff.legalizacion_cerrada ? "Reabrir legalización" : "Cerrar legalización"}
+                  </button>
+                </div>
               </div>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <LabeledField label="Responsable">

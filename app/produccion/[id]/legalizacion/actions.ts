@@ -1,5 +1,6 @@
 "use server";
 
+import { randomUUID } from "crypto";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentProfile, canAccessProduccion } from "@/lib/data/profile";
@@ -103,5 +104,33 @@ export async function saveLegalizacion(payload: SaveLegalizacionPayload) {
   }
 
   revalidatePath(`/produccion/${payload.proposalId}/legalizacion`);
+  return { error: null };
+}
+
+/** Genera un enlace nuevo para que la persona llene su legalización: el anterior deja de funcionar. */
+export async function regenerarEnlaceLegalizacion(staffId: string, proposalId: string) {
+  const supabase = await assertAccess();
+  const token = randomUUID();
+  const { error } = await supabase
+    .from("event_staff")
+    .update({ token })
+    .eq("id", staffId)
+    .eq("proposal_id", proposalId);
+  if (error) return { error: error.message, token: null as string | null };
+  revalidatePath(`/produccion/${proposalId}/legalizacion`);
+  return { error: null, token: token as string | null };
+}
+
+/** Cierra (la persona ya no puede editar desde su enlace) o reabre la legalización de una persona. */
+export async function setLegalizacionCerrada(staffId: string, proposalId: string, cerrada: boolean) {
+  const supabase = await assertAccess();
+  const { error } = await supabase
+    .from("event_staff")
+    .update({ legalizacion_cerrada: cerrada })
+    .eq("id", staffId)
+    .eq("proposal_id", proposalId);
+  if (error) return { error: error.message };
+  revalidatePath(`/produccion/${proposalId}/legalizacion`);
+  revalidatePath("/legalizar/[id]", "page");
   return { error: null };
 }

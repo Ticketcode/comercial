@@ -11,6 +11,10 @@ import { callSafe, problemsMessage, saveErrorMessage } from "@/lib/errors";
 import { saveLegalizacionPersona, type SaveGastoRow } from "./actions";
 
 interface Props {
+  /** Token del enlace público (el de la URL), con el que se autoriza el guardado. */
+  token: string;
+  /** Producción cerró la legalización: solo lectura. */
+  locked: boolean;
   staffId: string;
   proposalId: string;
   staff: EventStaff;
@@ -44,6 +48,8 @@ function isTemp(id: string) {
 }
 
 export function LegalizarForm({
+  token,
+  locked,
   staffId,
   proposalId,
   staff,
@@ -165,8 +171,7 @@ export function LegalizarForm({
         sort_order: g.sort_order,
       });
       const result = await callSafe(() => saveLegalizacionPersona({
-        staffId,
-        proposalId,
+        token,
         meta: {
           responsable: responsable || null,
           actividad: actividad || null,
@@ -187,7 +192,13 @@ export function LegalizarForm({
   }
 
   return (
-    <div className="mt-5 space-y-5">
+    <fieldset disabled={locked} className="mt-5 min-w-0 space-y-5 border-0 p-0">
+      {locked && (
+        <div role="status" className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+          Esta legalización fue cerrada por Producción: solo puedes consultarla. Si necesitas cambiar
+          algo, pídeles que la reabran.
+        </div>
+      )}
       <section>
         <h2 className="mb-2 text-sm font-semibold text-neutral-900">Tus datos</h2>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -365,16 +376,18 @@ export function LegalizarForm({
         </p>
       </section>
 
-      <MobileSaveBar dirty={dirty} isPending={isPending} message={message} onSave={handleSave} label="Guardar mi legalización" />
+      {!locked && (
+        <MobileSaveBar dirty={dirty} isPending={isPending} message={message} onSave={handleSave} label="Guardar mi legalización" />
+      )}
       <button
         type="button"
         disabled={isPending}
         onClick={handleSave}
-        className="btn btn-primary w-full"
+        className={`btn btn-primary w-full ${locked ? "hidden" : ""}`}
       >
         {isPending ? "Guardando..." : "Guardar mi legalización"}
       </button>
       <SaveStatus dirty={dirty} isPending={isPending} message={message} className="text-center" />
-    </div>
+    </fieldset>
   );
 }

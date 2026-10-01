@@ -12,6 +12,8 @@ import {
   markFirmada,
   deleteAllCuentasCobro,
   deleteCuentaCobro,
+  regenerarEnlaceCuentaCobro,
+  deshacerFirma,
 } from "./actions";
 
 async function downloadTemplate() {
@@ -61,11 +63,71 @@ export function CuentasCobroEditor({
   const router = useRouter();
   const confirm = useConfirm();
 
-  function copySignLink(id: string) {
-    const url = `${window.location.origin}/firmar/${id}`;
+  function copySignLink(c: CuentaCobro) {
+    const url = `${window.location.origin}/firmar/${c.token ?? c.id}`;
     navigator.clipboard.writeText(url).then(() => {
-      setCopiedId(id);
+      setCopiedId(c.id);
       setTimeout(() => setCopiedId(null), 2000);
+    });
+  }
+
+  /** Copia el enlace nuevo si el navegador lo permite; si no, avisa para que se copie a mano. */
+  async function copyNewLink(token: string | null) {
+    if (!token) return false;
+    try {
+      await navigator.clipboard.writeText(`${window.location.origin}/firmar/${token}`);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  async function regenerarEnlace(c: CuentaCobro) {
+    const ok = await confirm({
+      title: `¿Generar un enlace nuevo para ${c.nombre_completo}?`,
+      message:
+        "El enlace anterior dejará de funcionar (si ya se lo enviaste, no podrá abrirlo). Tendrás que enviarle el nuevo.",
+      confirmLabel: "Generar enlace nuevo",
+    });
+    if (!ok) return;
+    startTransition(async () => {
+      const r = await callSafe(() => regenerarEnlaceCuentaCobro(c.id, proposalId));
+      if (r.error) {
+        setMessage(`Error: ${friendlyError(r.error)}`);
+      } else {
+        const copied = await copyNewLink("token" in r ? r.token : null);
+        setMessage(
+          copied
+            ? "Enlace nuevo generado y copiado. El anterior ya no funciona."
+            : "Enlace nuevo generado. Pulsa \"Copiar enlace\" para enviarlo; el anterior ya no funciona."
+        );
+      }
+      router.refresh();
+    });
+  }
+
+  async function deshacerFirmaDe(c: CuentaCobro) {
+    const ok = await confirm({
+      title: `¿Deshacer la firma de ${c.nombre_completo}?`,
+      message:
+        "Se borra la firma y la cuenta vuelve a quedar pendiente. Además se genera un enlace nuevo, así que el anterior ya no sirve. La persona tendrá que firmar de nuevo.",
+      confirmLabel: "Deshacer firma",
+      danger: true,
+    });
+    if (!ok) return;
+    startTransition(async () => {
+      const r = await callSafe(() => deshacerFirma(c.id, proposalId));
+      if (r.error) {
+        setMessage(`Error: ${friendlyError(r.error)}`);
+      } else {
+        const copied = await copyNewLink("token" in r ? r.token : null);
+        setMessage(
+          copied
+            ? "Firma deshecha. El enlace nuevo quedó copiado para que la persona firme otra vez."
+            : "Firma deshecha. Pulsa \"Copiar enlace\" para enviarle el enlace nuevo."
+        );
+      }
+      router.refresh();
     });
   }
 
@@ -249,15 +311,33 @@ export function CuentasCobroEditor({
                           ✓{c.firma_nombre ? ` ${c.firma_nombre}` : " Firmada"}
                           {c.fecha_firma ? ` (${formatFechaCorta(c.fecha_firma)})` : ""}
                         </span>
+                        <button
+                          type="button"
+                          onClick={() => deshacerFirmaDe(c)}
+                          disabled={isPending}
+                          className="text-xs text-neutral-500 underline hover:text-red-600 disabled:opacity-50"
+                          title="Borra la firma y vuelve la cuenta a pendiente"
+                        >
+                          deshacer
+                        </button>
                       </div>
                     ) : (
                       <div className="flex items-center gap-2">
                         <button
                           type="button"
-                          onClick={() => copySignLink(c.id)}
+                          onClick={() => copySignLink(c)}
                           className="rounded border border-neutral-300 px-2 py-1 text-xs text-neutral-600 hover:bg-neutral-50"
                         >
                           {copiedId === c.id ? "¡Copiado!" : "Copiar enlace"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => regenerarEnlace(c)}
+                          disabled={isPending}
+                          className="text-xs text-neutral-500 hover:text-neutral-800 disabled:opacity-50"
+                          title="Genera un enlace nuevo; el anterior deja de funcionar"
+                        >
+                          regenerar
                         </button>
                         <button
                           type="button"

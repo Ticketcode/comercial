@@ -4,9 +4,9 @@ import type { EventStaff, LegalizacionGasto, LegalizacionMeta, ViaticoAnticipo }
 import { LegalizarForm } from "./legalizar-form";
 
 // Pantalla pública (sin login) para que cada integrante del staff diligencie
-// su propia legalización de viáticos — el id en la URL es el staff_id, que
-// actúa como token de acceso (mismo patrón que /firmar/[id] para las
-// cuentas de cobro). La tabla sigue bloqueada a anon; toda lectura/escritura
+// su propia legalización de viáticos — el valor en la URL es el `token` de la persona
+// (no su id), que Producción puede regenerar para anular el enlace (mismo patrón que
+// /firmar/[token] para las cuentas de cobro). La tabla sigue bloqueada a anon; toda lectura/escritura
 // pasa por el cliente admin, server-side, acotada siempre a ese staff_id.
 export default async function LegalizarPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -15,20 +15,20 @@ export default async function LegalizarPage({ params }: { params: Promise<{ id: 
   const { data: staffMember } = await supabase
     .from("event_staff")
     .select("*")
-    .eq("id", id)
+    .eq("token", id)
     .maybeSingle();
   if (!staffMember) notFound();
 
   const [{ data: proposal }, { data: anticipos }, { data: meta }, { data: gastos }] = await Promise.all([
     supabase.from("proposals").select("event_name, city").eq("id", staffMember.proposal_id).maybeSingle(),
-    supabase.from("viatico_anticipos").select("*").eq("staff_id", id).order("fecha"),
+    supabase.from("viatico_anticipos").select("*").eq("staff_id", staffMember.id).order("fecha"),
     supabase
       .from("legalizacion_meta")
       .select("*")
       .eq("proposal_id", staffMember.proposal_id)
-      .eq("staff_id", id)
+      .eq("staff_id", staffMember.id)
       .maybeSingle(),
-    supabase.from("legalizacion_gastos").select("*").eq("staff_id", id).order("sort_order"),
+    supabase.from("legalizacion_gastos").select("*").eq("staff_id", staffMember.id).order("sort_order"),
   ]);
 
   return (
@@ -41,7 +41,9 @@ export default async function LegalizarPage({ params }: { params: Promise<{ id: 
         </p>
 
         <LegalizarForm
-          staffId={id}
+          token={id}
+          locked={!!staffMember.legalizacion_cerrada}
+          staffId={staffMember.id}
           proposalId={staffMember.proposal_id}
           staff={staffMember as EventStaff}
           eventCity={proposal?.city ?? null}

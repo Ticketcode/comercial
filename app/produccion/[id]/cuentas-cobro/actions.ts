@@ -1,5 +1,6 @@
 "use server";
 
+import { randomUUID } from "crypto";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentProfile, canAccessProduccion } from "@/lib/data/profile";
@@ -75,6 +76,43 @@ export async function deleteCuentaCobro(id: string, proposalId: string) {
   if (error) return { error: error.message };
   revalidatePath(`/produccion/${proposalId}/cuentas-cobro`);
   return { error: null };
+}
+
+/** Genera un enlace nuevo para firmar: el anterior deja de funcionar. */
+export async function regenerarEnlaceCuentaCobro(id: string, proposalId: string) {
+  const supabase = await assertAccess();
+  const token = randomUUID();
+  const { error } = await supabase
+    .from("cuentas_cobro")
+    .update({ token })
+    .eq("id", id)
+    .eq("proposal_id", proposalId);
+  if (error) return { error: error.message, token: null as string | null };
+  revalidatePath(`/produccion/${proposalId}/cuentas-cobro`);
+  return { error: null, token: token as string | null };
+}
+
+/**
+ * Deshace una firma (por error, firma de otra persona o firma manual equivocada): borra la
+ * firma, deja la cuenta pendiente y genera un enlace nuevo para que el anterior no se reutilice.
+ */
+export async function deshacerFirma(id: string, proposalId: string) {
+  const supabase = await assertAccess();
+  const token = randomUUID();
+  const { error } = await supabase
+    .from("cuentas_cobro")
+    .update({
+      estado: "pendiente",
+      fecha_firma: null,
+      firma_nombre: null,
+      firma_imagen: null,
+      token,
+    })
+    .eq("id", id)
+    .eq("proposal_id", proposalId);
+  if (error) return { error: error.message, token: null as string | null };
+  revalidatePath(`/produccion/${proposalId}/cuentas-cobro`);
+  return { error: null, token: token as string | null };
 }
 
 export async function deleteAllCuentasCobro(proposalId: string) {
