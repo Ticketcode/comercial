@@ -265,6 +265,19 @@ export interface ActivityChecklistItem {
   sort_order: number;
 }
 
+export interface InformeFinal {
+  id: string;
+  proposal_id: string;
+  notas_actividades: string | null;
+  notas_viaticos: string | null;
+  notas_presupuesto: string | null;
+  notas_generales: string | null;
+  analisis_ia: string | null;
+  generado_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export type CuentaCobroEstado = "pendiente" | "firmada";
 
 export interface CuentaCobro {

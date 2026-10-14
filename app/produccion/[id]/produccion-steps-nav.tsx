@@ -9,6 +9,7 @@ const steps = [
   { key: "presupuesto", label: "Presupuesto" },
   { key: "actividades", label: "Actividades" },
   { key: "cuentas-cobro", label: "Cuentas de cobro" },
+  { key: "informe", label: "Informe final" },
 ];
 
 export function ProduccionStepsNav({ id }: { id: string }) {
