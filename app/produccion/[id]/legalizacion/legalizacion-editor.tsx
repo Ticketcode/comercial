@@ -297,23 +297,15 @@ export function LegalizacionEditor({
     if (!printAreaRef.current) return;
     setIsDownloading(true);
     try {
-      const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
+      const [{ default: html2canvas }, { jsPDF }, { addElementsAsPdfPages }] = await Promise.all([
         import("html2canvas"),
         import("jspdf"),
+        import("@/lib/pdf/paginate"),
       ]);
 
       const pageEls = printAreaRef.current.querySelectorAll<HTMLElement>("[data-pdf-page]");
       const pdf = new jsPDF({ unit: "mm", format: "a4", orientation: "portrait" });
-      const marginMm = 8;
-      const usableWidthMm = 210 - marginMm * 2;
-
-      for (let i = 0; i < pageEls.length; i++) {
-        const canvas = await html2canvas(pageEls[i], { scale: 2, useCORS: true, windowWidth: 700 });
-        const imgData = canvas.toDataURL("image/jpeg", 0.98);
-        const imgHeightMm = (canvas.height * usableWidthMm) / canvas.width;
-        if (i > 0) pdf.addPage();
-        pdf.addImage(imgData, "JPEG", marginMm, marginMm, usableWidthMm, imgHeightMm);
-      }
+      await addElementsAsPdfPages(pdf, pageEls, html2canvas);
 
       pdf.save(`Legalizacion-${proposalId}.pdf`);
     } finally {

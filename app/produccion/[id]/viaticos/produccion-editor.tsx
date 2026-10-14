@@ -398,29 +398,21 @@ export function ProduccionEditor({
     if (!printAreaRef.current) return;
     setIsDownloading(true);
     try {
-      // Se arma el PDF a mano (una página por persona) en vez de usar el
-      // "pagebreak" automático de html2pdf.js: ese modo calcula los cortes
-      // sobre una sola imagen larga y dejaba una hoja casi en blanco cada
-      // vez que sobraba espacio de la página anterior. Aquí cada hoja de
-      // persona se captura por separado y se agrega como su propia página
-      // del PDF, sin espacios de sobra.
-      const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
+      // Se arma el PDF a mano (una o más páginas por persona) en vez de usar
+      // el "pagebreak" automático de html2pdf.js: ese modo calcula los
+      // cortes sobre una sola imagen larga y dejaba una hoja casi en blanco
+      // cada vez que sobraba espacio de la página anterior. Aquí cada hoja
+      // de persona se captura por separado y, si no cabe completa en una
+      // página A4, se divide en varias páginas de alto uniforme.
+      const [{ default: html2canvas }, { jsPDF }, { addElementsAsPdfPages }] = await Promise.all([
         import("html2canvas"),
         import("jspdf"),
+        import("@/lib/pdf/paginate"),
       ]);
 
       const pageEls = printAreaRef.current.querySelectorAll<HTMLElement>("[data-pdf-page]");
       const pdf = new jsPDF({ unit: "mm", format: "a4", orientation: "portrait" });
-      const marginMm = 8;
-      const usableWidthMm = 210 - marginMm * 2;
-
-      for (let i = 0; i < pageEls.length; i++) {
-        const canvas = await html2canvas(pageEls[i], { scale: 2, useCORS: true, windowWidth: 700 });
-        const imgData = canvas.toDataURL("image/jpeg", 0.98);
-        const imgHeightMm = (canvas.height * usableWidthMm) / canvas.width;
-        if (i > 0) pdf.addPage();
-        pdf.addImage(imgData, "JPEG", marginMm, marginMm, usableWidthMm, imgHeightMm);
-      }
+      await addElementsAsPdfPages(pdf, pageEls, html2canvas);
 
       pdf.save(`Viaticos-${proposalId}.pdf`);
     } finally {
