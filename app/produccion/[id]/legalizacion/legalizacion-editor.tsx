@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useMemo, useRef, useState, useTransition } from "react";
 import type { EventStaff, LegalizacionGasto, LegalizacionMeta, ViaticoAnticipo } from "@/lib/types";
 import { formatCOP } from "@/lib/pricing/summary";
 import { formatFechaCorta } from "@/lib/fecha-local";
@@ -8,6 +8,7 @@ import { saveLegalizacion, type SaveGastoRow, type SaveMetaRow } from "./actions
 
 interface Props {
   proposalId: string;
+  eventName: string;
   initialMetas: LegalizacionMeta[];
   initialGastos: LegalizacionGasto[];
   anticipos: ViaticoAnticipo[];
@@ -46,6 +47,7 @@ function isTemp(id: string) {
 
 export function LegalizacionEditor({
   proposalId,
+  eventName,
   initialMetas,
   initialGastos,
   anticipos,
@@ -53,6 +55,8 @@ export function LegalizacionEditor({
 }: Props) {
   const [activeStaffId, setActiveStaffId] = useState<string | null>(staff[0]?.id ?? null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [isDownloading, setIsDownloading] = useState(false);
+  const printAreaRef = useRef<HTMLDivElement>(null);
 
   function copyLegalizarLink(staffId: string) {
     const url = `${window.location.origin}/legalizar/${staffId}`;
@@ -187,6 +191,34 @@ export function LegalizacionEditor({
       setMessage(result.error ? `Error: ${result.error}` : "Guardado.");
       if (!result.error) setDeletedIds([]);
     });
+  }
+
+  async function downloadPdf() {
+    if (!printAreaRef.current) return;
+    setIsDownloading(true);
+    try {
+      const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
+        import("html2canvas"),
+        import("jspdf"),
+      ]);
+
+      const pageEls = printAreaRef.current.querySelectorAll<HTMLElement>("[data-pdf-page]");
+      const pdf = new jsPDF({ unit: "mm", format: "a4", orientation: "portrait" });
+      const marginMm = 8;
+      const usableWidthMm = 210 - marginMm * 2;
+
+      for (let i = 0; i < pageEls.length; i++) {
+        const canvas = await html2canvas(pageEls[i], { scale: 2, useCORS: true, windowWidth: 700 });
+        const imgData = canvas.toDataURL("image/jpeg", 0.98);
+        const imgHeightMm = (canvas.height * usableWidthMm) / canvas.width;
+        if (i > 0) pdf.addPage();
+        pdf.addImage(imgData, "JPEG", marginMm, marginMm, usableWidthMm, imgHeightMm);
+      }
+
+      pdf.save(`Legalizacion-${proposalId}.pdf`);
+    } finally {
+      setIsDownloading(false);
+    }
   }
 
   const activeStaff = staff.find((s) => s.id === activeStaffId) ?? null;
@@ -446,13 +478,182 @@ export function LegalizacionEditor({
           </div>
           <button
             type="button"
+            onClick={downloadPdf}
+            disabled={isDownloading}
+            className="mt-2 w-full rounded-md border border-neutral-300 px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50 disabled:opacity-50"
+          >
+            {isDownloading ? "Generando PDF..." : "Descargar PDF de legalización"}
+          </button>
+          <button
+            type="button"
             disabled={isPending}
             onClick={handleSave}
-            className="mt-2 w-full rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-50"
+            className="w-full rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-50"
           >
             {isPending ? "Guardando..." : "Guardar"}
           </button>
           {message && <p className="text-center text-xs text-neutral-500">{message}</p>}
+        </div>
+      </div>
+
+      {/* Área imprimible oculta — una hoja de legalización por persona, con
+          sus datos, anticipo girado, soportes y espacio de firma. */}
+      <div className="fixed left-[-9999px] top-0 -z-10">
+        <div ref={printAreaRef} className="w-[700px] bg-white text-black">
+          {staff.map((s) => {
+            const meta = metaByStaff[s.id];
+            const misAnticipos = anticiposByStaff[s.id] ?? [];
+            const misGastos = gastosByStaff[s.id] ?? [];
+            const totalAnt = totalAnticipoPorPersona[s.id] ?? 0;
+            const totalSop = totalSoportesPorPersona[s.id] ?? 0;
+            const dif = totalAnt - totalSop;
+            return (
+              <div key={s.id} data-pdf-page className="mb-4 border border-neutral-800 p-6">
+                <div className="flex items-center justify-between border-b-2 border-neutral-800 pb-3">
+                  <span className="text-base font-extrabold tracking-tight text-emerald-700">
+                    ticketcode
+                  </span>
+                  <span className="text-sm font-bold uppercase">Legalización de viáticos</span>
+                </div>
+
+                <table className="mt-3 w-full border border-neutral-800 text-xs">
+                  <tbody>
+                    <tr className="border-b border-neutral-800 bg-neutral-100">
+                      <th className="w-1/2 border-r border-neutral-800 py-1.5 font-semibold">
+                        Responsable
+                      </th>
+                      <th className="w-1/2 py-1.5 font-semibold">Actividad</th>
+                    </tr>
+                    <tr className="border-b border-neutral-800 text-center">
+                      <td className="border-r border-neutral-800 py-1.5">{meta?.responsable || "—"}</td>
+                      <td className="py-1.5">{meta?.actividad || "—"}</td>
+                    </tr>
+                    <tr className="border-b border-neutral-800 bg-neutral-100">
+                      <th className="border-r border-neutral-800 py-1.5 font-semibold">Evento</th>
+                      <th className="border-r border-neutral-800 py-1.5 font-semibold">
+                        Ciudad de elaboración
+                      </th>
+                      <th className="py-1.5 font-semibold">Fecha de elaboración</th>
+                    </tr>
+                    <tr className="text-center">
+                      <td className="border-r border-neutral-800 py-1.5">{eventName || "—"}</td>
+                      <td className="border-r border-neutral-800 py-1.5">
+                        {meta?.ciudad_elaboracion || "—"}
+                      </td>
+                      <td className="py-1.5">
+                        {meta?.fecha_elaboracion ? formatFechaCorta(meta.fecha_elaboracion) : "—"}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+
+                <div className="mt-4">
+                  <h2 className="border-b-2 border-neutral-800 pb-1 text-xs font-bold uppercase">
+                    Anticipo girado
+                  </h2>
+                  {misAnticipos.length === 0 ? (
+                    <p className="mt-1 text-xs text-neutral-500">Sin anticipos registrados.</p>
+                  ) : (
+                    <table className="mt-1 w-full text-xs">
+                      <thead>
+                        <tr className="border-b border-neutral-300 text-left">
+                          <th className="py-1">Fecha</th>
+                          <th className="py-1 text-right">Monto</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {misAnticipos.map((a) => (
+                          <tr key={a.id} className="border-b border-neutral-100">
+                            <td className="py-1">{a.fecha ? formatFechaCorta(a.fecha) : "—"}</td>
+                            <td className="py-1 text-right">{formatCOP(a.valor)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                  <div className="mt-1 flex justify-end text-xs font-semibold">
+                    <span className="mr-2">Total anticipo:</span>
+                    <span>{formatCOP(totalAnt)}</span>
+                  </div>
+                </div>
+
+                <div className="mt-4">
+                  <h2 className="border-b-2 border-neutral-800 pb-1 text-xs font-bold uppercase">
+                    Soportes (gastos reales)
+                  </h2>
+                  {misGastos.length === 0 ? (
+                    <p className="mt-1 text-xs text-neutral-500">Sin soportes registrados.</p>
+                  ) : (
+                    <table className="mt-1 w-full text-xs">
+                      <thead>
+                        <tr className="border-b border-neutral-300 text-left">
+                          <th className="py-1">Fecha</th>
+                          <th className="py-1">N° Recibo</th>
+                          <th className="py-1">Tercero</th>
+                          <th className="py-1">Rubro</th>
+                          <th className="py-1">Concepto</th>
+                          <th className="py-1 text-right">Valor</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {misGastos.map((g) => (
+                          <tr key={g.id} className="border-b border-neutral-100">
+                            <td className="py-1">{g.fecha ? formatFechaCorta(g.fecha) : "—"}</td>
+                            <td className="py-1">{g.numero_recibo || "—"}</td>
+                            <td className="py-1">{g.tercero || "—"}</td>
+                            <td className="py-1">{g.rubro || "—"}</td>
+                            <td className="py-1">{g.concepto || "—"}</td>
+                            <td className="py-1 text-right">{formatCOP(g.valor)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                  <div className="mt-1 flex justify-end text-xs font-semibold">
+                    <span className="mr-2">Total soportes:</span>
+                    <span>{formatCOP(totalSop)}</span>
+                  </div>
+                </div>
+
+                <table className="mt-3 w-full border border-neutral-800 text-xs">
+                  <tbody>
+                    <tr className={dif >= 0 ? "bg-emerald-100" : "bg-red-100"}>
+                      <th className="border-r border-neutral-800 py-1.5 text-left">
+                        Diferencia ({dif >= 0 ? "a favor de la empresa" : "a reembolsar"})
+                      </th>
+                      <td className="py-1.5 pr-2 text-right font-bold">{formatCOP(dif)}</td>
+                    </tr>
+                  </tbody>
+                </table>
+
+                <table className="mt-4 w-full border border-neutral-800 text-xs">
+                  <thead>
+                    <tr className="bg-neutral-100">
+                      <th className="border-r border-b border-neutral-800 py-1.5"></th>
+                      <th className="border-r border-b border-neutral-800 py-1.5 font-semibold">Firma</th>
+                      <th className="border-b border-neutral-800 py-1.5 font-semibold">Fecha</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr className="border-b border-neutral-800">
+                      <th className="border-r border-neutral-800 py-6 text-left font-semibold">
+                        Trabajador
+                      </th>
+                      <td className="border-r border-neutral-800"></td>
+                      <td></td>
+                    </tr>
+                    <tr>
+                      <th className="border-r border-neutral-800 py-6 text-left font-semibold">
+                        Autorizado por
+                      </th>
+                      <td className="border-r border-neutral-800"></td>
+                      <td></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            );
+          })}
         </div>
       </div>
     </div>
