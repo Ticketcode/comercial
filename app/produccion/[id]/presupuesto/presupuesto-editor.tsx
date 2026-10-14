@@ -1,9 +1,13 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import type { PresupuestoItem, Proposal } from "@/lib/types";
 import { PRESUPUESTO_CATEGORIAS } from "@/lib/data/presupuesto-template";
 import { formatCOP } from "@/lib/pricing/summary";
+import { formatFechaCorta } from "@/lib/fecha-local";
+import { MoneyInput } from "@/app/components/money-input";
+import { MobileSaveBar, SaveStatus, useConfirm, useUnsavedChanges } from "@/app/components/ui-guard";
+import { callSafe, problemsMessage, saveErrorMessage } from "@/lib/errors";
 import { savePresupuesto, pullValoresTarifario, type SavePresupuestoItemRow } from "./actions";
 
 interface Props {
@@ -53,18 +57,42 @@ export function PresupuestoEditor({ proposalId, proposal, initialItems }: Props)
   const [isPending, startTransition] = useTransition();
   const [isPulling, setIsPulling] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const confirm = useConfirm();
+  const { dirty, markSaved, resetTo } = useUnsavedChanges({ aforoReal, items, deletedIds });
+  // Tras guardar, las líneas nuevas dejan de ser temporales: se adopta lo guardado en la base
+  // de datos para que un segundo guardado no las inserte otra vez.
+  const awaitingSync = useRef(false);
+
+  useEffect(() => {
+    if (!awaitingSync.current) return;
+    awaitingSync.current = false;
+    setItems(initialItems);
+    setDeletedIds([]);
+    setAforoReal(proposal.aforo_real ?? null);
+    resetTo({ aforoReal: proposal.aforo_real ?? null, items: initialItems, deletedIds: [] });
+  }, [initialItems, proposal.aforo_real, resetTo]);
 
   async function handlePullTarifario() {
+    const ok = await confirm({
+      title: "¿Traer los valores del Tarifario?",
+      message:
+        "Se reemplazan los valores de \"Proyectado inicial\" de los ítems que coinciden con el Tarifario (Honorarios, Alimentación, Transporte y Equipos). Si algún ítem no tiene ajustes, también se actualiza su \"Presupuesto ajustado\"." +
+        (dirty ? "\n\nTienes cambios sin guardar en esta pantalla y se perderán." : ""),
+      confirmLabel: "Traer valores",
+      danger: dirty,
+    });
+    if (!ok) return;
     setIsPulling(true);
     setMessage(null);
-    const result = await pullValoresTarifario(proposalId);
+    const result = await callSafe(() => pullValoresTarifario(proposalId));
     if (result.error) {
       setIsPulling(false);
-      setMessage(`Error: ${result.error}`);
+      setMessage(saveErrorMessage(result.error));
     } else {
       // El estado del formulario vive en useState desde initialItems — un
       // router.refresh() no lo vuelve a sincronizar porque el componente ya
       // está montado, así que se recarga la página entera.
+      markSaved(); // el usuario ya aceptó perder los cambios: evita el aviso del navegador
       window.location.reload();
     }
   }
@@ -159,13 +187,37 @@ export function PresupuestoEditor({ proposalId, proposal, initialItems }: Props)
     ]);
   }
 
-  function removeItem(id: string) {
+  async function removeItem(id: string) {
+    if (!isTemp(id)) {
+      const nombre = items.find((i) => i.id === id)?.nombre || "esta línea";
+      const ok = await confirm({
+        title: `¿Quitar "${nombre}"?`,
+        message: "El cambio se aplica al pulsar Guardar.",
+        confirmLabel: "Quitar",
+        danger: true,
+      });
+      if (!ok) return;
+    }
     setItems((prev) => prev.filter((i) => i.id !== id));
     if (!isTemp(id)) setDeletedIds((prev) => [...prev, id]);
   }
 
+  function validar(): string[] {
+    const problems: string[] = [];
+    items.forEach((i) => {
+      if (!i.nombre.trim()) problems.push(`Hay una línea sin nombre en "${i.categoria}"`);
+    });
+    return Array.from(new Set(problems));
+  }
+
   function handleSave() {
+    const problems = validar();
+    if (problems.length > 0) {
+      setMessage(problemsMessage(problems));
+      return;
+    }
     setMessage(null);
+    awaitingSync.current = true;
     startTransition(async () => {
       const toRow = (i: PresupuestoItem): SavePresupuestoItemRow => ({
         id: i.id,
@@ -188,7 +240,7 @@ export function PresupuestoEditor({ proposalId, proposal, initialItems }: Props)
         comentario: i.comentario,
         sort_order: i.sort_order,
       });
-      const result = await savePresupuesto({
+      const result = await callSafe(() => savePresupuesto({
         proposalId,
         aforoReal,
         items: {
@@ -196,16 +248,16 @@ export function PresupuestoEditor({ proposalId, proposal, initialItems }: Props)
           new: items.filter((i) => isTemp(i.id)).map(toRow),
           deletedIds,
         },
-      });
-      setMessage(result.error ? `Error: ${result.error}` : "Guardado.");
-      if (!result.error) setDeletedIds([]);
+      }));
+      if (result.error) awaitingSync.current = false;
+      setMessage(result.error ? saveErrorMessage(result.error) : "Guardado.");
     });
   }
 
   return (
     <div className="space-y-6">
       <section className="rounded-xl border border-neutral-200 bg-white p-5">
-        <div className="mb-4 flex items-center justify-between">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <p className="text-xs text-neutral-500">
             Trae los valores de Honorarios, Alimentación, Transporte y Equipos que ya se calcularon
             en el Tarifario — el resto de los ítems se completan a mano. Todo queda editable.
@@ -214,12 +266,12 @@ export function PresupuestoEditor({ proposalId, proposal, initialItems }: Props)
             type="button"
             onClick={handlePullTarifario}
             disabled={isPulling}
-            className="shrink-0 rounded-md border border-neutral-300 px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50 disabled:opacity-50"
+            className="btn btn-secondary btn-sm shrink-0"
           >
             {isPulling ? "Trayendo..." : "Traer valores del Tarifario"}
           </button>
         </div>
-        <div className="grid grid-cols-4 gap-4 text-sm">
+        <div className="grid grid-cols-2 gap-4 text-sm sm:grid-cols-4">
           <div>
             <p className="text-xs text-neutral-400">Ciudad</p>
             <p className="font-medium text-neutral-800">{proposal.city ?? "—"}</p>
@@ -227,7 +279,8 @@ export function PresupuestoEditor({ proposalId, proposal, initialItems }: Props)
           <div>
             <p className="text-xs text-neutral-400">Fechas del evento</p>
             <p className="font-medium text-neutral-800">
-              {proposal.event_start_date ?? "—"} — {proposal.event_end_date ?? "—"}
+              {proposal.event_start_date ? formatFechaCorta(proposal.event_start_date) : "—"} —{" "}
+              {proposal.event_end_date ? formatFechaCorta(proposal.event_end_date) : "—"}
             </p>
           </div>
           <div>
@@ -238,13 +291,14 @@ export function PresupuestoEditor({ proposalId, proposal, initialItems }: Props)
             <p className="text-xs text-neutral-400">Aforo real</p>
             <input
               type="number"
+              aria-label="Aforo real"
               value={aforoReal ?? ""}
               onChange={(e) => setAforoReal(e.target.value === "" ? null : Number(e.target.value))}
               className={`${cellInput} h-9`}
             />
           </div>
         </div>
-        <div className="mt-4 flex gap-6 border-t border-neutral-100 pt-4">
+        <div className="mt-4 flex flex-wrap gap-x-6 gap-y-3 border-t border-neutral-100 pt-4">
           <div>
             <p className="text-xs text-neutral-400">Subtotal proyectado a la fecha</p>
             <p className="text-lg font-semibold text-neutral-900">{formatCOP(totalProyectado)}</p>
@@ -266,6 +320,23 @@ export function PresupuestoEditor({ proposalId, proposal, initialItems }: Props)
         </div>
       </section>
 
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        <button
+          type="button"
+          onClick={() => setOpenCategories(Object.fromEntries(allCategorias.map((c) => [c, true])))}
+          className="btn btn-secondary btn-sm"
+        >
+          Expandir todo
+        </button>
+        <button
+          type="button"
+          onClick={() => setOpenCategories({})}
+          className="btn btn-secondary btn-sm"
+        >
+          Contraer todo
+        </button>
+      </div>
+
       {allCategorias.map((cat) => {
         const catItems = itemsByCategoria[cat] ?? [];
         const catProyectado = catItems.reduce((s, i) => s + (i.total_ajustado || 0), 0);
@@ -276,7 +347,8 @@ export function PresupuestoEditor({ proposalId, proposal, initialItems }: Props)
             <button
               type="button"
               onClick={() => toggleCategory(cat)}
-              className="flex w-full items-center gap-3 p-4"
+              aria-expanded={open}
+              className="flex w-full flex-wrap items-center gap-x-3 gap-y-1 p-4 text-left"
             >
               <span className="text-xs text-neutral-400">{open ? "▼" : "▶"}</span>
               <span className="text-sm font-semibold text-neutral-900">{cat}</span>
@@ -286,6 +358,9 @@ export function PresupuestoEditor({ proposalId, proposal, initialItems }: Props)
             </button>
             {open && (
               <div className="overflow-x-auto px-4 pb-4">
+                <p className="mb-1 text-[11px] text-neutral-500 lg:hidden">
+                  Desliza hacia los lados para ver todas las columnas →
+                </p>
                 <table className="table-fixed border-collapse text-xs" style={{ width: 1426 }}>
                   <colgroup>
                     <col style={{ width: 200 }} />
@@ -309,7 +384,7 @@ export function PresupuestoEditor({ proposalId, proposal, initialItems }: Props)
                   </colgroup>
                   <thead>
                     <tr className="text-left text-neutral-400">
-                      <th className="py-1">Ítem</th>
+                      <th className="sticky left-0 z-10 bg-white py-1">Ítem</th>
                       <th className="py-1 text-center">IVA</th>
                       <th colSpan={5} className="border-l border-neutral-100 py-1 pl-2 text-center">
                         Proyectado inicial
@@ -327,7 +402,7 @@ export function PresupuestoEditor({ proposalId, proposal, initialItems }: Props)
                       <th></th>
                     </tr>
                     <tr className="text-left text-neutral-400">
-                      <th></th>
+                      <th className="sticky left-0 z-10 bg-white"></th>
                       <th className="text-center">19%</th>
                       <th className="border-l border-neutral-100 pl-2">Días</th>
                       <th>Cant.</th>
@@ -352,8 +427,9 @@ export function PresupuestoEditor({ proposalId, proposal, initialItems }: Props)
                       const diferencia = (item.total_ajustado || 0) - (item.ejecucion_valor || 0);
                       return (
                         <tr key={item.id} className="border-t border-neutral-100">
-                          <td className="py-1 pr-1">
+                          <td className="sticky left-0 z-10 bg-white py-1 pr-1">
                             <input
+                              aria-label="Nombre del ítem"
                               value={item.nombre}
                               onChange={(e) => patchItem(item.id, { nombre: e.target.value })}
                               className={cellInput}
@@ -362,6 +438,7 @@ export function PresupuestoEditor({ proposalId, proposal, initialItems }: Props)
                           <td className="py-1 text-center">
                             <input
                               type="checkbox"
+                              aria-label="Lleva IVA"
                               checked={item.iva_aplica}
                               onChange={(e) => patchItem(item.id, { iva_aplica: e.target.checked })}
                               title="Este rubro lleva IVA (19%)"
@@ -370,6 +447,7 @@ export function PresupuestoEditor({ proposalId, proposal, initialItems }: Props)
                           <td className="border-l border-neutral-100 py-1 pl-2 pr-1">
                             <input
                               type="number"
+                              aria-label="Días, proyectado inicial"
                               value={item.dias_proyectado ?? ""}
                               onChange={(e) => patchItem(item.id, { dias_proyectado: num(e.target.value) })}
                               className={cellInput}
@@ -378,6 +456,7 @@ export function PresupuestoEditor({ proposalId, proposal, initialItems }: Props)
                           <td className="py-1 pr-1">
                             <input
                               type="number"
+                              aria-label="Cantidad, proyectado inicial"
                               value={item.cantidad_proyectado ?? ""}
                               onChange={(e) =>
                                 patchItem(item.id, { cantidad_proyectado: num(e.target.value) })
@@ -386,12 +465,11 @@ export function PresupuestoEditor({ proposalId, proposal, initialItems }: Props)
                             />
                           </td>
                           <td className="py-1 pr-1">
-                            <input
-                              type="number"
-                              value={item.valor_unitario_proyectado ?? ""}
-                              onChange={(e) =>
-                                patchItem(item.id, { valor_unitario_proyectado: num(e.target.value) })
-                              }
+                            <MoneyInput
+                              nullable
+                              aria-label="Valor unitario, proyectado inicial"
+                              value={item.valor_unitario_proyectado}
+                              onChange={(v) => patchItem(item.id, { valor_unitario_proyectado: v })}
                               className={cellInput}
                             />
                           </td>
@@ -404,6 +482,7 @@ export function PresupuestoEditor({ proposalId, proposal, initialItems }: Props)
                           <td className="border-l border-neutral-100 py-1 pl-2 pr-1">
                             <input
                               type="number"
+                              aria-label="Días, presupuesto ajustado"
                               value={item.dias_ajustado ?? ""}
                               onChange={(e) => patchItem(item.id, { dias_ajustado: num(e.target.value) })}
                               className={cellInput}
@@ -412,6 +491,7 @@ export function PresupuestoEditor({ proposalId, proposal, initialItems }: Props)
                           <td className="py-1 pr-1">
                             <input
                               type="number"
+                              aria-label="Cantidad, presupuesto ajustado"
                               value={item.cantidad_ajustado ?? ""}
                               onChange={(e) =>
                                 patchItem(item.id, { cantidad_ajustado: num(e.target.value) })
@@ -420,12 +500,11 @@ export function PresupuestoEditor({ proposalId, proposal, initialItems }: Props)
                             />
                           </td>
                           <td className="py-1 pr-1">
-                            <input
-                              type="number"
-                              value={item.valor_unitario_ajustado ?? ""}
-                              onChange={(e) =>
-                                patchItem(item.id, { valor_unitario_ajustado: num(e.target.value) })
-                              }
+                            <MoneyInput
+                              nullable
+                              aria-label="Valor unitario, presupuesto ajustado"
+                              value={item.valor_unitario_ajustado}
+                              onChange={(v) => patchItem(item.id, { valor_unitario_ajustado: v })}
                               className={cellInput}
                             />
                           </td>
@@ -438,6 +517,7 @@ export function PresupuestoEditor({ proposalId, proposal, initialItems }: Props)
                           <td className="border-l border-neutral-100 py-1 pl-2 pr-1">
                             <input
                               type="date"
+                              aria-label="Fecha de transferencia"
                               value={item.transferido_fecha ?? ""}
                               onChange={(e) =>
                                 patchItem(item.id, { transferido_fecha: e.target.value || null })
@@ -447,18 +527,17 @@ export function PresupuestoEditor({ proposalId, proposal, initialItems }: Props)
                           </td>
                           <td className="py-1 pr-1">
                             <input
+                              aria-label="Transferido a"
                               value={item.transferido_a ?? ""}
                               onChange={(e) => patchItem(item.id, { transferido_a: e.target.value })}
                               className={cellInput}
                             />
                           </td>
                           <td className="border-l border-neutral-100 py-1 pl-2 pr-1">
-                            <input
-                              type="number"
+                            <MoneyInput
+                              aria-label="Valor de ejecución"
                               value={item.ejecucion_valor ?? 0}
-                              onChange={(e) =>
-                                patchItem(item.id, { ejecucion_valor: Number(e.target.value) || 0 })
-                              }
+                              onChange={(v) => patchItem(item.id, { ejecucion_valor: v ?? 0 })}
                               className={cellInput}
                             />
                           </td>
@@ -471,6 +550,7 @@ export function PresupuestoEditor({ proposalId, proposal, initialItems }: Props)
                           </td>
                           <td className="border-l border-neutral-100 py-1 pl-2 pr-1">
                             <input
+                              aria-label="Comentarios"
                               value={item.comentario ?? ""}
                               onChange={(e) => patchItem(item.id, { comentario: e.target.value })}
                               className={cellInput}
@@ -480,7 +560,9 @@ export function PresupuestoEditor({ proposalId, proposal, initialItems }: Props)
                             <button
                               type="button"
                               onClick={() => removeItem(item.id)}
-                              className="text-neutral-400 hover:text-red-600"
+                              className="icon-btn"
+                              title="Quitar línea"
+                              aria-label={`Quitar ${item.nombre || "línea"}`}
                             >
                               ✕
                             </button>
@@ -493,7 +575,7 @@ export function PresupuestoEditor({ proposalId, proposal, initialItems }: Props)
                 <button
                   type="button"
                   onClick={() => addItem(cat)}
-                  className="mt-2 rounded-md border border-neutral-300 px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
+                  className="btn btn-secondary btn-sm mt-2"
                 >
                   + Agregar línea
                 </button>
@@ -503,16 +585,17 @@ export function PresupuestoEditor({ proposalId, proposal, initialItems }: Props)
         );
       })}
 
+      <MobileSaveBar dirty={dirty} isPending={isPending} message={message} onSave={handleSave} />
       <div className="flex items-center gap-3">
         <button
           type="button"
           disabled={isPending}
           onClick={handleSave}
-          className="rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-50"
+          className="btn btn-primary"
         >
           {isPending ? "Guardando..." : "Guardar"}
         </button>
-        {message && <p className="text-xs text-neutral-500">{message}</p>}
+        <SaveStatus dirty={dirty} isPending={isPending} message={message} />
       </div>
     </div>
   );

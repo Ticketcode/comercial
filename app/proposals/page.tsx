@@ -25,24 +25,24 @@ export default async function ProposalsPage() {
     .order("created_at", { ascending: false });
 
   return (
-    <div className="mx-auto max-w-5xl px-6 py-10">
-      <div className="flex items-center justify-between">
+    <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-10">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold text-neutral-900">Propuestas</h1>
           <p className="mt-1 text-sm text-neutral-500">
             Equipo comercial — Ticketcode.
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <Link
             href="/catalog"
-            className="rounded-md border border-neutral-300 px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
+            className="btn btn-secondary"
           >
             Catálogo de precios
           </Link>
           <Link
             href="/proposals/new"
-            className="rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800"
+            className="btn btn-primary"
           >
             + Nueva propuesta
           </Link>
@@ -55,9 +55,9 @@ export default async function ProposalsPage() {
         </p>
       )}
 
-      <div className="mt-8 overflow-hidden rounded-xl border border-neutral-200 bg-white">
+      <div className="mt-8 overflow-x-auto rounded-xl border border-neutral-200 bg-white">
         {proposals && proposals.length > 0 ? (
-          <table className="w-full text-sm">
+          <table className="w-full min-w-[560px] text-sm">
             <thead className="bg-neutral-50 text-left text-neutral-500">
               <tr>
                 <th className="px-4 py-3 font-medium">Evento</th>
@@ -112,3 +112,4 @@ export default async function ProposalsPage() {
     </div>
   );
 }
+export const metadata = { title: "Propuestas" };

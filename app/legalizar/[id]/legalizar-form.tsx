@@ -1,12 +1,20 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import type { EventStaff, LegalizacionGasto, LegalizacionMeta, ViaticoAnticipo } from "@/lib/types";
 import { formatCOP } from "@/lib/pricing/summary";
 import { formatFechaCorta } from "@/lib/fecha-local";
+import { LabeledField } from "@/app/components/labeled-field";
+import { MoneyInput } from "@/app/components/money-input";
+import { MobileSaveBar, SaveStatus, useConfirm, useUnsavedChanges } from "@/app/components/ui-guard";
+import { callSafe, problemsMessage, saveErrorMessage } from "@/lib/errors";
 import { saveLegalizacionPersona, type SaveGastoRow } from "./actions";
 
 interface Props {
+  /** Token del enlace público (el de la URL), con el que se autoriza el guardado. */
+  token: string;
+  /** Producción cerró la legalización: solo lectura. */
+  locked: boolean;
   staffId: string;
   proposalId: string;
   staff: EventStaff;
@@ -40,6 +48,8 @@ function isTemp(id: string) {
 }
 
 export function LegalizarForm({
+  token,
+  locked,
   staffId,
   proposalId,
   staff,
@@ -60,6 +70,34 @@ export function LegalizarForm({
   const [deletedIds, setDeletedIds] = useState<string[]>([]);
   const [isPending, startTransition] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
+  const confirm = useConfirm();
+  const { dirty, resetTo } = useUnsavedChanges({
+    responsable,
+    actividad,
+    ciudadElaboracion,
+    fechaElaboracion,
+    gastos,
+    deletedIds,
+  });
+  // Tras guardar, los gastos nuevos dejan de ser temporales: se adopta lo guardado en la base
+  // de datos para que guardar otra vez no los inserte duplicados.
+  const awaitingSync = useRef(false);
+
+  useEffect(() => {
+    if (!awaitingSync.current) return;
+    awaitingSync.current = false;
+    setGastos(initialGastos);
+    setDeletedIds([]);
+    resetTo({
+      responsable,
+      actividad,
+      ciudadElaboracion,
+      fechaElaboracion,
+      gastos: initialGastos,
+      deletedIds: [],
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialGastos]);
 
   const totalAnticipo = anticipos.reduce((s, a) => s + a.valor, 0);
   const totalSoportes = gastos.reduce((s, g) => s + g.valor, 0);
@@ -89,13 +127,38 @@ export function LegalizarForm({
     setGastos((prev) => prev.map((g) => (g.id === id ? { ...g, ...patch } : g)));
   }
 
-  function removeGasto(id: string) {
+  async function removeGasto(id: string) {
+    if (!isTemp(id)) {
+      const ok = await confirm({
+        title: "¿Quitar este gasto?",
+        message: "El cambio se aplica al pulsar Guardar.",
+        confirmLabel: "Quitar",
+        danger: true,
+      });
+      if (!ok) return;
+    }
     setGastos((prev) => prev.filter((g) => g.id !== id));
     if (!isTemp(id)) setDeletedIds((prev) => [...prev, id]);
   }
 
+  function validar(): string[] {
+    const problems: string[] = [];
+    if (!responsable.trim()) problems.push('Escribe tu nombre en "Responsable"');
+    gastos.forEach((g, i) => {
+      if (!g.fecha) problems.push(`El gasto ${i + 1} no tiene fecha`);
+      if (!(g.valor > 0)) problems.push(`El gasto ${i + 1} tiene valor 0`);
+    });
+    return problems;
+  }
+
   function handleSave() {
+    const problems = validar();
+    if (problems.length > 0) {
+      setMessage(problemsMessage(problems));
+      return;
+    }
     setMessage(null);
+    awaitingSync.current = true;
     startTransition(async () => {
       const toRow = (g: LegalizacionGasto): SaveGastoRow => ({
         id: g.id,
@@ -107,9 +170,8 @@ export function LegalizarForm({
         valor: g.valor,
         sort_order: g.sort_order,
       });
-      const result = await saveLegalizacionPersona({
-        staffId,
-        proposalId,
+      const result = await callSafe(() => saveLegalizacionPersona({
+        token,
         meta: {
           responsable: responsable || null,
           actividad: actividad || null,
@@ -121,41 +183,54 @@ export function LegalizarForm({
           new: gastos.filter((g) => isTemp(g.id)).map(toRow),
           deletedIds,
         },
-      });
-      setMessage(result.error ? `Error: ${result.error}` : "Guardado ✓ — puedes seguir editando si falta algo.");
-      if (!result.error) setDeletedIds([]);
+      }));
+      if (result.error) awaitingSync.current = false;
+      setMessage(
+        result.error ? saveErrorMessage(result.error) : "Guardado — puedes seguir editando si falta algo."
+      );
     });
   }
 
   return (
-    <div className="mt-5 space-y-5">
+    <fieldset disabled={locked} className="mt-5 min-w-0 space-y-5 border-0 p-0">
+      {locked && (
+        <div role="status" className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+          Esta legalización fue cerrada por Producción: solo puedes consultarla. Si necesitas cambiar
+          algo, pídeles que la reabran.
+        </div>
+      )}
       <section>
         <h2 className="mb-2 text-sm font-semibold text-neutral-900">Tus datos</h2>
-        <div className="grid grid-cols-2 gap-3">
-          <input
-            placeholder="Responsable"
-            value={responsable}
-            onChange={(e) => setResponsable(e.target.value)}
-            className={inputClass}
-          />
-          <input
-            placeholder="Actividad"
-            value={actividad}
-            onChange={(e) => setActividad(e.target.value)}
-            className={inputClass}
-          />
-          <input
-            placeholder="Ciudad de elaboración"
-            value={ciudadElaboracion}
-            onChange={(e) => setCiudadElaboracion(e.target.value)}
-            className={inputClass}
-          />
-          <input
-            type="date"
-            value={fechaElaboracion}
-            onChange={(e) => setFechaElaboracion(e.target.value)}
-            className={inputClass}
-          />
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <LabeledField label="Responsable">
+            <input
+              value={responsable}
+              onChange={(e) => setResponsable(e.target.value)}
+              className={inputClass}
+            />
+          </LabeledField>
+          <LabeledField label="Actividad">
+            <input
+              value={actividad}
+              onChange={(e) => setActividad(e.target.value)}
+              className={inputClass}
+            />
+          </LabeledField>
+          <LabeledField label="Ciudad de elaboración">
+            <input
+              value={ciudadElaboracion}
+              onChange={(e) => setCiudadElaboracion(e.target.value)}
+              className={inputClass}
+            />
+          </LabeledField>
+          <LabeledField label="Fecha de elaboración">
+            <input
+              type="date"
+              value={fechaElaboracion}
+              onChange={(e) => setFechaElaboracion(e.target.value)}
+              className={inputClass}
+            />
+          </LabeledField>
         </div>
       </section>
 
@@ -197,7 +272,7 @@ export function LegalizarForm({
           <button
             type="button"
             onClick={addGasto}
-            className="rounded-md border border-neutral-300 px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
+            className="btn btn-secondary btn-sm"
           >
             + Agregar gasto
           </button>
@@ -213,12 +288,14 @@ export function LegalizarForm({
                   <button
                     type="button"
                     onClick={() => removeGasto(g.id)}
-                    className="text-neutral-400 hover:text-red-600"
+                    className="icon-btn"
+                    title="Quitar gasto"
+                    aria-label="Quitar este gasto"
                   >
                     ✕
                   </button>
                 </div>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                   <label className="text-xs text-neutral-500">
                     Fecha
                     <input
@@ -253,7 +330,7 @@ export function LegalizarForm({
                       className={`${inputClass} mt-1`}
                     />
                   </label>
-                  <label className="col-span-2 text-xs text-neutral-500">
+                  <label className="text-xs text-neutral-500 sm:col-span-2">
                     Concepto
                     <input
                       value={g.concepto ?? ""}
@@ -263,11 +340,9 @@ export function LegalizarForm({
                   </label>
                   <label className="text-xs text-neutral-500">
                     Valor
-                    <input
-                      type="number"
-                      min={0}
+                    <MoneyInput
                       value={g.valor}
-                      onChange={(e) => patchGasto(g.id, { valor: Number(e.target.value) || 0 })}
+                      onChange={(v) => patchGasto(g.id, { valor: v ?? 0 })}
                       className={`${inputClass} mt-1`}
                     />
                   </label>
@@ -301,15 +376,18 @@ export function LegalizarForm({
         </p>
       </section>
 
+      {!locked && (
+        <MobileSaveBar dirty={dirty} isPending={isPending} message={message} onSave={handleSave} label="Guardar mi legalización" />
+      )}
       <button
         type="button"
         disabled={isPending}
         onClick={handleSave}
-        className="w-full rounded-md bg-neutral-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-50"
+        className={`btn btn-primary w-full ${locked ? "hidden" : ""}`}
       >
         {isPending ? "Guardando..." : "Guardar mi legalización"}
       </button>
-      {message && <p className="text-center text-xs text-neutral-500">{message}</p>}
-    </div>
+      <SaveStatus dirty={dirty} isPending={isPending} message={message} className="text-center" />
+    </fieldset>
   );
 }

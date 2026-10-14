@@ -2,6 +2,8 @@
 
 import { useEffect, useState, useTransition } from "react";
 import type { CatalogItem, LogisticsRateItem, PriceScaleItem } from "@/lib/types";
+import { MobileSaveBar, SaveStatus, useUnsavedChanges } from "@/app/components/ui-guard";
+import { callSafe, problemsMessage, saveErrorMessage } from "@/lib/errors";
 import { saveCatalog } from "./actions";
 
 const SCALE_GROUP_LABELS: Record<PriceScaleItem["scale_group"], string> = {
@@ -26,7 +28,7 @@ function formatEsCO(value: number): string {
 
 function parseEsCO(text: string): number {
   // "20.000" -> quita puntos de miles; "3,47" -> coma decimal a punto.
-  const normalized = text.replace(/\./g, "").replace(",", ".");
+  const normalized = text.replace(/[^0-9.,]/g, "").replace(/\./g, "").replace(",", ".");
   const n = parseFloat(normalized);
   return Number.isNaN(n) ? 0 : n;
 }
@@ -35,9 +37,11 @@ function parseEsCO(text: string): number {
 function ThousandsInput({
   valuePesos,
   onChangePesos,
+  label,
 }: {
   valuePesos: number;
   onChangePesos: (pesos: number) => void;
+  label: string;
 }) {
   const [focused, setFocused] = useState(false);
   const [text, setText] = useState(() => formatEsCO(valuePesos));
@@ -50,6 +54,7 @@ function ThousandsInput({
     <input
       type="text"
       inputMode="decimal"
+      aria-label={label}
       value={text}
       onFocus={() => setFocused(true)}
       onChange={(e) => {
@@ -89,12 +94,36 @@ export function CatalogEditor({
   const [isPending, startTransition] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
 
+  const { dirty, snapshot, markSaved } = useUnsavedChanges({
+    logisticsPrices,
+    servicePrices,
+    scaleValues,
+  });
+
   const scaleGroups = Array.from(new Set(priceScaleItems.map((i) => i.scale_group)));
 
+  function validar(): string[] {
+    const problems: string[] = [];
+    const todos = [
+      ...Object.values(logisticsPrices),
+      ...Object.values(servicePrices),
+      ...Object.values(scaleValues),
+    ];
+    if (todos.some((v) => !Number.isFinite(v) || v < 0))
+      problems.push("Hay precios vacíos, negativos o inválidos");
+    return problems;
+  }
+
   function handleSave() {
+    const problems = validar();
+    if (problems.length > 0) {
+      setMessage(problemsMessage(problems));
+      return;
+    }
     setMessage(null);
+    const snap = snapshot();
     startTransition(async () => {
-      const result = await saveCatalog({
+      const result = await callSafe(() => saveCatalog({
         logisticsItems: logisticsItems.map((i) => ({
           id: i.id,
           default_unit_cost: logisticsPrices[i.id],
@@ -107,14 +136,15 @@ export function CatalogEditor({
           id: i.id,
           unit_value: scaleValues[i.id],
         })),
-      });
-      setMessage(result.error ? `Error: ${result.error}` : "Guardado.");
+      }));
+      if (!result.error) markSaved(snap);
+      setMessage(result.error ? saveErrorMessage(result.error) : "Guardado.");
     });
   }
 
   return (
     <div className="space-y-8">
-      <section className="overflow-hidden rounded-xl border border-neutral-200 bg-white">
+      <section className="overflow-x-auto rounded-xl border border-neutral-200 bg-white">
         <div className="border-b border-neutral-200 px-4 py-3">
           <h2 className="text-sm font-semibold text-neutral-900">Rubros Logística</h2>
         </div>
@@ -143,6 +173,7 @@ export function CatalogEditor({
                 </td>
                 <td className="px-4 py-2 text-right">
                   <ThousandsInput
+                    label={`Valor unitario de ${item.name}`}
                     valuePesos={logisticsPrices[item.id]}
                     onChangePesos={(pesos) =>
                       setLogisticsPrices((prev) => ({ ...prev, [item.id]: pesos }))
@@ -155,7 +186,7 @@ export function CatalogEditor({
         </table>
       </section>
 
-      <section className="overflow-hidden rounded-xl border border-neutral-200 bg-white">
+      <section className="overflow-x-auto rounded-xl border border-neutral-200 bg-white">
         <div className="border-b border-neutral-200 px-4 py-3">
           <h2 className="text-sm font-semibold text-neutral-900">
             2. Servicios personalizados de la plataforma
@@ -176,6 +207,7 @@ export function CatalogEditor({
                 <td className="px-2 py-2 text-neutral-800">{item.name}</td>
                 <td className="px-4 py-2 text-right">
                   <ThousandsInput
+                    label={`Precio de ${item.name}`}
                     valuePesos={servicePrices[item.id]}
                     onChangePesos={(pesos) =>
                       setServicePrices((prev) => ({ ...prev, [item.id]: pesos }))
@@ -194,7 +226,7 @@ export function CatalogEditor({
           .sort((a, b) => a.sort_order - b.sort_order);
         const isAforo = group === "honorarios_productor";
         return (
-          <section key={group} className="overflow-hidden rounded-xl border border-neutral-200 bg-white">
+          <section key={group} className="overflow-x-auto rounded-xl border border-neutral-200 bg-white">
             <div className="border-b border-neutral-200 px-4 py-3">
               <h2 className="text-sm font-semibold text-neutral-900">{SCALE_GROUP_LABELS[group]}</h2>
             </div>
@@ -213,6 +245,7 @@ export function CatalogEditor({
                     <td className="px-4 py-2 text-neutral-800">{tierLabel(item, isAforo)}</td>
                     <td className="px-4 py-2 text-right">
                       <ThousandsInput
+                        label={`Valor del tramo ${tierLabel(item, isAforo)}`}
                         valuePesos={scaleValues[item.id]}
                         onChangePesos={(pesos) =>
                           setScaleValues((prev) => ({ ...prev, [item.id]: pesos }))
@@ -227,23 +260,16 @@ export function CatalogEditor({
         );
       })}
 
+      <MobileSaveBar dirty={dirty} isPending={isPending} message={message} onSave={handleSave} label="Guardar catálogo" />
       <div className="flex items-center gap-4">
         <button
           onClick={handleSave}
           disabled={isPending}
-          className="h-10 rounded-md bg-neutral-900 px-5 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-60"
+          className="btn btn-primary"
         >
           {isPending ? "Guardando..." : "Guardar catálogo"}
         </button>
-        {message && (
-          <span
-            className={`text-sm ${
-              message.startsWith("Error") ? "text-red-600" : "text-emerald-600"
-            }`}
-          >
-            {message}
-          </span>
-        )}
+        <SaveStatus dirty={dirty} isPending={isPending} message={message} className="text-sm" />
       </div>
     </div>
   );

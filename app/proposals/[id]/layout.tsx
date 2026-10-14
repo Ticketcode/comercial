@@ -1,8 +1,16 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import type { Metadata } from "next";
+import { getProposalBasic } from "@/lib/data/proposal-basic";
 import { ProposalStepsNav } from "./proposal-steps-nav";
 import { MarkCerradaButton } from "./mark-cerrada-button";
+
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
+  const { id } = await params;
+  const proposal = await getProposalBasic(id);
+  const name = proposal?.event_name ?? "Evento";
+  return { title: { default: name, template: `%s · ${name} · Ticketcode` } };
+}
 
 export default async function ProposalLayout({
   children,
@@ -12,12 +20,7 @@ export default async function ProposalLayout({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const supabase = await createClient();
-  const { data: proposal } = await supabase
-    .from("proposals")
-    .select("id, event_name, status, clients(name, company)")
-    .eq("id", id)
-    .single();
+  const proposal = await getProposalBasic(id);
 
   if (!proposal) notFound();
 
@@ -25,11 +28,11 @@ export default async function ProposalLayout({
   const isCerrada = proposal.status === "cerrada";
 
   return (
-    <div className="mx-auto max-w-6xl px-6 py-10">
+    <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-10">
       <Link href="/proposals" className="no-print text-sm text-neutral-500 hover:underline">
         ← Todas las propuestas
       </Link>
-      <div className="mt-2 flex items-center justify-between">
+      <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold text-neutral-900">{proposal.event_name}</h1>
           <p className="text-sm text-neutral-500">

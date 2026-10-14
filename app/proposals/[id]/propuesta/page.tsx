@@ -202,3 +202,4 @@ export default async function PropuestaPage({
     />
   );
 }
+export const metadata = { title: "Propuesta" };

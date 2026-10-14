@@ -14,7 +14,7 @@ function SubmitButton() {
     <button
       type="submit"
       disabled={pending}
-      className="h-9 rounded-md bg-neutral-900 px-4 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-60"
+      className="btn btn-primary"
     >
       {pending ? "Creando..." : "Crear evento"}
     </button>
@@ -30,7 +30,7 @@ export function NewEventForm() {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="rounded-md border border-neutral-300 px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
+        className="btn btn-secondary"
       >
         + Agregar evento operativo
       </button>
@@ -44,12 +44,12 @@ export function NewEventForm() {
         Para eventos que ya operan y no pasaron por el flujo comercial (Tarifario/Propuesta/
         Contrato) — entra directo a Producción sin llenar el Tarifario.
       </p>
-      <form action={formAction} className="grid grid-cols-2 gap-3">
-        <input name="event_name" placeholder="Nombre del evento" required className={inputClass} />
-        <input name="client_name" placeholder="Cliente" required className={inputClass} />
-        <input name="client_company" placeholder="Empresa (opcional)" className={inputClass} />
-        <input name="city" placeholder="Ciudad" className={inputClass} />
-        <select name="modality" defaultValue="presencial" className={inputClass}>
+      <form action={formAction} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <input name="event_name" aria-label="Nombre del evento" placeholder="Nombre del evento" required className={inputClass} />
+        <input name="client_name" aria-label="Cliente" placeholder="Cliente" required className={inputClass} />
+        <input name="client_company" aria-label="Empresa (opcional)" placeholder="Empresa (opcional)" className={inputClass} />
+        <input name="city" aria-label="Ciudad" placeholder="Ciudad" className={inputClass} />
+        <select name="modality" aria-label="Modalidad" defaultValue="presencial" className={inputClass}>
           <option value="presencial">Presencial</option>
           <option value="virtual">Virtual</option>
           <option value="hibrido">Híbrido</option>

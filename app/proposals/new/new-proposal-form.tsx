@@ -15,7 +15,7 @@ function SubmitButton() {
     <button
       type="submit"
       disabled={pending}
-      className="h-10 rounded-md bg-neutral-900 px-5 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-60"
+      className="btn btn-primary"
     >
       {pending ? "Creando..." : "Crear propuesta y continuar al Tarifario"}
     </button>
@@ -29,7 +29,7 @@ export function NewProposalForm() {
     <form action={formAction} className="space-y-8">
       <fieldset className="space-y-4">
         <legend className="text-sm font-semibold text-neutral-900">Cliente</legend>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div className="space-y-1.5">
             <label className={labelClass} htmlFor="client_name">
               Nombre del contacto
@@ -54,7 +54,7 @@ export function NewProposalForm() {
           <input id="event_name" name="event_name" required className={inputClass} />
         </div>
 
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <div className="space-y-1.5">
             <label className={labelClass} htmlFor="modality">
               Modalidad
@@ -80,7 +80,7 @@ export function NewProposalForm() {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div className="space-y-1.5">
             <label className={labelClass} htmlFor="event_start_date">
               Fecha inicio

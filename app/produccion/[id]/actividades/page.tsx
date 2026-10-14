@@ -45,3 +45,4 @@ export default async function ActividadesPage({ params }: { params: Promise<{ id
     />
   );
 }
+export const metadata = { title: "Actividades" };

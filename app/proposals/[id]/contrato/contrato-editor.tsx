@@ -2,6 +2,8 @@
 
 import { useState, useTransition } from "react";
 import type { Proposal, ProposalContractFields } from "@/lib/types";
+import { MobileSaveBar, SaveStatus, useUnsavedChanges } from "@/app/components/ui-guard";
+import { callSafe, problemsMessage, saveErrorMessage } from "@/lib/errors";
 import { saveContractFields, type ContractFieldsInput } from "./actions";
 
 const inputClass =
@@ -42,16 +44,33 @@ export function ContratoEditor({
   const [form, setForm] = useState<ContractFieldsInput>(defaults(fields));
   const [isPending, startTransition] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
+  const { dirty, snapshot, markSaved } = useUnsavedChanges(form);
 
   function patch<K extends keyof ContractFieldsInput>(key: K, value: ContractFieldsInput[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
   }
 
+  function validar(): string[] {
+    const problems: string[] = [];
+    if (form.tiempo_servicio_inicio && form.tiempo_servicio_fin && form.tiempo_servicio_fin < form.tiempo_servicio_inicio)
+      problems.push("El fin del servicio es anterior a su inicio");
+    if (form.plazo_inicio && form.plazo_fin && form.plazo_fin < form.plazo_inicio)
+      problems.push("El fin del plazo de ejecución es anterior a su inicio");
+    return problems;
+  }
+
   function handleSave() {
+    const problems = validar();
+    if (problems.length > 0) {
+      setMessage(problemsMessage(problems));
+      return;
+    }
     setMessage(null);
+    const snap = snapshot();
     startTransition(async () => {
-      const result = await saveContractFields(proposal.id, form);
-      setMessage(result.error ? `Error: ${result.error}` : "Guardado.");
+      const result = await callSafe(() => saveContractFields(proposal.id, form));
+      if (!result.error) markSaved(snap);
+      setMessage(result.error ? saveErrorMessage(result.error) : "Guardado.");
     });
   }
 
@@ -64,7 +83,7 @@ export function ContratoEditor({
 
       <section className="rounded-xl border border-neutral-200 bg-white p-5">
         <h3 className="mb-4 text-sm font-semibold text-neutral-900">Datos del contrato</h3>
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <Field label="Número de contrato">
             <input
               className={inputClass}
@@ -101,7 +120,7 @@ export function ContratoEditor({
 
       <section className="rounded-xl border border-neutral-200 bg-white p-5">
         <h3 className="mb-4 text-sm font-semibold text-neutral-900">EL CONTRATANTE</h3>
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <Field label="Representante legal (nombre completo)">
             <input
               className={inputClass}
@@ -173,7 +192,7 @@ export function ContratoEditor({
               placeholder="Se usa un texto por defecto si lo dejas vacío."
             />
           </Field>
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <Field label="Servicio — inicio">
               <input
                 type="date"
@@ -210,25 +229,22 @@ export function ContratoEditor({
         </div>
       </section>
 
-      <div className="flex items-center gap-4">
+      <MobileSaveBar dirty={dirty} isPending={isPending} message={message} onSave={handleSave} label="Guardar contrato" />
+      <div className="flex flex-wrap items-center gap-4">
         <button
           onClick={handleSave}
           disabled={isPending}
-          className="h-10 rounded-md bg-neutral-900 px-5 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-60"
+          className="btn btn-primary"
         >
           {isPending ? "Guardando..." : "Guardar datos del contrato"}
         </button>
         <a
           href={`/api/contracts/${proposal.id}`}
-          className="h-10 rounded-md border border-neutral-300 px-4 text-sm font-medium text-neutral-700 hover:bg-neutral-50 flex items-center"
+          className="btn btn-secondary"
         >
           Descargar contrato (.docx)
         </a>
-        {message && (
-          <span className={`text-sm ${message.startsWith("Error") ? "text-red-600" : "text-emerald-600"}`}>
-            {message}
-          </span>
-        )}
+        <SaveStatus dirty={dirty} isPending={isPending} message={message} className="text-sm" />
       </div>
       <p className="text-xs text-neutral-400">
         Guarda primero los datos para que el contrato descargado los incluya — el valor y la forma de
@@ -240,9 +256,9 @@ export function ContratoEditor({
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="space-y-1">
-      <label className={labelClass}>{label}</label>
+    <label className="block space-y-1">
+      <span className={labelClass}>{label}</span>
       {children}
-    </div>
+    </label>
   );
 }

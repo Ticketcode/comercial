@@ -190,6 +190,10 @@ export interface EventStaff {
   numero_cuenta: string | null;
   sort_order: number;
   created_at: string;
+  /** Token del enlace público /legalizar/[token] (migración 0026). */
+  token?: string;
+  /** Si es true, la persona ya no puede editar su legalización desde el enlace. */
+  legalizacion_cerrada?: boolean;
 }
 
 export interface ViaticoGiro {
@@ -279,6 +283,8 @@ export interface CuentaCobro {
   fecha_firma: string | null;
   firma_nombre: string | null;
   firma_imagen: string | null;
+  /** Token del enlace público /firmar/[token] (migración 0026). */
+  token?: string;
   sort_order: number;
   created_at: string;
   updated_at: string;

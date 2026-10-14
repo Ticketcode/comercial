@@ -1,9 +1,13 @@
 "use client";
 
-import { useMemo, useRef, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import type { EventStaff, ViaticoAnticipo, ViaticoGiro } from "@/lib/types";
 import { formatCOP } from "@/lib/pricing/summary";
 import { formatFechaCorta } from "@/lib/fecha-local";
+import { LabeledField } from "@/app/components/labeled-field";
+import { MoneyInput } from "@/app/components/money-input";
+import { MobileSaveBar, SaveStatus, useConfirm, useUnsavedChanges } from "@/app/components/ui-guard";
+import { callSafe, problemsMessage, saveErrorMessage } from "@/lib/errors";
 import { saveProduccion, type SaveStaffRow, type SaveGiroRow, type SaveAnticipoRow } from "./actions";
 
 interface TarifasReferencia {
@@ -64,6 +68,43 @@ export function ProduccionEditor({
   const [isDownloading, setIsDownloading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const printAreaRef = useRef<HTMLDivElement>(null);
+  const confirm = useConfirm();
+  const { dirty, resetTo } = useUnsavedChanges({
+    staff,
+    giros,
+    anticipos,
+    deletedStaffIds,
+    deletedGiroIds,
+    deletedAnticipoIds,
+  });
+  // Tras guardar, las filas nuevas dejan de ser temporales: se adopta lo que quedó en la
+  // base de datos para que un segundo guardado no las inserte otra vez.
+  const awaitingSync = useRef(false);
+  const activeIndexAtSave = useRef(0);
+
+  useEffect(() => {
+    if (!awaitingSync.current) return;
+    awaitingSync.current = false;
+    setStaff(initialStaff);
+    setGiros(initialGiros);
+    setAnticipos(initialAnticipos);
+    setDeletedStaffIds([]);
+    setDeletedGiroIds([]);
+    setDeletedAnticipoIds([]);
+    setActiveStaffId((prev) =>
+      prev && !isTemp(prev) && initialStaff.some((s) => s.id === prev)
+        ? prev
+        : initialStaff[activeIndexAtSave.current]?.id ?? initialStaff[0]?.id ?? null
+    );
+    resetTo({
+      staff: initialStaff,
+      giros: initialGiros,
+      anticipos: initialAnticipos,
+      deletedStaffIds: [],
+      deletedGiroIds: [],
+      deletedAnticipoIds: [],
+    });
+  }, [initialStaff, initialGiros, initialAnticipos, resetTo]);
 
   function categoriaDeRubro(rubro: string | null): Categoria {
     if (!rubro) return "Varios";
@@ -96,7 +137,22 @@ export function ProduccionEditor({
     setStaff((prev) => prev.map((s) => (s.id === id ? { ...s, ...patch } : s)));
   }
 
-  function removeStaff(id: string) {
+  async function removeStaff(id: string) {
+    const nGiros = giros.filter((g) => g.staff_id === id).length;
+    const nAnticipos = anticipos.filter((a) => a.staff_id === id).length;
+    const name = staff.find((s) => s.id === id)?.full_name || "esta persona";
+    if (!isTemp(id) || nGiros > 0 || nAnticipos > 0) {
+      const ok = await confirm({
+        title: `¿Quitar a ${name}?`,
+        message:
+          nGiros + nAnticipos > 0
+            ? `También se quitarán sus ${nGiros} rubro(s) y ${nAnticipos} anticipo(s). El cambio se aplica al pulsar Guardar.`
+            : "El cambio se aplica al pulsar Guardar.",
+        confirmLabel: "Quitar",
+        danger: true,
+      });
+      if (!ok) return;
+    }
     setStaff((prev) => prev.filter((s) => s.id !== id));
     if (!isTemp(id)) setDeletedStaffIds((prev) => [...prev, id]);
     const orphaned = giros.filter((g) => g.staff_id === id);
@@ -157,7 +213,16 @@ export function ProduccionEditor({
     });
   }
 
-  function removeGiro(id: string) {
+  async function removeGiro(id: string) {
+    if (!isTemp(id)) {
+      const ok = await confirm({
+        title: "¿Quitar este rubro?",
+        message: "El cambio se aplica al pulsar Guardar.",
+        confirmLabel: "Quitar",
+        danger: true,
+      });
+      if (!ok) return;
+    }
     setGiros((prev) => prev.filter((g) => g.id !== id));
     if (!isTemp(id)) setDeletedGiroIds((prev) => [...prev, id]);
   }
@@ -183,7 +248,16 @@ export function ProduccionEditor({
     setAnticipos((prev) => prev.map((a) => (a.id === id ? { ...a, ...patch } : a)));
   }
 
-  function removeAnticipo(id: string) {
+  async function removeAnticipo(id: string) {
+    if (!isTemp(id)) {
+      const ok = await confirm({
+        title: "¿Quitar este anticipo?",
+        message: "El cambio se aplica al pulsar Guardar.",
+        confirmLabel: "Quitar",
+        danger: true,
+      });
+      if (!ok) return;
+    }
     setAnticipos((prev) => prev.filter((a) => a.id !== id));
     if (!isTemp(id)) setDeletedAnticipoIds((prev) => [...prev, id]);
   }
@@ -224,8 +298,36 @@ export function ProduccionEditor({
   const totalGirado = anticipos.reduce((s, a) => s + a.valor, 0);
   const totalPendiente = totalGeneral - totalGirado;
 
+  function validar(): string[] {
+    const problems: string[] = [];
+    const nombre = (staffId: string) =>
+      staff.find((s) => s.id === staffId)?.full_name.trim() || "una persona sin nombre";
+    staff.forEach((s, i) => {
+      if (!s.full_name.trim()) problems.push(`La persona #${i + 1} no tiene nombre`);
+    });
+    giros.forEach((g) => {
+      if (!(g.cantidad > 0)) problems.push(`Un rubro de ${nombre(g.staff_id)} tiene cantidad 0`);
+      else if (!(g.monto > 0)) problems.push(`Un rubro de ${nombre(g.staff_id)} tiene valor 0`);
+    });
+    anticipos.forEach((a) => {
+      if (!(a.valor > 0)) problems.push(`Un anticipo de ${nombre(a.staff_id)} tiene valor 0`);
+      if (!a.fecha) problems.push(`Un anticipo de ${nombre(a.staff_id)} no tiene fecha`);
+    });
+    return Array.from(new Set(problems));
+  }
+
   function handleSave() {
+    const problems = validar();
+    if (problems.length > 0) {
+      setMessage(problemsMessage(problems));
+      return;
+    }
     setMessage(null);
+    awaitingSync.current = true;
+    activeIndexAtSave.current = Math.max(
+      0,
+      staff.findIndex((s) => s.id === activeStaffId)
+    );
     startTransition(async () => {
       const toStaffRow = (s: EventStaff): SaveStaffRow => ({
         id: s.id,
@@ -260,7 +362,7 @@ export function ProduccionEditor({
         sort_order: a.sort_order,
       });
 
-      const result = await saveProduccion({
+      const result = await callSafe(() => saveProduccion({
         proposalId,
         staff: {
           existing: staff.filter((s) => !isTemp(s.id)).map(toStaffRow),
@@ -277,13 +379,9 @@ export function ProduccionEditor({
           new: anticipos.filter((a) => isTemp(a.id)).map(toAnticipoRow),
           deletedIds: deletedAnticipoIds,
         },
-      });
-      setMessage(result.error ? `Error: ${result.error}` : "Guardado.");
-      if (!result.error) {
-        setDeletedStaffIds([]);
-        setDeletedGiroIds([]);
-        setDeletedAnticipoIds([]);
-      }
+      }));
+      if (result.error) awaitingSync.current = false;
+      setMessage(result.error ? saveErrorMessage(result.error) : "Guardado.");
     });
   }
 
@@ -335,15 +433,15 @@ export function ProduccionEditor({
   const activeAnticipos = activeStaff ? anticiposByStaff[activeStaff.id] ?? [] : [];
 
   return (
-    <div className="grid grid-cols-3 gap-6">
-      <div className="col-span-2 space-y-6">
+    <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+      <div className="min-w-0 space-y-6 lg:col-span-2">
         <section className="rounded-xl border border-neutral-200 bg-white p-5">
           <div className="mb-3 flex items-center justify-between">
             <h3 className="text-sm font-semibold text-neutral-900">Personal asignado al evento</h3>
             <button
               type="button"
               onClick={addStaff}
-              className="rounded-md border border-neutral-300 px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
+              className="btn btn-secondary btn-sm"
             >
               + Agregar persona
             </button>
@@ -353,49 +451,63 @@ export function ProduccionEditor({
               <p className="text-sm text-neutral-400">Todavía no hay personal asignado.</p>
             )}
             {staff.map((s) => (
-              <div key={s.id} className="grid grid-cols-7 gap-2 rounded-md border border-neutral-100 p-3">
-                <input
-                  placeholder="Nombre completo"
-                  value={s.full_name}
-                  onChange={(e) => patchStaff(s.id, { full_name: e.target.value })}
-                  className={`${inputClass} col-span-2`}
-                />
-                <input
-                  placeholder="Cargo (ej. Productor)"
-                  value={s.cargo ?? ""}
-                  onChange={(e) => patchStaff(s.id, { cargo: e.target.value })}
-                  className={inputClass}
-                />
-                <input
-                  placeholder="Cédula"
-                  value={s.cedula ?? ""}
-                  onChange={(e) => patchStaff(s.id, { cedula: e.target.value })}
-                  className={inputClass}
-                />
-                <input
-                  placeholder="Banco"
-                  value={s.banco ?? ""}
-                  onChange={(e) => patchStaff(s.id, { banco: e.target.value })}
-                  className={inputClass}
-                />
-                <input
-                  placeholder="Tipo cuenta"
-                  value={s.tipo_cuenta ?? ""}
-                  onChange={(e) => patchStaff(s.id, { tipo_cuenta: e.target.value })}
-                  className={inputClass}
-                />
-                <div className="flex gap-2">
+              <div
+                key={s.id}
+                className="grid grid-cols-2 gap-2 rounded-md border border-neutral-100 p-3 sm:grid-cols-4 lg:grid-cols-7"
+              >
+                <LabeledField label="Nombre completo" className="col-span-2">
                   <input
-                    placeholder="N° cuenta"
-                    value={s.numero_cuenta ?? ""}
-                    onChange={(e) => patchStaff(s.id, { numero_cuenta: e.target.value })}
+                    value={s.full_name}
+                    onChange={(e) => patchStaff(s.id, { full_name: e.target.value })}
                     className={inputClass}
                   />
+                </LabeledField>
+                <LabeledField label="Cargo">
+                  <input
+                    placeholder="Ej. Productor"
+                    value={s.cargo ?? ""}
+                    onChange={(e) => patchStaff(s.id, { cargo: e.target.value })}
+                    className={inputClass}
+                  />
+                </LabeledField>
+                <LabeledField label="Cédula">
+                  <input
+                    inputMode="numeric"
+                    value={s.cedula ?? ""}
+                    onChange={(e) => patchStaff(s.id, { cedula: e.target.value })}
+                    className={inputClass}
+                  />
+                </LabeledField>
+                <LabeledField label="Banco">
+                  <input
+                    value={s.banco ?? ""}
+                    onChange={(e) => patchStaff(s.id, { banco: e.target.value })}
+                    className={inputClass}
+                  />
+                </LabeledField>
+                <LabeledField label="Tipo de cuenta">
+                  <input
+                    placeholder="Ahorros / Corriente"
+                    value={s.tipo_cuenta ?? ""}
+                    onChange={(e) => patchStaff(s.id, { tipo_cuenta: e.target.value })}
+                    className={inputClass}
+                  />
+                </LabeledField>
+                <div className="col-span-2 flex items-end gap-2 sm:col-span-1">
+                  <LabeledField label="N° de cuenta" className="min-w-0 flex-1">
+                    <input
+                      inputMode="numeric"
+                      value={s.numero_cuenta ?? ""}
+                      onChange={(e) => patchStaff(s.id, { numero_cuenta: e.target.value })}
+                      className={inputClass}
+                    />
+                  </LabeledField>
                   <button
                     type="button"
                     onClick={() => removeStaff(s.id)}
-                    className="shrink-0 text-neutral-400 hover:text-red-600"
-                    title="Eliminar"
+                    className="icon-btn mb-1.5"
+                    title="Quitar persona"
+                    aria-label={`Quitar a ${s.full_name || "esta persona"}`}
                   >
                     ✕
                   </button>
@@ -411,7 +523,7 @@ export function ProduccionEditor({
             Valores fijos de la empresa — se seleccionan solos al elegir un rubro de Alimentación,
             Alojamiento o Transporte en el cuadro de cada persona.
           </p>
-          <div className="mt-3 grid grid-cols-2 gap-x-6 gap-y-1 text-xs">
+          <div className="mt-3 grid grid-cols-1 gap-x-6 gap-y-1 text-xs sm:grid-cols-2">
             {Object.entries(tarifasReferencia.alimentacion).map(([label, valor]) => (
               <div key={label} className="flex items-center justify-between text-neutral-600">
                 <span>{label}</span>
@@ -443,11 +555,13 @@ export function ProduccionEditor({
             </p>
           ) : (
             <>
-              <div className="flex flex-wrap gap-1 border-b border-neutral-200 pb-2">
+              <div role="tablist" aria-label="Personas del evento" className="flex flex-wrap gap-1 border-b border-neutral-200 pb-2">
                 {staff.map((s) => (
                   <button
                     key={s.id}
                     type="button"
+                    role="tab"
+                    aria-selected={activeStaffId === s.id}
                     onClick={() => setActiveStaffId(s.id)}
                     className={`rounded-t-md px-3 py-1.5 text-xs font-medium ${
                       activeStaffId === s.id
@@ -472,12 +586,13 @@ export function ProduccionEditor({
                     <button
                       type="button"
                       onClick={() => addGiro(activeStaff.id)}
-                      className="rounded-md border border-neutral-300 px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
+                      className="btn btn-secondary btn-sm"
                     >
                       + Agregar rubro
                     </button>
                   </div>
-                  <table className="w-full text-sm">
+                  <div className="overflow-x-auto">
+                  <table className="w-full min-w-[680px] text-sm">
                     <thead>
                       <tr className="text-left text-xs text-neutral-400">
                         <th className="w-32 py-2">Fecha</th>
@@ -495,6 +610,7 @@ export function ProduccionEditor({
                           <td className="py-1.5 pr-2">
                             <input
                               type="date"
+                              aria-label="Fecha del rubro"
                               value={g.fecha_giro ?? ""}
                               onChange={(e) => patchGiro(g.id, { fecha_giro: e.target.value || null })}
                               className={inputClass}
@@ -502,6 +618,7 @@ export function ProduccionEditor({
                           </td>
                           <td className="py-1.5 pr-2">
                             <select
+                              aria-label="Rubro"
                               value={g.rubro ?? "Otro"}
                               onChange={(e) => {
                                 const label = e.target.value;
@@ -550,6 +667,7 @@ export function ProduccionEditor({
                           </td>
                           <td className="py-1.5 pr-2">
                             <input
+                              aria-label="Concepto"
                               value={g.concepto ?? ""}
                               onChange={(e) => patchGiro(g.id, { concepto: e.target.value })}
                               className={inputClass}
@@ -559,19 +677,17 @@ export function ProduccionEditor({
                             <input
                               type="number"
                               min={0}
+                              aria-label="Cantidad"
                               value={g.cantidad}
                               onChange={(e) => patchGiro(g.id, { cantidad: Number(e.target.value) || 0 })}
                               className={inputClass}
                             />
                           </td>
                           <td className="py-1.5 pr-2">
-                            <input
-                              type="number"
-                              min={0}
+                            <MoneyInput
+                              aria-label="Valor unitario"
                               value={g.valor_unitario}
-                              onChange={(e) =>
-                                patchGiro(g.id, { valor_unitario: Number(e.target.value) || 0 })
-                              }
+                              onChange={(v) => patchGiro(g.id, { valor_unitario: v ?? 0 })}
                               className={inputClass}
                             />
                           </td>
@@ -582,8 +698,9 @@ export function ProduccionEditor({
                             <button
                               type="button"
                               onClick={() => removeGiro(g.id)}
-                              className="text-neutral-400 hover:text-red-600"
-                              title="Eliminar"
+                              className="icon-btn"
+                              title="Quitar rubro"
+                              aria-label="Quitar rubro"
                             >
                               ✕
                             </button>
@@ -592,6 +709,7 @@ export function ProduccionEditor({
                       ))}
                     </tbody>
                   </table>
+                  </div>
                   {activeGiros.length === 0 && (
                     <p className="py-3 text-sm text-neutral-400">
                       Todavía no hay rubros para {activeStaff.full_name || "esta persona"}.
@@ -624,7 +742,7 @@ export function ProduccionEditor({
               <button
                 type="button"
                 onClick={() => addAnticipo(activeStaff.id)}
-                className="shrink-0 rounded-md border border-neutral-300 px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
+                className="btn btn-secondary btn-sm shrink-0"
               >
                 + Agregar anticipo
               </button>
@@ -634,7 +752,8 @@ export function ProduccionEditor({
                 Todavía no hay anticipos registrados para {activeStaff.full_name || "esta persona"}.
               </p>
             ) : (
-              <table className="w-full text-sm">
+              <div className="overflow-x-auto">
+              <table className="w-full min-w-[520px] text-sm">
                 <thead>
                   <tr className="text-left text-xs text-neutral-400">
                     <th className="w-36 py-2">Fecha de transacción</th>
@@ -649,22 +768,23 @@ export function ProduccionEditor({
                       <td className="py-1.5 pr-2">
                         <input
                           type="date"
+                          aria-label="Fecha de la transacción"
                           value={a.fecha ?? ""}
                           onChange={(e) => patchAnticipo(a.id, { fecha: e.target.value || null })}
                           className={inputClass}
                         />
                       </td>
                       <td className="py-1.5 pr-2">
-                        <input
-                          type="number"
-                          min={0}
+                        <MoneyInput
+                          aria-label="Valor del anticipo"
                           value={a.valor}
-                          onChange={(e) => patchAnticipo(a.id, { valor: Number(e.target.value) || 0 })}
+                          onChange={(v) => patchAnticipo(a.id, { valor: v ?? 0 })}
                           className={inputClass}
                         />
                       </td>
                       <td className="py-1.5 pr-2">
                         <input
+                          aria-label="Notas"
                           value={a.notas ?? ""}
                           onChange={(e) => patchAnticipo(a.id, { notas: e.target.value })}
                           className={inputClass}
@@ -674,8 +794,9 @@ export function ProduccionEditor({
                         <button
                           type="button"
                           onClick={() => removeAnticipo(a.id)}
-                          className="text-neutral-400 hover:text-red-600"
-                          title="Eliminar"
+                          className="icon-btn"
+                          title="Quitar anticipo"
+                          aria-label="Quitar anticipo"
                         >
                           ✕
                         </button>
@@ -684,6 +805,7 @@ export function ProduccionEditor({
                   ))}
                 </tbody>
               </table>
+              </div>
             )}
             <div className="mt-2 flex items-center justify-between border-t border-neutral-200 pt-2">
               <span className="text-sm font-semibold text-neutral-900">
@@ -697,8 +819,8 @@ export function ProduccionEditor({
         )}
       </div>
 
-      <div className="col-span-1">
-        <div className="sticky top-6 space-y-4 rounded-xl border border-neutral-200 bg-white p-5">
+      <div className="lg:col-span-1">
+        <div className="space-y-4 rounded-xl border border-neutral-200 bg-white p-5 lg:sticky lg:top-6">
           <div>
             <h3 className="mb-2 text-sm font-semibold text-neutral-900">Resumen para contabilidad</h3>
             {staff.map((s) =>
@@ -728,7 +850,7 @@ export function ProduccionEditor({
               type="button"
               onClick={downloadPdf}
               disabled={isDownloading}
-              className="w-full rounded-md border border-neutral-300 px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50 disabled:opacity-50"
+              className="btn btn-secondary w-full"
             >
               {isDownloading ? "Generando PDF..." : "Descargar PDF para contabilidad"}
             </button>
@@ -736,15 +858,16 @@ export function ProduccionEditor({
               type="button"
               disabled={isPending}
               onClick={handleSave}
-              className="w-full rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-50"
+              className="btn btn-primary w-full"
             >
               {isPending ? "Guardando..." : "Guardar"}
             </button>
-            {message && <p className="text-center text-xs text-neutral-500">{message}</p>}
+            <SaveStatus dirty={dirty} isPending={isPending} message={message} className="text-center" />
           </div>
         </div>
       </div>
 
+      <MobileSaveBar dirty={dirty} isPending={isPending} message={message} onSave={handleSave} />
       {/* Área imprimible oculta — el PDF sale de este bloque, una hoja de
           "Liquidación de viáticos" por persona, con sus rubros agrupados por
           categoría (Transporte, Alojamiento, Honorarios, Varios,

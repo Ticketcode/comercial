@@ -20,7 +20,7 @@ export default async function ProduccionPage() {
     .order("created_at", { ascending: false });
 
   return (
-    <div className="mx-auto max-w-5xl px-6 py-10">
+    <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-10">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-neutral-900">Producción</h1>
@@ -40,9 +40,9 @@ export default async function ProduccionPage() {
         </p>
       )}
 
-      <div className="mt-8 overflow-hidden rounded-xl border border-neutral-200 bg-white">
+      <div className="mt-8 overflow-x-auto rounded-xl border border-neutral-200 bg-white">
         {proposals && proposals.length > 0 ? (
-          <table className="w-full text-sm">
+          <table className="w-full min-w-[520px] text-sm">
             <thead className="bg-neutral-50 text-left text-neutral-500">
               <tr>
                 <th className="px-4 py-3 font-medium">Evento</th>
@@ -88,3 +88,4 @@ export default async function ProduccionPage() {
     </div>
   );
 }
+export const metadata = { title: "Producción" };

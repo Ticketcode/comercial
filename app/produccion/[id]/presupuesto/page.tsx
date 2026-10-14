@@ -30,3 +30,4 @@ export default async function PresupuestoPage({ params }: { params: Promise<{ id
     />
   );
 }
+export const metadata = { title: "Presupuesto" };

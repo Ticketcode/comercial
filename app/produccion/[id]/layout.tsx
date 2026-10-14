@@ -1,7 +1,15 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import type { Metadata } from "next";
+import { getProposalBasic } from "@/lib/data/proposal-basic";
 import { ProduccionStepsNav } from "./produccion-steps-nav";
+
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
+  const { id } = await params;
+  const proposal = await getProposalBasic(id);
+  const name = proposal?.event_name ?? "Evento";
+  return { title: { default: name, template: `%s · ${name} · Ticketcode` } };
+}
 
 export default async function ProduccionEventLayout({
   children,
@@ -11,23 +19,18 @@ export default async function ProduccionEventLayout({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const supabase = await createClient();
-  const { data: proposal } = await supabase
-    .from("proposals")
-    .select("id, event_name, status, clients(name, company)")
-    .eq("id", id)
-    .single();
+  const proposal = await getProposalBasic(id);
 
   if (!proposal) notFound();
 
   const client = Array.isArray(proposal.clients) ? proposal.clients[0] : proposal.clients;
 
   return (
-    <div className="mx-auto max-w-[1600px] px-6 py-10">
+    <div className="mx-auto max-w-[1600px] px-4 py-6 sm:px-6 sm:py-10">
       <Link href="/produccion" className="no-print text-sm text-neutral-500 hover:underline">
         ← Todos los eventos
       </Link>
-      <div className="mt-2 flex items-center justify-between">
+      <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold text-neutral-900">{proposal.event_name}</h1>
           <p className="text-sm text-neutral-500">
@@ -37,7 +40,7 @@ export default async function ProduccionEventLayout({
         </div>
         <Link
           href={`/proposals/${id}/tarifario`}
-          className="no-print rounded-md border border-neutral-300 px-3 py-1.5 text-xs font-medium text-neutral-600 hover:bg-neutral-50"
+          className="btn btn-secondary btn-sm no-print"
         >
           Editar datos del Tarifario →
         </Link>

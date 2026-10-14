@@ -25,6 +25,10 @@ export async function createProposal(
     return { error: "Cliente, nombre del evento y modalidad son obligatorios." };
   }
 
+  if (eventStartDate && eventEndDate && eventEndDate < eventStartDate) {
+    return { error: "La fecha de fin no puede ser anterior a la fecha de inicio." };
+  }
+
   const supabase = await createClient();
 
   const { data: userData } = await supabase.auth.getUser();

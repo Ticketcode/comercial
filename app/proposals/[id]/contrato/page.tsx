@@ -27,3 +27,4 @@ export default async function ContratoPage({
     />
   );
 }
+export const metadata = { title: "Contrato" };

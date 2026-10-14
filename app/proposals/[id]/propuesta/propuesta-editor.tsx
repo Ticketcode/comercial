@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import type {
   CatalogItem,
   Proposal,
@@ -12,6 +12,9 @@ import type {
 } from "@/lib/types";
 import type { TarifarioSummary } from "@/lib/pricing/summary";
 import { applyCommercialDiscount, formatCOP } from "@/lib/pricing/summary";
+import { MobileSaveBar, SaveStatus, useConfirm, useUnsavedChanges } from "@/app/components/ui-guard";
+import { callSafe, problemsMessage, saveErrorMessage } from "@/lib/errors";
+import { formatFechaCorta } from "@/lib/fecha-local";
 import { savePropuesta } from "./actions";
 import { addMilestone, removeMilestone, updateMilestonePct, type Milestone } from "./milestones";
 
@@ -121,6 +124,51 @@ export function PropuestaEditor({
   const [message, setMessage] = useState<string | null>(null);
   const [isDownloading, setIsDownloading] = useState(false);
   const printAreaRef = useRef<HTMLDivElement>(null);
+  const confirm = useConfirm();
+  const { dirty, resetTo } = useUnsavedChanges({
+    lugar,
+    selections,
+    agreementRows,
+    globalPct,
+    scheduleRows,
+    deletedScheduleIds,
+    milestones,
+    deletedMilestoneIds,
+    requirements,
+    deletedRequirementIds,
+  });
+  // Tras guardar, las filas nuevas dejan de ser temporales: se adopta lo guardado en la base
+  // de datos para que un segundo guardado no las inserte otra vez.
+  const awaitingSync = useRef(false);
+
+  useEffect(() => {
+    if (!awaitingSync.current) return;
+    awaitingSync.current = false;
+    const next = {
+      lugar: proposal.lugar ?? "",
+      selections: Object.fromEntries(initialSelections.map((s) => [s.catalog_item_id, { ...s }])),
+      agreementRows: initialAgreementItems.map((a) => ({ ...a })),
+      globalPct: Number(proposal.acuerdo_comercial_pct_global),
+      scheduleRows: initialScheduleItems.map((s) => ({ ...s })),
+      deletedScheduleIds: [] as string[],
+      milestones: initialMilestones.map((m) => ({ ...m, pct: Number(m.pct) })),
+      deletedMilestoneIds: [] as string[],
+      requirements: initialRequirements.map((r) => ({ ...r })),
+      deletedRequirementIds: [] as string[],
+    };
+    setLugar(next.lugar);
+    setSelections(next.selections);
+    setAgreementRows(next.agreementRows);
+    setGlobalPct(next.globalPct);
+    setScheduleRows(next.scheduleRows);
+    setDeletedScheduleIds(next.deletedScheduleIds);
+    setMilestones(next.milestones);
+    setDeletedMilestoneIds(next.deletedMilestoneIds);
+    setRequirements(next.requirements);
+    setDeletedRequirementIds(next.deletedRequirementIds);
+    resetTo(next);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialScheduleItems, initialMilestones, initialRequirements]);
 
   async function handleDownloadPdf() {
     if (!printAreaRef.current) return;
@@ -180,12 +228,30 @@ export function PropuestaEditor({
     ]);
   }
 
-  function removeScheduleRow(id: string) {
+  async function removeScheduleRow(id: string) {
+    if (!id.startsWith("new-")) {
+      const ok = await confirm({
+        title: "¿Quitar este hito del cronograma?",
+        message: "El cambio se aplica al pulsar Guardar propuesta.",
+        confirmLabel: "Quitar",
+        danger: true,
+      });
+      if (!ok) return;
+    }
     setScheduleRows((prev) => prev.filter((s) => s.id !== id));
     if (!id.startsWith("new-")) setDeletedScheduleIds((prev) => [...prev, id]);
   }
 
-  function removeMilestoneRow(id: string) {
+  async function removeMilestoneRow(id: string) {
+    if (!id.startsWith("new-")) {
+      const ok = await confirm({
+        title: "¿Quitar este hito de pago?",
+        message: "Los porcentajes se reajustan. El cambio se aplica al pulsar Guardar propuesta.",
+        confirmLabel: "Quitar",
+        danger: true,
+      });
+      if (!ok) return;
+    }
     setMilestones((prev) => removeMilestone(prev, id));
     if (!id.startsWith("new-")) setDeletedMilestoneIds((prev) => [...prev, id]);
   }
@@ -197,13 +263,53 @@ export function PropuestaEditor({
     ]);
   }
 
-  function removeRequirement(id: string) {
+  async function removeRequirement(id: string) {
+    if (!id.startsWith("new-")) {
+      const ok = await confirm({
+        title: "¿Quitar este requerimiento?",
+        message: "El cambio se aplica al pulsar Guardar propuesta.",
+        confirmLabel: "Quitar",
+        danger: true,
+      });
+      if (!ok) return;
+    }
     setRequirements((prev) => prev.filter((r) => r.id !== id));
     if (!id.startsWith("new-")) setDeletedRequirementIds((prev) => [...prev, id]);
   }
 
-  function handleSave() {
+  function validar(): string[] {
+    const problems: string[] = [];
+    scheduleRows.forEach((s) => {
+      if (!s.hito.trim()) problems.push(`Hay un hito del cronograma sin texto (semana ${s.week_number})`);
+    });
+    milestones.forEach((m) => {
+      if (!m.label.trim()) problems.push("Hay un hito de pago sin descripción");
+    });
+    requirements.forEach((r) => {
+      if (!r.text.trim()) problems.push("Hay un requerimiento operativo vacío");
+    });
+    return Array.from(new Set(problems));
+  }
+
+  async function handleSave() {
+    const problems = validar();
+    if (problems.length > 0) {
+      setMessage(problemsMessage(problems));
+      return;
+    }
+    // Aviso (no bloquea): los pesos del acuerdo comercial deben repartir el 100%.
+    const incluidos = agreementRows.filter((a) => a.included);
+    if (incluidos.length > 0 && Math.abs(totalPesoConceptos - 100) > 0.01) {
+      const ok = await confirm({
+        title: "Los pesos del acuerdo comercial no suman 100%",
+        message: `Suman ${totalPesoConceptos}%. Deberían repartir exactamente el 100% del descuento entre los conceptos marcados. ¿Guardar de todos modos?`,
+        confirmLabel: "Guardar así",
+        cancelLabel: "Corregir",
+      });
+      if (!ok) return;
+    }
     setMessage(null);
+    awaitingSync.current = true;
     startTransition(async () => {
       const existingSchedule = scheduleRows.filter((s) => !s.id.startsWith("new-"));
       const newSchedule = scheduleRows.filter((s) => s.id.startsWith("new-"));
@@ -212,7 +318,7 @@ export function PropuestaEditor({
       const existingRequirements = requirements.filter((r) => !r.id.startsWith("new-"));
       const newRequirements = requirements.filter((r) => r.id.startsWith("new-"));
 
-      const result = await savePropuesta({
+      const result = await callSafe(() => savePropuesta({
         proposalId: proposal.id,
         lugar,
         acuerdo_comercial_pct_global: globalPct,
@@ -241,8 +347,9 @@ export function PropuestaEditor({
           new: newRequirements,
           deletedIds: deletedRequirementIds,
         },
-      });
-      setMessage(result.error ? `Error: ${result.error}` : "Guardado.");
+      }));
+      if (result.error) awaitingSync.current = false;
+      setMessage(result.error ? saveErrorMessage(result.error) : "Guardado.");
     });
   }
 
@@ -260,7 +367,7 @@ export function PropuestaEditor({
         <button
           onClick={handleDownloadPdf}
           disabled={isDownloading}
-          className="h-10 rounded-md border border-neutral-300 px-4 text-sm font-medium text-neutral-700 hover:bg-neutral-50 disabled:opacity-60"
+          className="btn btn-secondary"
         >
           {isDownloading ? "Generando PDF..." : "Descargar PDF"}
         </button>
@@ -276,6 +383,7 @@ export function PropuestaEditor({
                 Lugar
               </p>
               <input
+                aria-label="Lugar del evento"
                 value={lugar}
                 onChange={(e) => setLugar(e.target.value)}
                 placeholder="Ej. Centro de Convenciones..."
@@ -289,7 +397,7 @@ export function PropuestaEditor({
               label="Fechas"
               value={
                 proposal.event_start_date
-                  ? `${proposal.event_start_date}${proposal.event_end_date ? ` a ${proposal.event_end_date}` : ""}`
+                  ? `${formatFechaCorta(proposal.event_start_date)}${proposal.event_end_date ? ` a ${formatFechaCorta(proposal.event_end_date)}` : ""}`
                   : "—"
               }
             />
@@ -355,7 +463,7 @@ export function PropuestaEditor({
           title="Acuerdo comercial — lo que podemos negociar"
           accent={BRAND.orange}
         >
-          <div className="mb-5 flex items-center gap-4 rounded-xl p-4" style={{ backgroundColor: BRAND.lightGrey }}>
+          <div className="mb-5 flex flex-wrap items-center gap-4 rounded-xl p-4" style={{ backgroundColor: BRAND.lightGrey }}>
             <label className="text-sm font-semibold" style={{ color: BRAND.dark }}>
               % del acuerdo comercial (descuento real que se aplica)
             </label>
@@ -363,6 +471,7 @@ export function PropuestaEditor({
               type="number"
               min={0}
               max={100}
+              aria-label="Porcentaje del acuerdo comercial"
               value={globalPct}
               onChange={(e) => setGlobalPct(Number(e.target.value) || 0)}
               className="h-10 w-24 rounded-md border border-neutral-300 px-2 text-right text-lg font-bold"
@@ -390,6 +499,7 @@ export function PropuestaEditor({
                   <td className="py-3">
                     <input
                       type="checkbox"
+                      aria-label={`Incluir ${row.label}`}
                       checked={row.included}
                       onChange={(e) => patchAgreement(row.id, { included: e.target.checked })}
                       className="h-4 w-4"
@@ -411,6 +521,7 @@ export function PropuestaEditor({
                       min={0}
                       max={100}
                       disabled={!row.included}
+                      aria-label={`Peso de ${row.label}`}
                       value={row.pct}
                       onChange={(e) => patchAgreement(row.id, { pct: Number(e.target.value) || 0 })}
                       className={`${inputClass} text-right`}
@@ -453,8 +564,9 @@ export function PropuestaEditor({
         <Slide kicker="Condiciones" title="Modelo de pagos" accent={BRAND.teal}>
           <div className="space-y-2">
             {milestones.map((m, idx) => (
-              <div key={m.id} className="flex items-center gap-3">
+              <div key={m.id} className="flex flex-wrap items-center gap-3">
                 <input
+                  aria-label="Descripción del hito de pago"
                   value={m.label}
                   onChange={(e) =>
                     setMilestones((prev) =>
@@ -468,6 +580,7 @@ export function PropuestaEditor({
                   type="number"
                   min={0}
                   max={100}
+                  aria-label="Porcentaje del hito de pago"
                   value={Math.round(m.pct * 100) / 100}
                   onChange={(e) =>
                     setMilestones((prev) => updateMilestonePct(prev, idx, Number(e.target.value) || 0))
@@ -516,6 +629,7 @@ export function PropuestaEditor({
                     .map((row) => (
                       <div key={row.id} className="rounded bg-white p-1.5 shadow-sm">
                         <input
+                          aria-label={`Hito del cronograma, semana ${row.week_number}`}
                           value={row.hito}
                           onChange={(e) => patchSchedule(row.id, { hito: e.target.value })}
                           placeholder="Hito"
@@ -565,6 +679,7 @@ export function PropuestaEditor({
               <li key={req.id} className="flex items-start gap-2">
                 <span className="mt-2.5 h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: BRAND.blue }} />
                 <input
+                  aria-label="Requerimiento operativo"
                   value={req.text}
                   onChange={(e) =>
                     setRequirements((prev) =>
@@ -596,19 +711,16 @@ export function PropuestaEditor({
         </Slide>
       </div>
 
+      <MobileSaveBar dirty={dirty} isPending={isPending} message={message} onSave={handleSave} label="Guardar propuesta" />
       <div className="no-print flex items-center gap-4">
         <button
           onClick={handleSave}
           disabled={isPending}
-          className="h-10 rounded-md bg-neutral-900 px-5 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-60"
+          className="btn btn-primary"
         >
           {isPending ? "Guardando..." : "Guardar propuesta"}
         </button>
-        {message && (
-          <span className={`text-sm ${message.startsWith("Error") ? "text-red-600" : "text-emerald-600"}`}>
-            {message}
-          </span>
-        )}
+        <SaveStatus dirty={dirty} isPending={isPending} message={message} />
       </div>
     </div>
   );
@@ -685,6 +797,7 @@ function ChecklistBox({
             <li key={item.key} className="flex items-start gap-2">
               <input
                 type="checkbox"
+                aria-label={item.label}
                 checked={item.checked}
                 disabled={item.readOnly}
                 onChange={item.onToggle}

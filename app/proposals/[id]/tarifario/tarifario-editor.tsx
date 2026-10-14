@@ -10,6 +10,9 @@ import type {
 } from "@/lib/pricing/logistics";
 import { staffingForAforo, logisticosPorSalon, totalLogisticosSalones } from "@/lib/pricing/logistics";
 import { computeTarifarioSummary, formatCOP } from "@/lib/pricing/summary";
+import { MoneyInput } from "@/app/components/money-input";
+import { MobileSaveBar, SaveStatus, useUnsavedChanges } from "@/app/components/ui-guard";
+import { callSafe, problemsMessage, saveErrorMessage } from "@/lib/errors";
 import { saveTarifario, type SaveTarifarioPayload } from "./actions";
 
 interface Props {
@@ -87,6 +90,13 @@ export function TarifarioEditor({
   const [logisticsOverrides, setLogisticsOverrides] = useState<
     Record<string, { dias?: number; quantity?: number }>
   >(() => proposal.logistics_overrides ?? {});
+
+  const { dirty, snapshot, markSaved } = useUnsavedChanges({
+    eventFields,
+    serviceRows,
+    salonesAforos,
+    logisticsOverrides,
+  });
 
   function setOverride(label: string, field: "dias" | "quantity", value: number | null) {
     setLogisticsOverrides((prev) => {
@@ -198,27 +208,40 @@ export function TarifarioEditor({
     [proposalForSummary, logisticsRates, serviceItemsForSummary, honorariosProductorScale]
   );
 
+  function validar(): string[] {
+    const problems: string[] = [];
+    if (!(eventFields.dias > 0)) problems.push('Los "Días" del evento deben ser al menos 1');
+    return problems;
+  }
+
   function handleSave() {
+    const problems = validar();
+    if (problems.length > 0) {
+      setMessage(problemsMessage(problems));
+      return;
+    }
     setMessage(null);
+    const snap = snapshot();
     startTransition(async () => {
-      const result = await saveTarifario({
+      const result = await callSafe(() => saveTarifario({
         proposalId: proposal.id,
         eventFields,
         serviceItems: Object.values(serviceRows),
         salonesInternosAforos: salonesAforos,
         logisticsOverrides,
-      });
-      setMessage(result.error ? `Error: ${result.error}` : "Guardado.");
+      }));
+      if (!result.error) markSaved(snap);
+      setMessage(result.error ? saveErrorMessage(result.error) : "Guardado.");
     });
   }
 
   return (
-    <div className="grid grid-cols-3 gap-6">
-      <div className="col-span-2 space-y-6">
+    <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+      <div className="min-w-0 space-y-6 lg:col-span-2">
         {/* Datos del evento */}
         <section className="rounded-xl border border-neutral-200 bg-white p-5">
           <h3 className="text-sm font-semibold text-neutral-900">Datos del evento</h3>
-          <div className="mt-4 grid grid-cols-3 gap-4">
+          <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <Field label="Modalidad">
               <select
                 className={inputClass}
@@ -285,10 +308,11 @@ export function TarifarioEditor({
 
         {/* Logística 360 — calculada, no se marca ítem por ítem */}
         <section className="rounded-xl border border-neutral-200 bg-white">
-          <div className="flex items-center justify-between border-b border-neutral-200 px-5 py-3">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-neutral-200 px-5 py-3">
             <h3 className="text-sm font-semibold text-neutral-900">Logística 360</h3>
             <button
               type="button"
+              aria-expanded={showAdvanced}
               onClick={() => setShowAdvanced((v) => !v)}
               className={`rounded-md px-3 py-1.5 text-xs font-semibold ${
                 showAdvanced
@@ -302,19 +326,19 @@ export function TarifarioEditor({
 
           {showAdvanced && (
             <div className="border-b border-neutral-100 bg-neutral-50 p-5">
-              <div className="mb-3 flex items-center justify-between">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                 <p className="text-xs text-neutral-500">
                   Dotación por defecto según el aforo — editable por evento.
                 </p>
                 <button
                   type="button"
                   onClick={recalcularSegunAforo}
-                  className="rounded-md border border-neutral-300 bg-white px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
+                  className="btn btn-secondary btn-sm"
                 >
                   Recalcular según aforo ({eventFields.aforo})
                 </button>
               </div>
-              <div className="grid grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
                 <Field label="Visita preoperativa (días)">
                   <NumberInput
                     value={eventFields.visita_preoperativa_dias}
@@ -448,13 +472,13 @@ export function TarifarioEditor({
         </section>
 
         {/* Servicios personalizados — esto sí se elige ítem por ítem */}
-        <section className="overflow-hidden rounded-xl border border-neutral-200 bg-white">
+        <section className="overflow-x-auto rounded-xl border border-neutral-200 bg-white">
           <div className="border-b border-neutral-200 px-4 py-3">
             <h3 className="text-sm font-semibold text-neutral-900">
               2. Servicios personalizados de la plataforma
             </h3>
           </div>
-          <table className="w-full text-sm">
+          <table className="w-full min-w-[640px] text-sm">
             <thead className="bg-neutral-50 text-left text-xs uppercase text-neutral-500">
               <tr>
                 <th className="w-10 px-4 py-2"></th>
@@ -479,6 +503,7 @@ export function TarifarioEditor({
                     <td className="px-4 py-2">
                       <input
                         type="checkbox"
+                        aria-label={`Incluir ${item.label}`}
                         checked={row.included}
                         onChange={(e) => patchService(item.id, { included: e.target.checked })}
                         className="h-4 w-4"
@@ -505,6 +530,7 @@ export function TarifarioEditor({
                         type="number"
                         min={0}
                         step="0.5"
+                        aria-label={`Cantidad de ${item.label}`}
                         value={row.quantity}
                         disabled={!row.included}
                         onChange={(e) =>
@@ -514,14 +540,11 @@ export function TarifarioEditor({
                       />
                     </td>
                     <td className="px-2 py-2">
-                      <input
-                        type="number"
-                        min={0}
+                      <MoneyInput
+                        aria-label={`Valor unitario de ${item.label}`}
                         value={row.unit_cost}
                         disabled={!row.included}
-                        onChange={(e) =>
-                          patchService(item.id, { unit_cost: Number(e.target.value) || 0 })
-                        }
+                        onChange={(v) => patchService(item.id, { unit_cost: v ?? 0 })}
                         className={cellInput}
                       />
                     </td>
@@ -545,6 +568,7 @@ export function TarifarioEditor({
                           <input
                             type="number"
                             min={0}
+                            aria-label={`Aforo del salón ${i + 1}`}
                             value={aforo}
                             onChange={(e) => updateSalonAforo(i, Number(e.target.value) || 0)}
                             className="h-8 w-20 rounded border border-neutral-300 px-2 text-sm outline-none focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900"
@@ -566,8 +590,9 @@ export function TarifarioEditor({
         </section>
       </div>
 
-      <div className="col-span-1">
-        <div className="sticky top-6 space-y-2 rounded-xl border border-neutral-200 bg-white p-5">
+      <MobileSaveBar dirty={dirty} isPending={isPending} message={message} onSave={handleSave} label="Guardar tarifario" />
+      <div className="lg:col-span-1">
+        <div className="space-y-2 rounded-xl border border-neutral-200 bg-white p-5 lg:sticky lg:top-6">
           <h3 className="mb-2 text-sm font-semibold text-neutral-900">Resumen</h3>
           <SummaryRow
             label="Total Costo Logística"
@@ -593,15 +618,11 @@ export function TarifarioEditor({
           <button
             onClick={handleSave}
             disabled={isPending}
-            className="mt-3 h-10 w-full rounded-md bg-neutral-900 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-60"
+            className="btn btn-primary mt-3 w-full"
           >
             {isPending ? "Guardando..." : "Guardar tarifario"}
           </button>
-          {message && (
-            <p className={`text-sm ${message.startsWith("Error") ? "text-red-600" : "text-emerald-600"}`}>
-              {message}
-            </p>
-          )}
+          <SaveStatus dirty={dirty} isPending={isPending} message={message} />
         </div>
       </div>
     </div>
@@ -610,10 +631,10 @@ export function TarifarioEditor({
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="space-y-1">
-      <label className={labelClass}>{label}</label>
+    <label className="block space-y-1">
+      <span className={labelClass}>{label}</span>
       {children}
-    </div>
+    </label>
   );
 }
 
@@ -691,6 +712,7 @@ function ExpandableCategory({
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
         className="flex w-full items-center justify-between text-sm text-neutral-600 hover:text-neutral-900"
       >
         <span className="flex items-center gap-1.5">
@@ -804,12 +826,13 @@ function EditableItemRow({
       <td className="py-1.5 text-right">
         {editing ? (
           <span className="inline-flex items-center gap-1">
-            <button type="button" title="Guardar" onClick={confirm} className="text-emerald-600 hover:text-emerald-800">
+            <button type="button" title="Guardar" aria-label="Guardar cambios de este rubro" onClick={confirm} className="text-emerald-600 hover:text-emerald-800">
               ✓
             </button>
             <button
               type="button"
               title="Cancelar"
+              aria-label="Cancelar edición"
               onClick={() => setEditing(false)}
               className="text-neutral-400 hover:text-neutral-700"
             >
@@ -821,6 +844,7 @@ function EditableItemRow({
             <button
               type="button"
               title="Editar días/cantidad de este rubro"
+              aria-label={`Editar días y cantidad de ${item.label}`}
               onClick={startEditing}
               className="text-neutral-400 hover:text-neutral-900"
             >
@@ -830,11 +854,12 @@ function EditableItemRow({
               <button
                 type="button"
                 title="Volver al cálculo automático"
+                aria-label={`Volver al cálculo automático de ${item.label}`}
                 onClick={() => {
                   onOverride("dias", null);
                   onOverride("quantity", null);
                 }}
-                className="text-neutral-300 hover:text-red-600"
+                className="icon-btn"
               >
                 ↺
               </button>

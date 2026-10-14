@@ -9,6 +9,9 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
+        // El gris 400 por defecto (#a3a3a3) no alcanza el contraste mínimo sobre blanco
+        // para texto; este valor sí (4.7:1).
+        neutral: { 400: "#737373" },
         background: "var(--background)",
         foreground: "var(--foreground)",
       },

@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { callSafe, friendlyError } from "@/lib/errors";
 import { seedPresupuestoFromTemplate } from "./actions";
 
 export function SeedPresupuestoButton({ proposalId }: { proposalId: string }) {
@@ -23,15 +24,15 @@ export function SeedPresupuestoButton({ proposalId }: { proposalId: string }) {
         onClick={() =>
           startTransition(async () => {
             setError(null);
-            const result = await seedPresupuestoFromTemplate(proposalId);
-            if (result?.error) {
-              setError(result.error);
+            const result = await callSafe(async () => (await seedPresupuestoFromTemplate(proposalId)) ?? { error: null });
+            if (result.error) {
+              setError(friendlyError(result.error));
             } else {
               router.refresh();
             }
           })
         }
-        className="mt-4 rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-50"
+        className="btn btn-primary mt-4"
       >
         {isPending ? "Cargando..." : "Cargar plantilla base"}
       </button>

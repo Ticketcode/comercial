@@ -5,6 +5,11 @@ import { numeroALetras } from "@/lib/numero-a-letras";
 import { formatFechaCorta } from "@/lib/fecha-local";
 import { FirmaForm } from "./firma-form";
 
+// Siempre en vivo: si Producción regenera un enlace o cierra la legalización, el cambio debe
+// notarse de inmediato (sin servir una copia guardada de la página ni de la consulta).
+export const dynamic = "force-dynamic";
+export const fetchCache = "force-no-store";
+
 export default async function FirmarCuentaCobroPage({
   params,
 }: {
@@ -13,7 +18,8 @@ export default async function FirmarCuentaCobroPage({
   const { id } = await params;
   const supabase = createAdminClient();
 
-  const { data: cuenta } = await supabase.from("cuentas_cobro").select("*").eq("id", id).maybeSingle();
+  // `id` de la URL es el token del enlace (no el id de la fila), así Producción puede anularlo.
+  const { data: cuenta } = await supabase.from("cuentas_cobro").select("*").eq("token", id).maybeSingle();
   if (!cuenta) notFound();
 
   const { data: proposal } = await supabase
@@ -25,7 +31,7 @@ export default async function FirmarCuentaCobroPage({
   const firmada = cuenta.estado === "firmada";
 
   return (
-    <div className="mx-auto min-h-screen max-w-lg bg-neutral-50 px-6 py-10">
+    <div className="mx-auto min-h-screen max-w-lg bg-neutral-50 px-4 py-6 sm:px-6 sm:py-10">
       <div className="rounded-xl border border-neutral-200 bg-white p-6">
         <p className="text-xs text-neutral-400">Ciudad: {cuenta.ciudad_evento ?? "—"}</p>
         <h1 className="mt-1 text-center text-lg font-bold text-neutral-900">CUENTA DE COBRO</h1>
@@ -87,3 +93,4 @@ export default async function FirmarCuentaCobroPage({
     </div>
   );
 }
+export const metadata = { title: "Cuenta de cobro" };
