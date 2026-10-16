@@ -1,0 +1,244 @@
+{
+  "purpose": "Presentación comercial 16:9 (1920x1080) que se genera desde la propuesta guardada en la app (pasos Tarifario, Propuesta y Contrato). Reemplaza el PDF actual.",
+  "reference": {
+    "slides_html": "reference/slides/*.html (una lámina por archivo, fuente de verdad del diseño)",
+    "assets": "assets/ (logos y fotos)",
+    "note": "Las láminas usan un subconjunto de HTML/CSS inline sobre un lienzo fijo de 1920x1080. Replicar maquetación, no copiar atributos al azar."
+  },
+  "design": {
+    "fonts": {
+      "display": "Exo 500-800 (actualizado — reemplaza Bricolage Grotesque)",
+      "body": "Poppins 400-700 (actualizado — reemplaza DM Sans)"
+    },
+    "type_scale_px": {
+      "statement": 120,
+      "title": 68,
+      "card_title": 40,
+      "body": 28,
+      "label": 24
+    },
+    "themes": {
+      "dark": {
+        "bg": "#0E1A17",
+        "fg": "#EAF3F0",
+        "muted": "#9DB3AC",
+        "card": "#14251F",
+        "line": "#26403A",
+        "accent": "#3CD65C",
+        "accent2": "#B49BFF"
+      },
+      "light": {
+        "bg": "#EEF6F3",
+        "fg": "#0E1A17",
+        "muted": "#4B5B57",
+        "card": "#FBFDFC",
+        "line": "#CFE2DC",
+        "accent_fill": "#3CCB57",
+        "accent2_text": "#5B2FD1"
+      },
+      "green": {
+        "bg": "#3CCB57",
+        "fg": "#0E1A17",
+        "muted": "#173524",
+        "line": "#2A8E43",
+        "card": "#0E1A17"
+      }
+    },
+    "motif": "Tarjetas tipo ticket: borde punteado de perforación y dos muescas circulares del color del fondo; el talón va en verde #3CD65C.",
+    "layout_rules": [
+      "márgenes 128px (inferior 160px)",
+      "logo arriba a la izquierda, sección arriba a la derecha, pie con www.ticketcode.co y número de página",
+      "en láminas verdes el logo va dentro de una píldora oscura",
+      "no usar texto menor de 24px"
+    ]
+  },
+  "slides": [
+    {
+      "id": "cover",
+      "theme": "dark",
+      "source": "app",
+      "bind": [
+        "evento.nombre",
+        "propuesta.fecha",
+        "cliente.nombre",
+        "cliente.contacto_nombre",
+        "cliente.contacto_cargo"
+      ]
+    },
+    {
+      "id": "plataforma",
+      "theme": "light",
+      "source": "fixed"
+    },
+    {
+      "id": "cifras",
+      "theme": "green",
+      "source": "fixed",
+      "note": "Cifras de la plantilla anterior: 12 años, +5.000 eventos, +1.000.000 asistentes. Confirmar vigencia."
+    },
+    {
+      "id": "organizador",
+      "theme": "light",
+      "source": "fixed"
+    },
+    {
+      "id": "presencial",
+      "theme": "dark",
+      "source": "app",
+      "bind": [
+        "evento.modalidad"
+      ],
+      "variants": {
+        "Presencial": "presencial",
+        "Híbrido": "usar texto de la plantilla híbrida",
+        "Virtual": "usar texto de la plantilla 100% virtual"
+      }
+    },
+    {
+      "id": "perfil",
+      "theme": "light",
+      "source": "app",
+      "bind": [
+        "evento.nombre",
+        "evento.modalidad",
+        "evento.aforo",
+        "evento.lugar",
+        "evento.ciudad",
+        "evento.fechas"
+      ]
+    },
+    {
+      "id": "incluye",
+      "theme": "light",
+      "source": "app",
+      "bind": [
+        "propuesta.componentes_basicos[checked]",
+        "propuesta.logistica_360[checked]",
+        "propuesta.servicios_personalizados[checked]"
+      ]
+    },
+    {
+      "id": "componentes",
+      "theme": "light",
+      "source": "app",
+      "bind": [
+        "propuesta.componentes_basicos[checked].nombre",
+        "propuesta.componentes_basicos[checked].descripcion"
+      ],
+      "note": "Tabla Componente | Qué incluye. La descripción debe venir completa de la base de datos, sin cortes."
+    },
+    {
+      "id": "logistica",
+      "theme": "light",
+      "source": "app",
+      "bind": [
+        "propuesta.logistica_360[checked].nombre",
+        "propuesta.logistica_360[checked].descripcion",
+        "propuesta.logistica_360.distribucion[]",
+        "propuesta.logistica_360.actividades[]"
+      ],
+      "note": "Si hay servicios personalizados seleccionados, agregar una lámina de detalle igual a 'componentes'."
+    },
+    {
+      "id": "comercial",
+      "theme": "dark",
+      "source": "app",
+      "bind": [
+        "propuesta.piezas_comerciales.registro.impactos",
+        "propuesta.piezas_comerciales.acreditacion.impactos"
+      ],
+      "note": "Hoy salen como [__]; falta un campo en la app."
+    },
+    {
+      "id": "informes",
+      "theme": "light",
+      "source": "fixed"
+    },
+    {
+      "id": "acuerdo",
+      "theme": "light",
+      "source": "app",
+      "bind": [
+        "acuerdo.conceptos[]"
+      ]
+    },
+    {
+      "id": "inversion",
+      "theme": "dark",
+      "source": "app",
+      "bind": [
+        "tarifario.valor_propuesta_final"
+      ]
+    },
+    {
+      "id": "final",
+      "theme": "green",
+      "source": "app",
+      "bind": [
+        "presupuesto.valor_sin_descuento",
+        "presupuesto.descuento_pct",
+        "presupuesto.descuento_valor",
+        "presupuesto.valor_con_descuento",
+        "presupuesto.total_con_iva"
+      ]
+    },
+    {
+      "id": "pagos",
+      "theme": "light",
+      "source": "app",
+      "bind": [
+        "pagos.hitos[].descripcion",
+        "pagos.hitos[].porcentaje",
+        "pagos.hitos[].monto"
+      ],
+      "note": "El diseño actual muestra un solo hito; con varios, repetir la fila."
+    },
+    {
+      "id": "cronograma",
+      "theme": "light",
+      "source": "app",
+      "bind": [
+        "cronograma.semanas[].hitos[]"
+      ]
+    },
+    {
+      "id": "requerimientos",
+      "theme": "dark",
+      "source": "app",
+      "bind": [
+        "requerimientos[]"
+      ]
+    },
+    {
+      "id": "casos",
+      "theme": "light",
+      "source": "fixed"
+    },
+    {
+      "id": "cierre",
+      "theme": "dark",
+      "source": "app",
+      "bind": [
+        "asesor.nombre",
+        "asesor.cargo",
+        "asesor.correo",
+        "asesor.telefono"
+      ]
+    }
+  ],
+  "money_format": "es-CO, prefijo '$ ' y punto como separador de miles (ej. $ 15.105.308)",
+  "known_issues": [
+    "Los pesos del acuerdo comercial suman 130 (30+20+20+30+30). Validar que sumen 100 antes de generar la presentación.",
+    "El texto del requerimiento 6 se corta en la app ('...e internet ded'); la plantilla anterior dice 'internet dedicado'.",
+    "Varios hitos del cronograma se cortan en la app (Configuración y puesta…, Capacitaciones sobre…, Cierre y corte de los reg…). Usar el texto completo de la base de datos.",
+    "Faltan campos en la app: contacto del cliente (nombre y cargo), datos del asesor comercial, impactos de marca por evento.",
+    "La explicación del módulo de códigos de descuento y las actividades de logística se cortan en la app; guardar el texto completo y no usar cajas con scroll al exportar."
+  ],
+  "instructions_for_claude_code": [
+    "Leer reference/slides/*.html antes de tocar la generación de la propuesta.",
+    "Generar la presentación desde los datos guardados de la propuesta, sin textos escritos a mano en el código.",
+    "Mantener tokens de color, tipografías y escala de tamaños de este archivo.",
+    "Si un dato falta, mostrar un marcador entre corchetes (ej. [Por definir]) y no inventar valores.",
+    "Las láminas con source=fixed no cambian entre propuestas."
+  ]
+}

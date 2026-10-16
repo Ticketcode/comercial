@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentProfile, canAccessProduccion } from "@/lib/data/profile";
 import { logout } from "@/app/login/actions";
@@ -16,7 +17,9 @@ export async function TopNav() {
         </div>
         {profile && (
           <form action={logout} className="flex items-center gap-3">
-            <span className="hidden text-xs text-neutral-500 sm:inline">{profile.full_name ?? ""}</span>
+            <Link href="/perfil" className="hidden text-xs text-neutral-500 hover:text-neutral-900 sm:inline">
+              {profile.full_name || "Mi perfil"}
+            </Link>
             <button
               type="submit"
               className="btn btn-secondary btn-sm"

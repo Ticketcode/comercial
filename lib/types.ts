@@ -14,6 +14,9 @@ export interface Profile {
   id: string;
   full_name: string | null;
   role: ProfileRole;
+  cargo: string | null;
+  correo: string | null;
+  telefono: string | null;
   created_at: string;
 }
 
@@ -25,6 +28,7 @@ export interface Client {
   contact_name: string | null;
   contact_email: string | null;
   contact_phone: string | null;
+  contact_cargo: string | null;
   city: string | null;
   created_at: string;
 }
@@ -70,6 +74,8 @@ export interface Proposal {
   pago_pct_4: number;
   requerimientos_operativos: string | null;
   acuerdo_comercial_pct_global: number;
+  impactos_registro: number | null;
+  impactos_acreditacion: number | null;
   created_at: string;
   updated_at: string;
 }

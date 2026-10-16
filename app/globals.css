@@ -14,6 +14,72 @@
   }
 }
 
+/* Tokens del diseño del módulo Comercial (ver docs/diseno-comercial/spec.json).
+   Viven en :root (nunca en .algo) para que las clases de Tailwind que los usan
+   (bg-surface, text-ink, etc.) funcionen en cualquier parte del árbol — pero
+   solo se consumen donde Comercial aplica esas clases explícitamente, así que
+   no afectan a Producción, que sigue usando sus propias clases neutral-*.
+   El atributo data-theme en <html> lo pone el script inline de app/layout.tsx
+   antes del primer pintado (sin parpadeo) y lo cambia ThemeProvider. */
+:root {
+  --bg: #eef0f6;
+  --surface: #ffffff;
+  --surface2: #e2e5f0;
+  --ink: #12142b;
+  --muted: #4a4f73;
+  --border: #c5cae0;
+  --accent: #1d3fbf;
+  --accent-ink: #ffffff;
+  --strong: #12142b;
+  --strong-ink: #ffffff;
+  --highlight: #e4e9fb;
+  --highlight-ink: #1d3fbf;
+  --warn-bg: #fff1cc;
+  --warn-ink: #7a4b00;
+  --input-bg: #ffffff;
+  --danger: #b42318;
+}
+
+:root[data-theme="oscuro"] {
+  --bg: #0e1020;
+  --surface: #181b33;
+  --surface2: #1f2340;
+  --ink: #eceefb;
+  --muted: #a3a9cf;
+  --border: #343a66;
+  --accent: #8fa4ff;
+  --accent-ink: #0e1020;
+  --strong: #eceefb;
+  --strong-ink: #0e1020;
+  --highlight: #232a5c;
+  --highlight-ink: #c3cfff;
+  --warn-bg: #3b2f10;
+  --warn-ink: #ffd27a;
+  --input-bg: #11142b;
+  --danger: #ff9a90;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-theme="sistema"] {
+    --bg: #0e1020;
+    --surface: #181b33;
+    --surface2: #1f2340;
+    --ink: #eceefb;
+    --muted: #a3a9cf;
+    --border: #343a66;
+    --accent: #8fa4ff;
+    --accent-ink: #0e1020;
+    --strong: #eceefb;
+    --strong-ink: #0e1020;
+    --highlight: #232a5c;
+    --highlight-ink: #c3cfff;
+    --warn-bg: #3b2f10;
+    --warn-ink: #ffd27a;
+    --input-bg: #11142b;
+    --danger: #ff9a90;
+  }
+}
+
 /* Enfoque visible al navegar con teclado (botones, enlaces, pestañas, casillas). */
 :where(a, button, [role="tab"], summary, input[type="checkbox"]):focus-visible {
   outline: 2px solid #171717;

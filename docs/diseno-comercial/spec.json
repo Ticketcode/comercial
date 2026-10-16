@@ -1,0 +1,132 @@
+{
+  "purpose": "Diseño general del módulo Comercial de Ticketcode (estilo Pipeline, con tema claro, oscuro y del sistema). Aplica a: lista de propuestas, Tarifario, Propuesta y Contrato.",
+  "reference": {
+    "files": "reference/*.dc.html",
+    "note": "Cada archivo es un mockup de una pantalla (HTML con marcado propio de un lienzo de diseño). Úsalos como guía de maquetación, jerarquía y estilos, no como código para copiar tal cual. Ignora <x-dc>, support.js y {{...}}."
+  },
+  "screens": [
+    {
+      "file": "Pipeline.dc.html",
+      "screen": "Lista de propuestas",
+      "layout": "Tablero por estado en columnas (Tarifario, Contrato, Cerrada) con tarjetas de evento; cada tarjeta lleva evento, cliente, ciudad y aforo"
+    },
+    {
+      "file": "Tarifario.dc.html",
+      "screen": "Paso 1 Tarifario",
+      "layout": "Formulario de datos del evento, acordeón Logística 360, tabla de servicios con buscador y columna lateral de resumen con el valor final"
+    },
+    {
+      "file": "Propuesta.dc.html",
+      "screen": "Paso 2 Propuesta",
+      "layout": "Secciones en tarjetas (perfil, qué incluye, acuerdo comercial, pagos, cronograma, requerimientos) y resumen de presupuesto lateral"
+    },
+    {
+      "file": "Contrato.dc.html",
+      "screen": "Paso 3 Contrato",
+      "layout": "Formularios de datos del contrato, contratante y objeto y tiempos; tarjeta lateral con lo que se toma de Tarifario y Propuesta"
+    }
+  ],
+  "tokens": {
+    "fonts": {
+      "display": "Exo (500-800) (actualizado — reemplaza Bricolage Grotesque)",
+      "body": "Poppins (400-700) (actualizado — reemplaza DM Sans)"
+    },
+    "radius": {
+      "card": 20,
+      "inner_card": 16,
+      "input": 12,
+      "pill": 999
+    },
+    "light": {
+      "bg": "#EEF0F6",
+      "surface": "#FFFFFF",
+      "surface2": "#E2E5F0",
+      "ink": "#12142B",
+      "muted": "#4A4F73",
+      "border": "#C5CAE0",
+      "accent": "#1D3FBF",
+      "accent_ink": "#FFFFFF",
+      "strong": "#12142B",
+      "strong_ink": "#FFFFFF",
+      "highlight": "#E4E9FB",
+      "highlight_ink": "#1D3FBF",
+      "warn_bg": "#FFF1CC",
+      "warn_ink": "#7A4B00",
+      "input_bg": "#FFFFFF",
+      "danger": "#B42318"
+    },
+    "dark": {
+      "bg": "#0E1020",
+      "surface": "#181B33",
+      "surface2": "#1F2340",
+      "ink": "#ECEEFB",
+      "muted": "#A3A9CF",
+      "border": "#343A66",
+      "accent": "#8FA4FF",
+      "accent_ink": "#0E1020",
+      "strong": "#ECEEFB",
+      "strong_ink": "#0E1020",
+      "highlight": "#232A5C",
+      "highlight_ink": "#C3CFFF",
+      "warn_bg": "#3B2F10",
+      "warn_ink": "#FFD27A",
+      "input_bg": "#11142B",
+      "danger": "#FF9A90"
+    }
+  },
+  "components": [
+    "Barra superior: píldora blanca con logo, pestañas Comercial/Producción (la activa en color de acento) + selector de tema + Cerrar sesión",
+    "Selector de tema: 3 botones en píldora (sol, luna, monitor) con aria-pressed",
+    "Stepper de 3 pasos en píldoras numeradas; el activo en acento",
+    "Tarjetas redondeadas sobre fondo gris azulado; subgrupos en surface2",
+    "Resumen lateral con total destacado en bloque highlight",
+    "Estados de proyecto con punto de color: Tarifario ámbar, Contrato acento, Cerrada gris",
+    "Alertas ámbar tipo pastilla (ej. suma de pesos distinta de 100%)",
+    "Botones: principal en color strong, secundario sobre surface, acento con borde"
+  ],
+  "theme_behavior": {
+    "modes": [
+      "sistema",
+      "claro",
+      "oscuro"
+    ],
+    "default": "sistema",
+    "rules": [
+      "Implementar con variables CSS y el atributo data-theme en la raíz",
+      "sistema sigue prefers-color-scheme y reacciona si cambia",
+      "guardar la elección del usuario (localStorage o cookie) y aplicarla antes del primer render para evitar parpadeo",
+      "todos los colores salen de tokens; sin colores fijos en componentes"
+    ]
+  },
+  "responsive": {
+    "status": "El diseño usa contenedores fluidos (flex-wrap, rejillas auto-fit, columnas que se apilan, tablas con scroll horizontal), pero no se probó en pantallas de celular.",
+    "breakpoints_to_verify": [
+      390,
+      768,
+      1280
+    ],
+    "expectations": [
+      "En móvil el resumen lateral pasa debajo del contenido",
+      "Las pestañas y el stepper hacen salto de línea sin desbordar",
+      "Tablas anchas (servicios, cronograma) hacen scroll dentro de su caja, nunca de la página",
+      "Objetivos táctiles de al menos 44px"
+    ]
+  },
+  "accessibility": [
+    "Inputs con label o aria-label",
+    "Contraste mínimo 4.5:1 en ambos temas",
+    "Foco visible en todos los controles"
+  ],
+  "not_designed_yet": [
+    "Pestaña Producción",
+    "Estados vacíos y de error",
+    "Pantallas de Catálogo de precios y Nueva propuesta"
+  ],
+  "instructions_for_claude_code": [
+    "Leer reference/*.dc.html y este archivo antes de modificar la interfaz",
+    "Primero crear los tokens (variables CSS + extensión de Tailwind) y el sistema de tema; después aplicar pantalla por pantalla",
+    "Conservar toda la lógica y los datos actuales; este trabajo es solo visual",
+    "Usar next/font para Bricolage Grotesque y DM Sans",
+    "Verificar cada pantalla en los tres anchos y en ambos temas y reportar lo que falle"
+  ]
+}
