@@ -183,7 +183,7 @@ export function Slide1920({
         <Stack
           direction={(contentDirection as "row" | "column") ?? "column"}
           gap={typeof contentGap === "number" ? contentGap : 0}
-          style={{ height: "100%", ...restContentStyle }}
+          style={{ height: "100%", justifyContent: "center", ...restContentStyle }}
         >
           {children}
         </Stack>

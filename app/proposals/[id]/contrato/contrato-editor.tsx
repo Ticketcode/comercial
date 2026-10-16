@@ -7,8 +7,8 @@ import { callSafe, problemsMessage, saveErrorMessage } from "@/lib/errors";
 import { saveContractFields, type ContractFieldsInput } from "./actions";
 
 const inputClass =
-  "h-9 w-full rounded-md border border-neutral-300 px-2 text-sm outline-none focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900";
-const labelClass = "text-xs font-medium text-neutral-500";
+  "h-9 w-full rounded-field border border-border bg-input-bg px-2 text-sm text-ink outline-none focus:border-accent focus:ring-1 focus:ring-accent";
+const labelClass = "text-xs font-medium text-muted";
 
 function defaults(fields: ProposalContractFields | null): ContractFieldsInput {
   return {
@@ -76,13 +76,13 @@ export function ContratoEditor({
 
   return (
     <div className="space-y-6">
-      <p className="text-sm text-neutral-500">
+      <p className="text-sm text-muted">
         Datos del CONTRATANTE y condiciones específicas del evento. Los datos de Ticketcode
         (DEYRA S.A.S., el CONTRATISTA) ya están fijos en la plantilla del contrato.
       </p>
 
-      <section className="rounded-xl border border-neutral-200 bg-white p-5">
-        <h3 className="mb-4 text-sm font-semibold text-neutral-900">Datos del contrato</h3>
+      <section className="rounded-card bg-surface p-5">
+        <h3 className="mb-4 font-display text-sm font-bold text-ink">Datos del contrato</h3>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <Field label="Número de contrato">
             <input
@@ -118,8 +118,8 @@ export function ContratoEditor({
         </div>
       </section>
 
-      <section className="rounded-xl border border-neutral-200 bg-white p-5">
-        <h3 className="mb-4 text-sm font-semibold text-neutral-900">EL CONTRATANTE</h3>
+      <section className="rounded-card bg-surface p-5">
+        <h3 className="mb-4 font-display text-sm font-bold text-ink">EL CONTRATANTE</h3>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <Field label="Representante legal (nombre completo)">
             <input
@@ -180,13 +180,13 @@ export function ContratoEditor({
         </div>
       </section>
 
-      <section className="rounded-xl border border-neutral-200 bg-white p-5">
-        <h3 className="mb-4 text-sm font-semibold text-neutral-900">Objeto y tiempos</h3>
+      <section className="rounded-card bg-surface p-5">
+        <h3 className="mb-4 font-display text-sm font-bold text-ink">Objeto y tiempos</h3>
         <div className="space-y-4">
           <Field label="Objeto particular (alcance específico del evento)">
             <textarea
               rows={4}
-              className="w-full rounded-md border border-neutral-300 p-2 text-sm outline-none focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900"
+              className="w-full rounded-field border border-border bg-input-bg p-2 text-sm text-ink outline-none focus:border-accent focus:ring-1 focus:ring-accent"
               value={form.objeto_particular ?? ""}
               onChange={(e) => patch("objeto_particular", e.target.value)}
               placeholder="Se usa un texto por defecto si lo dejas vacío."
@@ -234,19 +234,19 @@ export function ContratoEditor({
         <button
           onClick={handleSave}
           disabled={isPending}
-          className="btn btn-primary"
+          className="flex min-h-11 items-center rounded-pill bg-strong px-5 text-sm font-bold text-strong-ink disabled:opacity-50"
         >
           {isPending ? "Guardando..." : "Guardar datos del contrato"}
         </button>
         <a
           href={`/api/contracts/${proposal.id}`}
-          className="btn btn-secondary"
+          className="flex min-h-11 items-center rounded-pill bg-surface px-5 text-sm font-semibold text-ink"
         >
           Descargar contrato (.docx)
         </a>
         <SaveStatus dirty={dirty} isPending={isPending} message={message} className="text-sm" />
       </div>
-      <p className="text-xs text-neutral-400">
+      <p className="text-xs text-muted">
         Guarda primero los datos para que el contrato descargado los incluya — el valor y la forma de
         pago se toman automáticamente del Tarifario y la Propuesta.
       </p>

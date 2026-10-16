@@ -28,14 +28,16 @@ export default async function ProposalLayout({
   const isCerrada = proposal.status === "cerrada";
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-10">
-      <Link href="/proposals" className="no-print text-sm text-neutral-500 hover:underline">
+    <div className="mx-auto max-w-6xl px-4 pb-16 pt-6 sm:px-6">
+      <Link href="/proposals" className="no-print text-sm font-semibold text-muted hover:underline">
         ← Todas las propuestas
       </Link>
-      <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
+      <div className="mt-4 flex flex-wrap items-start justify-between gap-6">
         <div>
-          <h1 className="text-2xl font-semibold text-neutral-900">{proposal.event_name}</h1>
-          <p className="text-sm text-neutral-500">
+          <h1 className="font-display text-4xl font-extrabold tracking-tight text-ink">
+            {proposal.event_name}
+          </h1>
+          <p className="mt-2 text-sm text-muted">
             {client?.name}
             {client?.company ? ` · ${client.company}` : ""}
           </p>
@@ -47,7 +49,7 @@ export default async function ProposalLayout({
         ) : (
           <Link
             href={`/produccion/${id}/viaticos`}
-            className="no-print rounded-md border border-emerald-600 px-3 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-50"
+            className="no-print flex min-h-11 items-center rounded-pill border-[1.5px] border-accent px-5 text-sm font-bold text-accent"
           >
             Ver en Producción →
           </Link>
@@ -58,7 +60,7 @@ export default async function ProposalLayout({
         <ProposalStepsNav id={id} />
       </div>
 
-      <div className="mt-8">{children}</div>
+      <div className="mt-7">{children}</div>
     </div>
   );
 }

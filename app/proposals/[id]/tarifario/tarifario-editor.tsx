@@ -36,10 +36,9 @@ function toServiceRow(item: ProposalCostItem): ServiceRow {
 }
 
 const inputClass =
-  "h-9 w-full rounded-md border border-neutral-300 px-2 text-sm outline-none focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900";
-const cellInput =
-  "h-9 w-full rounded-md border border-neutral-300 px-2 text-sm outline-none focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900";
-const labelClass = "text-xs font-medium text-neutral-500";
+  "h-9 w-full rounded-field border border-border bg-input-bg px-2 text-sm text-ink outline-none focus:border-accent focus:ring-1 focus:ring-accent";
+const cellInput = inputClass;
+const labelClass = "text-xs font-semibold text-muted";
 
 const SALONES_INTERNOS_SERVICE_LABEL =
   "Módulo para obtención de datos en diferentes sitios simultáneos";
@@ -239,8 +238,8 @@ export function TarifarioEditor({
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
       <div className="min-w-0 space-y-6 lg:col-span-2">
         {/* Datos del evento */}
-        <section className="rounded-xl border border-neutral-200 bg-white p-5">
-          <h3 className="text-sm font-semibold text-neutral-900">Datos del evento</h3>
+        <section className="rounded-card bg-surface p-6">
+          <h3 className="font-display text-lg font-bold text-ink">Datos del evento</h3>
           <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <Field label="Modalidad">
               <select
@@ -307,17 +306,15 @@ export function TarifarioEditor({
         </section>
 
         {/* Logística 360 — calculada, no se marca ítem por ítem */}
-        <section className="rounded-xl border border-neutral-200 bg-white">
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-neutral-200 px-5 py-3">
-            <h3 className="text-sm font-semibold text-neutral-900">Logística 360</h3>
+        <section className="overflow-hidden rounded-card bg-surface">
+          <div className="flex flex-wrap items-center justify-between gap-2 px-6 py-4">
+            <h3 className="font-display text-lg font-bold text-ink">Logística 360</h3>
             <button
               type="button"
               aria-expanded={showAdvanced}
               onClick={() => setShowAdvanced((v) => !v)}
-              className={`rounded-md px-3 py-1.5 text-xs font-semibold ${
-                showAdvanced
-                  ? "bg-neutral-900 text-white hover:bg-neutral-800"
-                  : "bg-neutral-100 text-neutral-700 hover:bg-neutral-200"
+              className={`min-h-11 rounded-pill px-4 text-xs font-semibold ${
+                showAdvanced ? "bg-strong text-strong-ink" : "bg-surface2 text-ink hover:bg-border"
               }`}
             >
               {showAdvanced ? "Ocultar dotación y cantidades" : "Ajustar dotación y cantidades"}
@@ -325,15 +322,15 @@ export function TarifarioEditor({
           </div>
 
           {showAdvanced && (
-            <div className="border-b border-neutral-100 bg-neutral-50 p-5">
+            <div className="bg-surface2 p-6">
               <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                <p className="text-xs text-neutral-500">
+                <p className="text-xs text-muted">
                   Dotación por defecto según el aforo — editable por evento.
                 </p>
                 <button
                   type="button"
                   onClick={recalcularSegunAforo}
-                  className="btn btn-secondary btn-sm"
+                  className="min-h-11 rounded-pill bg-surface px-4 text-xs font-semibold text-ink"
                 >
                   Recalcular según aforo ({eventFields.aforo})
                 </button>
@@ -362,7 +359,7 @@ export function TarifarioEditor({
                     type="number"
                     value={qtyLogisticaSalonesInternos}
                     disabled
-                    className={`${inputClass} bg-neutral-50 text-neutral-500`}
+                    className={`${inputClass} bg-surface2 text-muted`}
                   />
                 </Field>
                 <Field label="Productores">
@@ -391,8 +388,8 @@ export function TarifarioEditor({
                 </Field>
               </div>
 
-              <p className="mb-2 mt-5 text-xs text-neutral-500">Extras (Costos Varios)</p>
-              <div className="grid grid-cols-2 gap-2 text-sm text-neutral-700">
+              <p className="mb-2 mt-5 text-xs text-muted">Extras (Costos Varios)</p>
+              <div className="grid grid-cols-2 gap-2 text-sm text-ink">
                 <CheckboxField
                   label="Camisetas para Staff"
                   checked={eventFields.extra_camisetas_staff}
@@ -422,7 +419,7 @@ export function TarifarioEditor({
             </div>
           )}
 
-          <div className="divide-y divide-neutral-100 px-5">
+          <div className="divide-y divide-border px-6">
             <ExpandableCategory
               label="1. Honorarios"
               total={summary.logistica.honorarios}
@@ -472,14 +469,14 @@ export function TarifarioEditor({
         </section>
 
         {/* Servicios personalizados — esto sí se elige ítem por ítem */}
-        <section className="overflow-x-auto rounded-xl border border-neutral-200 bg-white">
-          <div className="border-b border-neutral-200 px-4 py-3">
-            <h3 className="text-sm font-semibold text-neutral-900">
+        <section className="overflow-x-auto rounded-card bg-surface">
+          <div className="px-6 py-4">
+            <h3 className="font-display text-lg font-bold text-ink">
               2. Servicios personalizados de la plataforma
             </h3>
           </div>
           <table className="w-full min-w-[640px] text-sm">
-            <thead className="bg-neutral-50 text-left text-xs uppercase text-neutral-500">
+            <thead className="bg-surface2 text-left text-xs font-semibold uppercase tracking-wide text-muted">
               <tr>
                 <th className="w-10 px-4 py-2"></th>
                 <th className="px-2 py-2">Ítem</th>
@@ -498,7 +495,7 @@ export function TarifarioEditor({
                 return (
                   <tr
                     key={item.id}
-                    className={`border-t border-neutral-100 ${isSpecial ? "bg-amber-50" : ""}`}
+                    className={`border-t border-border ${isSpecial ? "bg-warn" : ""}`}
                   >
                     <td className="px-4 py-2">
                       <input
@@ -506,19 +503,19 @@ export function TarifarioEditor({
                         aria-label={`Incluir ${item.label}`}
                         checked={row.included}
                         onChange={(e) => patchService(item.id, { included: e.target.checked })}
-                        className="h-4 w-4"
+                        className="h-4 w-4 accent-accent"
                       />
                     </td>
-                    <td className="px-2 py-2 text-neutral-800">
+                    <td className="px-2 py-2 text-ink">
                       {item.label}
                       {item.label === PREACREDITACION_SERVICE_LABEL && (
-                        <p className="text-[11px] font-normal text-amber-700">
+                        <p className="text-[11px] font-normal text-warn-ink">
                           Cantidad = días operativos extra (todo el equipo) — se suman a los días
                           del evento en Logística 360, sin reemplazar la visita preoperativa.
                         </p>
                       )}
                       {item.label === SALONES_INTERNOS_SERVICE_LABEL && (
-                        <p className="text-[11px] font-normal text-amber-700">
+                        <p className="text-[11px] font-normal text-warn-ink">
                           Cantidad = número de salones internos. Cada salón tiene su propio aforo y
                           su propia dotación de logísticos (0-100 → 1, 100-400 → 2, 400-800 → 3,
                           &gt;800 → 4 logísticos). Defínelos abajo.
@@ -548,38 +545,38 @@ export function TarifarioEditor({
                         className={cellInput}
                       />
                     </td>
-                    <td className="px-4 py-2 text-right text-neutral-700">
+                    <td className="px-4 py-2 text-right text-ink">
                       {row.included ? formatCOP(subtotal) : "—"}
                     </td>
                   </tr>
                 );
               })}
               {salonesAforos.length > 0 && (
-                <tr className="border-t border-neutral-100 bg-amber-50">
+                <tr className="border-t border-border bg-warn">
                   <td className="px-4 py-2"></td>
                   <td colSpan={4} className="px-2 py-3">
-                    <p className="mb-2 text-xs font-medium text-neutral-700">
+                    <p className="mb-2 text-xs font-semibold text-warn-ink">
                       Aforo por salón interno (define la dotación de logísticos de cada uno)
                     </p>
                     <div className="flex flex-wrap gap-3">
                       {salonesAforos.map((aforo, i) => (
-                        <div key={i} className="flex items-center gap-2 rounded-md border border-neutral-200 bg-white px-2 py-1.5">
-                          <span className="text-xs text-neutral-500">Salón {i + 1}</span>
+                        <div key={i} className="flex items-center gap-2 rounded-field border border-border bg-surface px-2 py-1.5">
+                          <span className="text-xs text-muted">Salón {i + 1}</span>
                           <input
                             type="number"
                             min={0}
                             aria-label={`Aforo del salón ${i + 1}`}
                             value={aforo}
                             onChange={(e) => updateSalonAforo(i, Number(e.target.value) || 0)}
-                            className="h-8 w-20 rounded border border-neutral-300 px-2 text-sm outline-none focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900"
+                            className="h-8 w-20 rounded-field border border-border bg-input-bg px-2 text-sm text-ink outline-none focus:border-accent focus:ring-1 focus:ring-accent"
                           />
-                          <span className="text-xs text-neutral-400">
+                          <span className="text-xs text-muted">
                             → {logisticosPorSalon(aforo)} logístico{logisticosPorSalon(aforo) !== 1 ? "s" : ""}
                           </span>
                         </div>
                       ))}
                     </div>
-                    <p className="mt-2 text-xs font-medium text-neutral-700">
+                    <p className="mt-2 text-xs font-semibold text-warn-ink">
                       Total logísticos salones internos: {qtyLogisticaSalonesInternos}
                     </p>
                   </td>
@@ -592,15 +589,15 @@ export function TarifarioEditor({
 
       <MobileSaveBar dirty={dirty} isPending={isPending} message={message} onSave={handleSave} label="Guardar tarifario" />
       <div className="lg:col-span-1">
-        <div className="space-y-2 rounded-xl border border-neutral-200 bg-white p-5 lg:sticky lg:top-6">
-          <h3 className="mb-2 text-sm font-semibold text-neutral-900">Resumen</h3>
+        <div className="space-y-2 rounded-card bg-surface p-6 lg:sticky lg:top-6">
+          <h3 className="mb-2 font-display text-lg font-bold text-ink">Resumen</h3>
           <SummaryRow
             label="Total Costo Logística"
             value={formatCOP(summary.logistica.totalCostoLogisticaConImprevistos)}
           />
           <SummaryRow label="Subtotal Servicios" value={formatCOP(summary.subtotalServicios)} />
           <SummaryRow label="Total costo" value={formatCOP(summary.totalCosto)} bold />
-          <div className="border-t border-neutral-100 pt-2" />
+          <div className="border-t border-border pt-2" />
           <SummaryRow label="Rentabilidad ($)" value={formatCOP(summary.rentabilidad)} />
           <SummaryRow
             label="Valor Propuesta Inicial"
@@ -612,13 +609,19 @@ export function TarifarioEditor({
             value={formatCOP(summary.costoDirectorComercial)}
           />
           <SummaryRow label="Costo Asesor Comercial" value={formatCOP(summary.costoAsesorComercial)} />
-          <SummaryRow label="Valor Propuesta Final" value={formatCOP(summary.valorPropuestaFinal)} bold />
-          <SummaryRow label="+ IVA (19%)" value={formatCOP(summary.iva)} />
+
+          <div className="mt-2 rounded-inner-card bg-highlight p-[18px]">
+            <p className="text-xs font-bold text-highlight-ink">Valor Propuesta Final</p>
+            <p className="font-display mt-0.5 text-[32px] font-extrabold tracking-tight text-highlight-ink">
+              {formatCOP(summary.valorPropuestaFinal)}
+            </p>
+            <p className="mt-1 text-[13px] text-highlight-ink">+ IVA (19%) {formatCOP(summary.iva)}</p>
+          </div>
 
           <button
             onClick={handleSave}
             disabled={isPending}
-            className="btn btn-primary mt-3 w-full"
+            className="mt-3 min-h-12 w-full rounded-pill bg-strong text-sm font-bold text-strong-ink disabled:opacity-50"
           >
             {isPending ? "Guardando..." : "Guardar tarifario"}
           </button>
@@ -664,7 +667,7 @@ function PctInput({ value, onChange }: { value: number; onChange: (v: number) =>
         onChange={(e) => onChange((Number(e.target.value) || 0) / 100)}
         className={`${inputClass} pr-6`}
       />
-      <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-xs text-neutral-400">
+      <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted">
         %
       </span>
     </div>
@@ -713,7 +716,7 @@ function ExpandableCategory({
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        className="flex w-full items-center justify-between text-sm text-neutral-600 hover:text-neutral-900"
+        className="flex w-full items-center justify-between text-sm text-muted hover:text-ink"
       >
         <span className="flex items-center gap-1.5">
           <span className={`text-xs transition-transform ${open ? "rotate-90" : ""}`}>▶</span>
@@ -724,7 +727,7 @@ function ExpandableCategory({
       {open && (
         <table className="mt-2 w-full text-xs">
           <thead>
-            <tr className="text-[10px] uppercase text-neutral-400">
+            <tr className="text-[10px] uppercase text-muted">
               <th className="pb-1 pl-5 text-left font-medium">Concepto</th>
               <th className="w-16 pb-1 text-right font-medium">Días</th>
               <th className="w-16 pb-1 text-right font-medium">Cantidad</th>
@@ -778,10 +781,10 @@ function EditableItemRow({
   }
 
   return (
-    <tr className={`border-t border-neutral-100 ${editing ? "bg-amber-50" : ""}`}>
-      <td className="py-1.5 pl-5 text-neutral-700">
+    <tr className={`border-t border-border ${editing ? "bg-warn" : ""}`}>
+      <td className="py-1.5 pl-5 text-ink">
         {item.label}
-        <p className="text-[10px] text-neutral-400">{item.basis}</p>
+        <p className="text-[10px] text-muted">{item.basis}</p>
       </td>
       <td className="py-1.5 text-right">
         {editing ? (
@@ -790,10 +793,10 @@ function EditableItemRow({
             type="number"
             value={diasText}
             onChange={(e) => setDiasText(e.target.value)}
-            className="h-7 w-14 rounded-md border border-neutral-300 px-1 text-right text-xs outline-none focus:border-neutral-900"
+            className="h-7 w-14 rounded-field border border-border bg-input-bg px-1 text-right text-xs text-ink outline-none focus:border-accent"
           />
         ) : (
-          <span className={override?.dias !== undefined ? "font-medium text-amber-700" : "text-neutral-500"}>
+          <span className={override?.dias !== undefined ? "font-semibold text-warn-ink" : "text-muted"}>
             {item.dias}
           </span>
         )}
@@ -804,20 +807,20 @@ function EditableItemRow({
             type="number"
             value={qtyText}
             onChange={(e) => setQtyText(e.target.value)}
-            className="h-7 w-14 rounded-md border border-neutral-300 px-1 text-right text-xs outline-none focus:border-neutral-900"
+            className="h-7 w-14 rounded-field border border-border bg-input-bg px-1 text-right text-xs text-ink outline-none focus:border-accent"
           />
         ) : (
           <span
-            className={override?.quantity !== undefined ? "font-medium text-amber-700" : "text-neutral-500"}
+            className={override?.quantity !== undefined ? "font-semibold text-warn-ink" : "text-muted"}
           >
             {item.quantity}
           </span>
         )}
       </td>
-      <td className="py-1.5 text-right text-neutral-500">{formatCOP(item.rate)}</td>
+      <td className="py-1.5 text-right text-muted">{formatCOP(item.rate)}</td>
       <td
         className={`py-1.5 pr-1 text-right font-medium ${
-          overridden ? "text-amber-700" : "text-neutral-700"
+          overridden ? "text-warn-ink" : "text-ink"
         }`}
         title={overridden ? "Incluye días y/o cantidad forzados a mano" : undefined}
       >
@@ -834,7 +837,7 @@ function EditableItemRow({
               title="Cancelar"
               aria-label="Cancelar edición"
               onClick={() => setEditing(false)}
-              className="text-neutral-400 hover:text-neutral-700"
+              className="text-muted hover:text-ink"
             >
               ✕
             </button>
@@ -846,7 +849,7 @@ function EditableItemRow({
               title="Editar días/cantidad de este rubro"
               aria-label={`Editar días y cantidad de ${item.label}`}
               onClick={startEditing}
-              className="text-neutral-400 hover:text-neutral-900"
+              className="text-muted hover:text-ink"
             >
               ✎
             </button>
@@ -873,7 +876,7 @@ function EditableItemRow({
 
 function SummaryLine({ label, value, bold }: { label: string; value: string; bold?: boolean }) {
   return (
-    <div className={`flex justify-between py-2 text-sm ${bold ? "font-semibold text-neutral-900" : "text-neutral-600"}`}>
+    <div className={`flex justify-between py-2 text-sm ${bold ? "font-semibold text-ink" : "text-muted"}`}>
       <span>{label}</span>
       <span>{value}</span>
     </div>
@@ -882,7 +885,7 @@ function SummaryLine({ label, value, bold }: { label: string; value: string; bol
 
 function SummaryRow({ label, value, bold }: { label: string; value: string; bold?: boolean }) {
   return (
-    <div className={`flex justify-between text-sm ${bold ? "font-semibold text-neutral-900" : "text-neutral-600"}`}>
+    <div className={`flex justify-between text-sm ${bold ? "font-semibold text-ink" : "text-muted"}`}>
       <span>{label}</span>
       <span>{value}</span>
     </div>

@@ -1,10 +1,11 @@
-import { TopNav } from "@/app/components/top-nav";
+import { ComercialShell } from "@/app/components/comercial-shell";
+import { ComercialTopNav } from "@/app/components/comercial-top-nav";
 
 export default function ProposalsSectionLayout({ children }: { children: React.ReactNode }) {
   return (
-    <>
-      <TopNav />
+    <ComercialShell>
+      <ComercialTopNav />
       {children}
-    </>
+    </ComercialShell>
   );
 }

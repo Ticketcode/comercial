@@ -377,7 +377,7 @@ export function ComponentesSlide({
         </p>
       ) : (
         <div style={{ borderRadius: 16, overflow: "hidden", flex: 1, minHeight: 0 }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: dense ? 22 : 26, color: t.fg }}>
+          <table style={{ width: "100%", height: "100%", borderCollapse: "collapse", fontSize: dense ? 22 : 26, color: t.fg }}>
             <tbody>
               <tr style={{ background: t.accent2 }}>
                 <th style={{ width: "34%", padding: dense ? "10px 16px" : "14px 20px", color: "#FFFFFF", textAlign: "left" }}>
@@ -594,7 +594,7 @@ export function LogisticaSlide({
         </p>
       ) : (
         <div style={{ borderRadius: 16, overflow: "hidden", flex: 1, minHeight: 0 }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: dense ? 20 : 24, color: t.fg }}>
+          <table style={{ width: "100%", height: "100%", borderCollapse: "collapse", fontSize: dense ? 20 : 24, color: t.fg }}>
             <tbody>
               <tr style={{ background: t.accent2 }}>
                 <th style={{ width: "30%", padding: dense ? "10px 16px" : "14px 20px", color: "#FFFFFF", textAlign: "left" }}>

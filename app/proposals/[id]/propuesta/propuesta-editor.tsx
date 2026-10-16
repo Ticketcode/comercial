@@ -18,14 +18,16 @@ import { formatFechaCorta } from "@/lib/fecha-local";
 import { savePropuesta } from "./actions";
 import { addMilestone, removeMilestone, updateMilestonePct, type Milestone } from "./milestones";
 
-// Paleta real de "Plantilla propuesta eventos 2026.pptx" (theme1.xml).
+// Paleta del diseño aprobado del módulo Comercial (tema claro) — este
+// documento se exporta a PDF, así que se mantiene siempre en claro
+// independiente del tema que tenga activo quien lo prepara.
 const BRAND = {
-  dark: "#212121",
-  blue: "#4285F4",
-  teal: "#0097A7",
-  orange: "#FFAB40",
-  grey: "#78909C",
-  lightGrey: "#EEEEEE",
+  dark: "#12142B",
+  blue: "#1D3FBF",
+  teal: "#5B2FD1",
+  orange: "#B8860B",
+  grey: "#4A4F73",
+  lightGrey: "#E2E5F0",
 };
 
 interface IncludedService {
@@ -53,7 +55,7 @@ const modalityLabel: Record<string, string> = {
 };
 
 const inputClass =
-  "h-9 w-full rounded-md border border-neutral-300 px-2 text-sm outline-none focus:border-[#4285F4] focus:ring-1 focus:ring-[#4285F4]";
+  "h-9 w-full rounded-md border border-neutral-300 px-2 text-sm outline-none focus:border-[#1D3FBF] focus:ring-1 focus:ring-[#1D3FBF]";
 
 let tempIdCounter = 0;
 function tempId() {
@@ -74,8 +76,8 @@ function Slide({
 }) {
   return (
     <section
-      className="pdf-slide overflow-hidden rounded-2xl border border-neutral-200 bg-white p-8 shadow-sm"
-      style={{ breakInside: "avoid", fontFamily: "Arial, Helvetica, sans-serif" }}
+      className="pdf-slide font-sans overflow-hidden rounded-card border border-neutral-200 bg-white p-8 shadow-sm"
+      style={{ breakInside: "avoid" }}
     >
       <div className="mb-6 flex items-center gap-3">
         <span className="h-9 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: accent }} />
@@ -85,7 +87,7 @@ function Slide({
               {kicker}
             </p>
           )}
-          <h2 className="text-2xl font-bold" style={{ color: BRAND.dark }}>
+          <h2 className="font-display text-2xl font-bold" style={{ color: BRAND.dark }}>
             {title}
           </h2>
         </div>
@@ -367,7 +369,7 @@ export function PropuestaEditor({
         <button
           onClick={handleDownloadPdf}
           disabled={isDownloading}
-          className="btn btn-secondary"
+          className="flex min-h-11 items-center rounded-pill bg-surface px-5 text-sm font-semibold text-ink disabled:opacity-50"
         >
           {isDownloading ? "Generando PDF..." : "Descargar PDF"}
         </button>
@@ -716,7 +718,7 @@ export function PropuestaEditor({
         <button
           onClick={handleSave}
           disabled={isPending}
-          className="btn btn-primary"
+          className="flex min-h-11 items-center rounded-pill bg-strong px-5 text-sm font-bold text-strong-ink disabled:opacity-50"
         >
           {isPending ? "Guardando..." : "Guardar propuesta"}
         </button>

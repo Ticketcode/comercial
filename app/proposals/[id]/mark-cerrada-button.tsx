@@ -40,7 +40,7 @@ export function MarkCerradaButton({ proposalId }: { proposalId: string }) {
         type="button"
         disabled={isPending}
         onClick={handleClick}
-        className="rounded-md border border-emerald-600 px-3 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
+        className="flex min-h-11 items-center rounded-pill border-[1.5px] border-emerald-600 px-5 text-sm font-bold text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
       >
         {isPending ? "Marcando..." : "Marcar como ganada"}
       </button>
