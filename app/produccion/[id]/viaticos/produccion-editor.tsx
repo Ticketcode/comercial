@@ -872,6 +872,8 @@ export function ProduccionEditor({
               const misGiros = girosByStaff[s.id] ?? [];
               const misCategorias = categorizarGiros(misGiros);
               const misTotal = misGiros.reduce((sum, g) => sum + g.monto, 0);
+              const misAnticipo = totalAnticipadoPorPersona[s.id] ?? 0;
+              const misDiferencia = misAnticipo - misTotal;
               return (
                 <div
                   key={s.id}
@@ -965,9 +967,21 @@ export function ProduccionEditor({
 
                   <table className="mt-3 w-full border border-neutral-800 text-xs">
                     <tbody>
-                      <tr className="bg-emerald-100">
+                      <tr className="border-b border-neutral-800 bg-emerald-100">
                         <th className="border-r border-neutral-800 py-1.5 text-left">Total viáticos</th>
                         <td className="py-1.5 pr-2 text-right font-bold">{formatCOP(misTotal)}</td>
+                      </tr>
+                      <tr className="border-b border-neutral-800">
+                        <th className="border-r border-neutral-800 py-1.5 text-left">
+                          Anticipo girado a la persona
+                        </th>
+                        <td className="py-1.5 pr-2 text-right font-bold">{formatCOP(misAnticipo)}</td>
+                      </tr>
+                      <tr>
+                        <th className="border-r border-neutral-800 py-1.5 text-left">
+                          {misDiferencia >= 0 ? "Saldo a favor de Ticketcode" : "Saldo a reembolsar al trabajador"}
+                        </th>
+                        <td className="py-1.5 pr-2 text-right font-bold">{formatCOP(Math.abs(misDiferencia))}</td>
                       </tr>
                     </tbody>
                   </table>
