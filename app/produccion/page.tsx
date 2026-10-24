@@ -20,30 +20,32 @@ export default async function ProduccionPage() {
     .order("created_at", { ascending: false });
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-10">
+    <div className="mx-auto max-w-5xl px-4 pb-16 pt-10 sm:px-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-neutral-900">Producción</h1>
-          <p className="mt-1 text-sm text-neutral-500">
+          <h1 className="font-display text-4xl font-extrabold tracking-tight text-ink sm:text-5xl">
+            Producción
+          </h1>
+          <p className="mt-2.5 text-sm text-muted">
             Eventos ganados — viáticos, presupuesto y actividades de producción.
           </p>
         </div>
       </div>
 
-      <div className="mt-4">
+      <div className="mt-5">
         <NewEventForm />
       </div>
 
       {error && (
-        <p className="mt-6 rounded-md bg-red-50 p-4 text-sm text-red-700">
+        <p className="mt-6 rounded-card bg-warn p-4 text-sm font-medium text-warn-ink">
           No se pudieron cargar los eventos: {error.message}
         </p>
       )}
 
-      <div className="mt-8 overflow-x-auto rounded-xl border border-neutral-200 bg-white">
+      <div className="mt-8 overflow-x-auto rounded-card bg-surface">
         {proposals && proposals.length > 0 ? (
           <table className="w-full min-w-[520px] text-sm">
-            <thead className="bg-neutral-50 text-left text-neutral-500">
+            <thead className="text-left text-muted">
               <tr>
                 <th className="px-4 py-3 font-medium">Evento</th>
                 <th className="px-4 py-3 font-medium">Cliente</th>
@@ -55,31 +57,31 @@ export default async function ProduccionPage() {
               {proposals.map((p) => {
                 const client = Array.isArray(p.clients) ? p.clients[0] : p.clients;
                 return (
-                  <tr key={p.id} className="border-t border-neutral-100 hover:bg-neutral-50">
+                  <tr key={p.id} className="border-t border-border hover:bg-surface2">
                     <td className="px-4 py-3">
                       <Link
                         href={`/produccion/${p.id}/viaticos`}
-                        className="font-medium text-neutral-900 hover:underline"
+                        className="font-semibold text-ink hover:underline"
                       >
                         {p.event_name}
                       </Link>
-                      <div className="text-xs text-neutral-400">{p.city}</div>
+                      <div className="text-xs text-muted">{p.city}</div>
                     </td>
-                    <td className="px-4 py-3 text-neutral-600">
+                    <td className="px-4 py-3 text-muted">
                       {client?.name ?? "—"}
                       {client?.company ? ` · ${client.company}` : ""}
                     </td>
-                    <td className="px-4 py-3 text-neutral-600">
+                    <td className="px-4 py-3 text-muted">
                       {modalityLabel[p.modality] ?? p.modality}
                     </td>
-                    <td className="px-4 py-3 text-neutral-600">{p.aforo ?? "—"}</td>
+                    <td className="px-4 py-3 text-muted">{p.aforo ?? "—"}</td>
                   </tr>
                 );
               })}
             </tbody>
           </table>
         ) : (
-          <div className="p-10 text-center text-sm text-neutral-500">
+          <div className="p-10 text-center text-sm text-muted">
             Todavía no hay eventos ganados. Marca una propuesta como &quot;ganada&quot; desde
             Comercial para que aparezca aquí.
           </div>

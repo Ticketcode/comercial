@@ -1,10 +1,8 @@
 import { exo, poppins } from "@/lib/fonts";
 
 /**
- * Envuelve las secciones del módulo Comercial (Propuestas, Catálogo) con los
- * tokens de color con tema y las tipografías Exo/Poppins del diseño
- * aprobado (ver docs/diseno-comercial) — sin tocar Producción, que sigue
- * con sus propias clases neutral-* y sin estas variables CSS.
+ * Envuelve las secciones de la app con los tokens de color con tema y las
+ * tipografías Exo/Poppins del diseño aprobado (ver docs/diseno-comercial).
  */
 export function ComercialShell({ children }: { children: React.ReactNode }) {
   return (

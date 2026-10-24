@@ -85,11 +85,22 @@ export function LegalizacionEditor({
   const [isDownloading, setIsDownloading] = useState(false);
   const printAreaRef = useRef<HTMLDivElement>(null);
 
+  // Se antepone el nombre al enlace: si se copian y pegan varios enlaces juntos en un
+  // mismo chat, cada persona necesita poder identificar cuál le corresponde.
   function copyLegalizarLink(s: EventStaff) {
     const url = `${window.location.origin}/legalizar/${s.token ?? s.id}`;
-    navigator.clipboard.writeText(url).then(() => {
+    navigator.clipboard.writeText(`${s.full_name || "(sin nombre)"}: ${url}`).then(() => {
       setCopiedId(s.id);
       setTimeout(() => setCopiedId(null), 2000);
+    });
+  }
+
+  function copyAllLegalizarLinks() {
+    const texto = staff
+      .map((s) => `${s.full_name || "(sin nombre)"}: ${window.location.origin}/legalizar/${s.token ?? s.id}`)
+      .join("\n");
+    navigator.clipboard.writeText(texto).then(() => {
+      setMessage(`Se copiaron ${staff.length} enlace(s), uno por línea con el nombre de cada persona.`);
     });
   }
 
@@ -109,7 +120,7 @@ export function LegalizacionEditor({
     let copied = false;
     try {
       if ("token" in r && r.token) {
-        await navigator.clipboard.writeText(`${window.location.origin}/legalizar/${r.token}`);
+        await navigator.clipboard.writeText(`${s.full_name || "(sin nombre)"}: ${window.location.origin}/legalizar/${r.token}`);
         copied = true;
       }
     } catch {
@@ -332,23 +343,33 @@ export function LegalizacionEditor({
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
       <div className="min-w-0 space-y-6 lg:col-span-2">
-        <div role="tablist" aria-label="Personas del evento" className="flex flex-wrap gap-1 border-b border-neutral-200 pb-2">
-          {staff.map((s) => (
-            <button
-              key={s.id}
-              type="button"
-              role="tab"
-              aria-selected={activeStaffId === s.id}
-              onClick={() => setActiveStaffId(s.id)}
-              className={`rounded-t-md px-3 py-1.5 text-xs font-medium ${
-                activeStaffId === s.id
-                  ? "bg-neutral-900 text-white"
-                  : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200"
-              }`}
-            >
-              {s.full_name || "(sin nombre)"}
-            </button>
-          ))}
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-neutral-200 pb-2">
+          <div role="tablist" aria-label="Personas del evento" className="flex flex-wrap gap-1">
+            {staff.map((s) => (
+              <button
+                key={s.id}
+                type="button"
+                role="tab"
+                aria-selected={activeStaffId === s.id}
+                onClick={() => setActiveStaffId(s.id)}
+                className={`rounded-t-md px-3 py-1.5 text-xs font-medium ${
+                  activeStaffId === s.id
+                    ? "bg-neutral-900 text-white"
+                    : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200"
+                }`}
+              >
+                {s.full_name || "(sin nombre)"}
+              </button>
+            ))}
+          </div>
+          <button
+            type="button"
+            onClick={copyAllLegalizarLinks}
+            className="shrink-0 rounded-md border border-neutral-300 px-3 py-1.5 text-xs font-medium text-neutral-600 hover:bg-neutral-50"
+            title="Copia el enlace de cada persona, uno por línea con su nombre"
+          >
+            Copiar todos los enlaces
+          </button>
         </div>
 
         {activeStaff && activeMeta && (

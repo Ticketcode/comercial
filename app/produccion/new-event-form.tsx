@@ -6,7 +6,7 @@ import { createOperationalEvent, type CreateOperationalEventState } from "./acti
 
 const initialState: CreateOperationalEventState = { error: null };
 const inputClass =
-  "h-9 w-full rounded-md border border-neutral-300 px-2 text-sm outline-none focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900";
+  "h-9 w-full rounded-field border border-border bg-input-bg px-2 text-sm text-ink outline-none focus:border-accent focus:ring-1 focus:ring-accent";
 
 function SubmitButton() {
   const { pending } = useFormStatus();
@@ -14,7 +14,7 @@ function SubmitButton() {
     <button
       type="submit"
       disabled={pending}
-      className="btn btn-primary"
+      className="flex min-h-11 items-center rounded-pill bg-strong px-5 text-sm font-bold text-strong-ink disabled:opacity-50"
     >
       {pending ? "Creando..." : "Crear evento"}
     </button>
@@ -30,7 +30,7 @@ export function NewEventForm() {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="btn btn-secondary"
+        className="flex min-h-11 items-center rounded-pill bg-surface px-5 text-sm font-semibold text-ink"
       >
         + Agregar evento operativo
       </button>
@@ -38,9 +38,9 @@ export function NewEventForm() {
   }
 
   return (
-    <div className="rounded-xl border border-neutral-200 bg-white p-5">
-      <p className="mb-1 text-sm font-semibold text-neutral-900">Agregar evento operativo</p>
-      <p className="mb-3 text-xs text-neutral-500">
+    <div className="rounded-card bg-surface p-5">
+      <p className="mb-1 text-sm font-bold text-ink">Agregar evento operativo</p>
+      <p className="mb-3 text-xs text-muted">
         Para eventos que ya operan y no pasaron por el flujo comercial (Tarifario/Propuesta/
         Contrato) — entra directo a Producción sin llenar el Tarifario.
       </p>
@@ -60,7 +60,7 @@ export function NewEventForm() {
           <button
             type="button"
             onClick={() => setOpen(false)}
-            className="text-xs text-neutral-500 hover:text-neutral-800"
+            className="text-xs text-muted hover:text-ink"
           >
             Cancelar
           </button>

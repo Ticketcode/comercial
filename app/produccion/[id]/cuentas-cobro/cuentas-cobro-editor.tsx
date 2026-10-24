@@ -63,23 +63,35 @@ export function CuentasCobroEditor({
   const router = useRouter();
   const confirm = useConfirm();
 
+  // Se antepone el nombre al enlace: si se copian y pegan varios enlaces juntos en un
+  // mismo chat, cada persona necesita poder identificar cuál le corresponde.
   function copySignLink(c: CuentaCobro) {
     const url = `${window.location.origin}/firmar/${c.token ?? c.id}`;
-    navigator.clipboard.writeText(url).then(() => {
+    navigator.clipboard.writeText(`${c.nombre_completo}: ${url}`).then(() => {
       setCopiedId(c.id);
       setTimeout(() => setCopiedId(null), 2000);
     });
   }
 
-  /** Copia el enlace nuevo si el navegador lo permite; si no, avisa para que se copie a mano. */
-  async function copyNewLink(token: string | null) {
+  /** Copia el enlace nuevo (con el nombre) si el navegador lo permite; si no, avisa para que se copie a mano. */
+  async function copyNewLink(token: string | null, nombre: string) {
     if (!token) return false;
     try {
-      await navigator.clipboard.writeText(`${window.location.origin}/firmar/${token}`);
+      await navigator.clipboard.writeText(`${nombre}: ${window.location.origin}/firmar/${token}`);
       return true;
     } catch {
       return false;
     }
+  }
+
+  function copyAllPendingLinks() {
+    const pendientes = cuentas.filter((c) => c.estado !== "firmada");
+    const texto = pendientes
+      .map((c) => `${c.nombre_completo}: ${window.location.origin}/firmar/${c.token ?? c.id}`)
+      .join("\n");
+    navigator.clipboard.writeText(texto).then(() => {
+      setMessage(`Se copiaron ${pendientes.length} enlace(s) pendiente(s), uno por línea con el nombre de cada persona.`);
+    });
   }
 
   async function regenerarEnlace(c: CuentaCobro) {
@@ -95,7 +107,7 @@ export function CuentasCobroEditor({
       if (r.error) {
         setMessage(`Error: ${friendlyError(r.error)}`);
       } else {
-        const copied = await copyNewLink("token" in r ? r.token : null);
+        const copied = await copyNewLink("token" in r ? r.token : null, c.nombre_completo);
         setMessage(
           copied
             ? "Enlace nuevo generado y copiado. El anterior ya no funciona."
@@ -120,7 +132,7 @@ export function CuentasCobroEditor({
       if (r.error) {
         setMessage(`Error: ${friendlyError(r.error)}`);
       } else {
-        const copied = await copyNewLink("token" in r ? r.token : null);
+        const copied = await copyNewLink("token" in r ? r.token : null, c.nombre_completo);
         setMessage(
           copied
             ? "Firma deshecha. El enlace nuevo quedó copiado para que la persona firme otra vez."
@@ -256,6 +268,16 @@ export function CuentasCobroEditor({
               Cuentas de cobro ({cuentas.length}) — Total {formatCOP(totalValor)}
             </h3>
             <div className="flex gap-2">
+              {cuentas.some((c) => c.estado !== "firmada") && (
+                <button
+                  type="button"
+                  onClick={copyAllPendingLinks}
+                  className="rounded-md border border-neutral-300 px-3 py-2 text-xs font-medium text-neutral-600 hover:bg-neutral-50"
+                  title="Copia todos los enlaces pendientes, uno por línea con el nombre de cada persona"
+                >
+                  Copiar enlaces pendientes
+                </button>
+              )}
               <a
                 href={`/api/cuentas-cobro/${proposalId}`}
                 className="btn btn-primary"
