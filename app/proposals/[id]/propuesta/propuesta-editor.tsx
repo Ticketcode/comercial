@@ -23,7 +23,11 @@ import { addMilestone, removeMilestone, updateMilestonePct, type Milestone } fro
 // independiente del tema que tenga activo quien lo prepara.
 const BRAND = {
   dark: "#12142B",
-  blue: "#1D3FBF",
+  blue: "#21CF3C",
+  // Variante oscura del verde de marca: el verde vivo no da suficiente
+  // contraste como color de texto sobre blanco, así que las cifras y
+  // títulos usan este tono en vez de BRAND.blue directamente.
+  blueText: "#0E7A33",
   teal: "#5B2FD1",
   orange: "#B8860B",
   grey: "#4A4F73",
@@ -55,7 +59,7 @@ const modalityLabel: Record<string, string> = {
 };
 
 const inputClass =
-  "h-9 w-full rounded-md border border-neutral-300 px-2 text-sm outline-none focus:border-[#1D3FBF] focus:ring-1 focus:ring-[#1D3FBF]";
+  "h-9 w-full rounded-md border border-neutral-300 px-2 text-sm outline-none focus:border-[#21CF3C] focus:ring-1 focus:ring-[#21CF3C]";
 
 let tempIdCounter = 0;
 function tempId() {
@@ -435,7 +439,7 @@ export function PropuestaEditor({
             />
             <ChecklistBox
               title="Servicios personalizados"
-              color={BRAND.blue}
+              color={BRAND.blueText}
               items={includedServices.map((s) => ({
                 key: s.name,
                 label: s.name,
@@ -454,7 +458,7 @@ export function PropuestaEditor({
           <HeroNumber
             label="Valor Propuesta Final"
             value={formatCOP(tarifarioSummary.valorPropuestaFinal)}
-            color={BRAND.blue}
+            color={BRAND.blueText}
             large
           />
         </Slide>
@@ -556,7 +560,7 @@ export function PropuestaEditor({
             <HeroNumber
               label="Total Propuesta (IVA incluido)"
               value={formatCOP(discount.valorConDescuento + discount.ivaFinal)}
-              color={BRAND.blue}
+              color={BRAND.blueText}
               large
             />
           </div>
