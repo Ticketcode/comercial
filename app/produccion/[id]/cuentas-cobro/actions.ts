@@ -52,6 +52,49 @@ export async function uploadCuentasCobro(proposalId: string, formData: FormData)
   return { error: null, count: rows.length };
 }
 
+export interface AddCuentaCobroInput {
+  nombre_completo: string;
+  cedula: string;
+  ciudad_expedicion_cedula: string | null;
+  banco: string | null;
+  tipo_cuenta: string | null;
+  numero_cuenta: string | null;
+  concepto: string;
+  valor: number;
+  ciudad_evento: string | null;
+}
+
+export async function addCuentaCobro(proposalId: string, data: AddCuentaCobroInput) {
+  const supabase = await assertAccess();
+
+  if (!data.nombre_completo.trim() || !data.cedula.trim()) {
+    return { error: "Nombre y cédula son obligatorios." };
+  }
+
+  const { count } = await supabase
+    .from("cuentas_cobro")
+    .select("id", { count: "exact", head: true })
+    .eq("proposal_id", proposalId);
+
+  const { error } = await supabase.from("cuentas_cobro").insert({
+    proposal_id: proposalId,
+    nombre_completo: data.nombre_completo.trim(),
+    cedula: data.cedula.trim(),
+    ciudad_expedicion_cedula: data.ciudad_expedicion_cedula?.trim() || null,
+    banco: data.banco?.trim() || null,
+    tipo_cuenta: data.tipo_cuenta?.trim() || null,
+    numero_cuenta: data.numero_cuenta?.trim() || null,
+    concepto: data.concepto.trim(),
+    valor: data.valor,
+    ciudad_evento: data.ciudad_evento?.trim() || null,
+    sort_order: count ?? 0,
+  });
+  if (error) return { error: error.message };
+
+  revalidatePath(`/produccion/${proposalId}/cuentas-cobro`);
+  return { error: null };
+}
+
 export async function markFirmada(id: string, proposalId: string, firmada: boolean) {
   const supabase = await assertAccess();
   const { error } = await supabase

@@ -227,6 +227,23 @@ export function ProduccionEditor({
     if (!isTemp(id)) setDeletedGiroIds((prev) => [...prev, id]);
   }
 
+  /** Intercambia el sort_order de este rubro con el de su vecino para reordenar la fila. */
+  function moveGiro(staffId: string, id: string, direction: "up" | "down") {
+    setGiros((prev) => {
+      const mine = prev.filter((g) => g.staff_id === staffId).sort((a, b) => a.sort_order - b.sort_order);
+      const idx = mine.findIndex((g) => g.id === id);
+      const swapIdx = direction === "up" ? idx - 1 : idx + 1;
+      if (idx === -1 || swapIdx < 0 || swapIdx >= mine.length) return prev;
+      const a = mine[idx];
+      const b = mine[swapIdx];
+      return prev.map((g) => {
+        if (g.id === a.id) return { ...g, sort_order: b.sort_order };
+        if (g.id === b.id) return { ...g, sort_order: a.sort_order };
+        return g;
+      });
+    });
+  }
+
   function addAnticipo(staffId: string) {
     setAnticipos((prev) => [
       ...prev,
@@ -267,6 +284,7 @@ export function ProduccionEditor({
     for (const g of giros) {
       (map[g.staff_id] ??= []).push(g);
     }
+    for (const k in map) map[k].sort((a, b) => a.sort_order - b.sort_order);
     return map;
   }, [giros]);
 
@@ -593,11 +611,11 @@ export function ProduccionEditor({
                         <th className="w-16 py-2">Cant.</th>
                         <th className="w-28 py-2">Vlr. unitario</th>
                         <th className="w-28 py-2">Monto</th>
-                        <th className="w-8 py-2"></th>
+                        <th className="w-20 py-2"></th>
                       </tr>
                     </thead>
                     <tbody>
-                      {activeGiros.map((g) => (
+                      {activeGiros.map((g, idx) => (
                         <tr key={g.id} className="border-t border-neutral-100">
                           <td className="py-1.5 pr-2">
                             <input
@@ -669,33 +687,61 @@ export function ProduccionEditor({
                             <input
                               type="number"
                               min={0}
-                              aria-label="Cantidad"
+                              aria-label={g.rubro === "Honorarios" ? "Días" : "Cantidad"}
                               value={g.cantidad}
                               onChange={(e) => patchGiro(g.id, { cantidad: Number(e.target.value) || 0 })}
                               className={inputClass}
                             />
+                            {g.rubro === "Honorarios" && (
+                              <p className="mt-0.5 text-[10px] text-neutral-400">días</p>
+                            )}
                           </td>
                           <td className="py-1.5 pr-2">
                             <MoneyInput
-                              aria-label="Valor unitario"
+                              aria-label={g.rubro === "Honorarios" ? "Valor por día" : "Valor unitario"}
                               value={g.valor_unitario}
                               onChange={(v) => patchGiro(g.id, { valor_unitario: v ?? 0 })}
                               className={inputClass}
                             />
+                            {g.rubro === "Honorarios" && (
+                              <p className="mt-0.5 text-[10px] text-neutral-400">valor por día</p>
+                            )}
                           </td>
                           <td className="py-1.5 pr-2 text-right font-medium text-neutral-700">
                             {formatCOP(g.monto)}
                           </td>
                           <td className="py-1.5">
-                            <button
-                              type="button"
-                              onClick={() => removeGiro(g.id)}
-                              className="icon-btn"
-                              title="Quitar rubro"
-                              aria-label="Quitar rubro"
-                            >
-                              ✕
-                            </button>
+                            <div className="flex items-center gap-0.5">
+                              <button
+                                type="button"
+                                onClick={() => moveGiro(activeStaff.id, g.id, "up")}
+                                disabled={idx === 0}
+                                className="icon-btn disabled:opacity-30"
+                                title="Mover arriba"
+                                aria-label="Mover rubro arriba"
+                              >
+                                ↑
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => moveGiro(activeStaff.id, g.id, "down")}
+                                disabled={idx === activeGiros.length - 1}
+                                className="icon-btn disabled:opacity-30"
+                                title="Mover abajo"
+                                aria-label="Mover rubro abajo"
+                              >
+                                ↓
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => removeGiro(g.id)}
+                                className="icon-btn"
+                                title="Quitar rubro"
+                                aria-label="Quitar rubro"
+                              >
+                                ✕
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))}

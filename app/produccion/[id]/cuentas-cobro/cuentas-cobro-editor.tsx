@@ -9,12 +9,29 @@ import { formatCOP } from "@/lib/pricing/summary";
 import { formatFechaCorta } from "@/lib/fecha-local";
 import {
   uploadCuentasCobro,
+  addCuentaCobro,
   markFirmada,
   deleteAllCuentasCobro,
   deleteCuentaCobro,
   regenerarEnlaceCuentaCobro,
   deshacerFirma,
+  type AddCuentaCobroInput,
 } from "./actions";
+
+const inputClass =
+  "h-9 w-full rounded-md border border-neutral-300 px-2 text-sm outline-none focus:border-accent focus:ring-1 focus:ring-accent";
+
+const emptyForm: AddCuentaCobroInput = {
+  nombre_completo: "",
+  cedula: "",
+  ciudad_expedicion_cedula: "",
+  banco: "",
+  tipo_cuenta: "",
+  numero_cuenta: "",
+  concepto: "",
+  valor: 0,
+  ciudad_evento: "",
+};
 
 async function downloadTemplate() {
   const xlsx = await import("xlsx");
@@ -59,9 +76,31 @@ export function CuentasCobroEditor({
   const [copiedId, setCopiedId] = useState<string | null>(null);
   // "all" o el id de la cuenta que está esperando confirmación de borrado
   const [confirming, setConfirming] = useState<string | null>(null);
+  const [addOpen, setAddOpen] = useState(false);
+  const [addForm, setAddForm] = useState<AddCuentaCobroInput>(emptyForm);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
   const confirm = useConfirm();
+
+  function patchAddForm<K extends keyof AddCuentaCobroInput>(key: K, value: AddCuentaCobroInput[K]) {
+    setAddForm((prev) => ({ ...prev, [key]: value }));
+  }
+
+  function handleAddPersona(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setMessage(null);
+    startTransition(async () => {
+      const result = await callSafe(() => addCuentaCobro(proposalId, addForm));
+      if (result.error) {
+        setMessage(`Error: ${friendlyError(result.error)}`);
+      } else {
+        setMessage(`Se agregó ${addForm.nombre_completo}.`);
+        setAddForm(emptyForm);
+        setAddOpen(false);
+      }
+      router.refresh();
+    });
+  }
 
   // Se antepone el nombre al enlace: si se copian y pegan varios enlaces juntos en un
   // mismo chat, cada persona necesita poder identificar cuál le corresponde.
@@ -259,6 +298,108 @@ export function CuentasCobroEditor({
           Descargar plantilla de Excel
         </button>
         {message && <p className="mt-2 text-xs text-neutral-600">{message}</p>}
+      </section>
+
+      <section className="rounded-xl border border-neutral-200 bg-white p-5">
+        {!addOpen ? (
+          <button
+            type="button"
+            onClick={() => setAddOpen(true)}
+            className="btn btn-secondary"
+          >
+            + Agregar colaborador
+          </button>
+        ) : (
+          <>
+            <h3 className="mb-3 text-sm font-semibold text-neutral-900">Agregar colaborador</h3>
+            <form onSubmit={handleAddPersona} className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <input
+                aria-label="Nombre completo"
+                placeholder="Nombre completo"
+                required
+                value={addForm.nombre_completo}
+                onChange={(e) => patchAddForm("nombre_completo", e.target.value)}
+                className={inputClass}
+              />
+              <input
+                aria-label="Cédula"
+                placeholder="Cédula"
+                required
+                value={addForm.cedula}
+                onChange={(e) => patchAddForm("cedula", e.target.value)}
+                className={inputClass}
+              />
+              <input
+                aria-label="Ciudad de expedición"
+                placeholder="Ciudad de expedición"
+                value={addForm.ciudad_expedicion_cedula ?? ""}
+                onChange={(e) => patchAddForm("ciudad_expedicion_cedula", e.target.value)}
+                className={inputClass}
+              />
+              <input
+                aria-label="Banco"
+                placeholder="Banco"
+                value={addForm.banco ?? ""}
+                onChange={(e) => patchAddForm("banco", e.target.value)}
+                className={inputClass}
+              />
+              <input
+                aria-label="Tipo de cuenta"
+                placeholder="Tipo de cuenta"
+                value={addForm.tipo_cuenta ?? ""}
+                onChange={(e) => patchAddForm("tipo_cuenta", e.target.value)}
+                className={inputClass}
+              />
+              <input
+                aria-label="Número de cuenta"
+                placeholder="Número de cuenta"
+                value={addForm.numero_cuenta ?? ""}
+                onChange={(e) => patchAddForm("numero_cuenta", e.target.value)}
+                className={inputClass}
+              />
+              <input
+                aria-label="Concepto"
+                placeholder="Concepto"
+                required
+                value={addForm.concepto}
+                onChange={(e) => patchAddForm("concepto", e.target.value)}
+                className={inputClass}
+              />
+              <input
+                aria-label="Valor"
+                type="number"
+                min={0}
+                placeholder="Valor"
+                required
+                value={addForm.valor || ""}
+                onChange={(e) => patchAddForm("valor", Number(e.target.value) || 0)}
+                className={inputClass}
+              />
+              <input
+                aria-label="Ciudad del evento"
+                placeholder="Ciudad del evento"
+                value={addForm.ciudad_evento ?? ""}
+                onChange={(e) => patchAddForm("ciudad_evento", e.target.value)}
+                className={inputClass}
+              />
+              <div className="flex items-center gap-2 sm:col-span-3">
+                <button type="submit" disabled={isPending} className="btn btn-primary">
+                  {isPending ? "Agregando..." : "Agregar"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAddOpen(false);
+                    setAddForm(emptyForm);
+                  }}
+                  className="text-xs text-neutral-500 hover:text-neutral-800"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </form>
+          </>
+        )}
       </section>
 
       {cuentas.length > 0 && (

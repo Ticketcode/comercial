@@ -189,6 +189,7 @@ export function LegalizacionEditor({
     for (const g of gastos) {
       (map[g.staff_id] ??= []).push(g);
     }
+    for (const k in map) map[k].sort((a, b) => a.sort_order - b.sort_order);
     return map;
   }, [gastos]);
 
@@ -248,6 +249,23 @@ export function LegalizacionEditor({
     }
     setGastos((prev) => prev.filter((g) => g.id !== id));
     if (!isTemp(id)) setDeletedIds((prev) => [...prev, id]);
+  }
+
+  /** Intercambia el sort_order de este gasto con el de su vecino para reordenar la fila. */
+  function moveGasto(staffId: string, id: string, direction: "up" | "down") {
+    setGastos((prev) => {
+      const mine = prev.filter((g) => g.staff_id === staffId).sort((a, b) => a.sort_order - b.sort_order);
+      const idx = mine.findIndex((g) => g.id === id);
+      const swapIdx = direction === "up" ? idx - 1 : idx + 1;
+      if (idx === -1 || swapIdx < 0 || swapIdx >= mine.length) return prev;
+      const a = mine[idx];
+      const b = mine[swapIdx];
+      return prev.map((g) => {
+        if (g.id === a.id) return { ...g, sort_order: b.sort_order };
+        if (g.id === b.id) return { ...g, sort_order: a.sort_order };
+        return g;
+      });
+    });
   }
 
   function validar(): string[] {
@@ -507,11 +525,11 @@ export function LegalizacionEditor({
                       <th className="w-40 py-1">Rubro</th>
                       <th className="py-1">Concepto</th>
                       <th className="w-28 py-1 text-right">Valor</th>
-                      <th className="w-8 py-1"></th>
+                      <th className="w-20 py-1"></th>
                     </tr>
                   </thead>
                   <tbody>
-                    {activeGastos.map((g) => (
+                    {activeGastos.map((g, idx) => (
                       <tr key={g.id} className="border-t border-neutral-100">
                         <td className="py-1 pr-1">
                           <input
@@ -564,15 +582,37 @@ export function LegalizacionEditor({
                           />
                         </td>
                         <td className="py-1">
-                          <button
-                            type="button"
-                            onClick={() => removeGasto(g.id)}
-                            className="icon-btn"
-                            title="Quitar gasto"
-                            aria-label="Quitar gasto"
-                          >
-                            ✕
-                          </button>
+                          <div className="flex items-center gap-0.5">
+                            <button
+                              type="button"
+                              onClick={() => activeStaff && moveGasto(activeStaff.id, g.id, "up")}
+                              disabled={idx === 0}
+                              className="icon-btn disabled:opacity-30"
+                              title="Mover arriba"
+                              aria-label="Mover gasto arriba"
+                            >
+                              ↑
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => activeStaff && moveGasto(activeStaff.id, g.id, "down")}
+                              disabled={idx === activeGastos.length - 1}
+                              className="icon-btn disabled:opacity-30"
+                              title="Mover abajo"
+                              aria-label="Mover gasto abajo"
+                            >
+                              ↓
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => removeGasto(g.id)}
+                              className="icon-btn"
+                              title="Quitar gasto"
+                              aria-label="Quitar gasto"
+                            >
+                              ✕
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
