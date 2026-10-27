@@ -28,6 +28,7 @@ export interface SaveGiroRow {
   estado: ViaticoEstado;
   fecha_giro: string | null;
   notas: string | null;
+  personas: number | null;
   sort_order: number;
 }
 
@@ -133,6 +134,7 @@ export async function saveProduccion(payload: SaveProduccionPayload) {
           estado: g.estado,
           fecha_giro: g.fecha_giro || null,
           notas: g.notas,
+          personas: g.personas,
           sort_order: g.sort_order,
         })
         .eq("id", g.id)
@@ -154,6 +156,7 @@ export async function saveProduccion(payload: SaveProduccionPayload) {
         estado: g.estado,
         fecha_giro: g.fecha_giro || null,
         notas: g.notas,
+        personas: g.personas,
         sort_order: g.sort_order,
       }))
     );

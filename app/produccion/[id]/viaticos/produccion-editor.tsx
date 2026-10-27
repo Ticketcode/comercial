@@ -7,8 +7,12 @@ import { formatFechaCorta } from "@/lib/fecha-local";
 import { LabeledField } from "@/app/components/labeled-field";
 import { MoneyInput } from "@/app/components/money-input";
 import { MobileSaveBar, SaveStatus, useConfirm, useUnsavedChanges } from "@/app/components/ui-guard";
+import { SortableRow, DragHandle } from "@/app/components/sortable-row";
 import { callSafe, problemsMessage, saveErrorMessage } from "@/lib/errors";
 import { saveProduccion, type SaveStaffRow, type SaveGiroRow, type SaveAnticipoRow } from "./actions";
+import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
+import { SortableContext, verticalListSortingStrategy, arrayMove } from "@dnd-kit/sortable";
+import { restrictToVerticalAxis, restrictToParentElement } from "@dnd-kit/modifiers";
 
 interface TarifasReferencia {
   alimentacion: Record<string, number>;
@@ -185,6 +189,7 @@ export function ProduccionEditor({
         estado: "pendiente",
         fecha_giro: null,
         notas: "",
+        personas: null,
         sort_order: prev.length,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
@@ -197,8 +202,10 @@ export function ProduccionEditor({
       prev.map((g) => {
         if (g.id !== id) return g;
         const next = { ...g, ...patch };
-        if (patch.cantidad !== undefined || patch.valor_unitario !== undefined) {
-          next.monto = Math.round(next.cantidad * next.valor_unitario);
+        if (patch.cantidad !== undefined || patch.valor_unitario !== undefined || patch.personas !== undefined) {
+          // Para Honorarios, personas multiplica (N° logísticos x días x valor por día);
+          // en el resto de rubros personas es null y no afecta el cálculo de siempre.
+          next.monto = Math.round(next.cantidad * next.valor_unitario * (next.personas || 1));
         }
         return next;
       })
@@ -210,6 +217,7 @@ export function ProduccionEditor({
       rubro: label,
       concepto: label,
       valor_unitario: valorUnitario ?? 0,
+      personas: null,
     });
   }
 
@@ -227,22 +235,25 @@ export function ProduccionEditor({
     if (!isTemp(id)) setDeletedGiroIds((prev) => [...prev, id]);
   }
 
-  /** Intercambia el sort_order de este rubro con el de su vecino para reordenar la fila. */
-  function moveGiro(staffId: string, id: string, direction: "up" | "down") {
-    setGiros((prev) => {
-      const mine = prev.filter((g) => g.staff_id === staffId).sort((a, b) => a.sort_order - b.sort_order);
-      const idx = mine.findIndex((g) => g.id === id);
-      const swapIdx = direction === "up" ? idx - 1 : idx + 1;
-      if (idx === -1 || swapIdx < 0 || swapIdx >= mine.length) return prev;
-      const a = mine[idx];
-      const b = mine[swapIdx];
-      return prev.map((g) => {
-        if (g.id === a.id) return { ...g, sort_order: b.sort_order };
-        if (g.id === b.id) return { ...g, sort_order: a.sort_order };
-        return g;
-      });
-    });
+  /** Renumera el sort_order de los rubros de esta persona según el nuevo orden arrastrado. */
+  function reorderGiros(staffId: string, orderedIds: string[]) {
+    const order = new Map(orderedIds.map((id, i) => [id, i]));
+    setGiros((prev) =>
+      prev.map((g) => (g.staff_id === staffId && order.has(g.id) ? { ...g, sort_order: order.get(g.id)! } : g))
+    );
   }
+
+  function handleGiroDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (!over || active.id === over.id || !activeStaff) return;
+    const ids = girosByStaff[activeStaff.id]?.map((g) => g.id) ?? [];
+    const oldIndex = ids.indexOf(String(active.id));
+    const newIndex = ids.indexOf(String(over.id));
+    if (oldIndex === -1 || newIndex === -1) return;
+    reorderGiros(activeStaff.id, arrayMove(ids, oldIndex, newIndex));
+  }
+
+  const dndSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
 
   function addAnticipo(staffId: string) {
     setAnticipos((prev) => [
@@ -369,6 +380,7 @@ export function ProduccionEditor({
         estado: g.estado,
         fecha_giro: g.fecha_giro,
         notas: g.notas,
+        personas: g.personas,
         sort_order: g.sort_order,
       });
       const toAnticipoRow = (a: ViaticoAnticipo): SaveAnticipoRow => ({
@@ -602,21 +614,34 @@ export function ProduccionEditor({
                     </button>
                   </div>
                   <div className="overflow-x-auto">
+                  <DndContext
+                    sensors={dndSensors}
+                    collisionDetection={closestCenter}
+                    modifiers={[restrictToVerticalAxis, restrictToParentElement]}
+                    onDragEnd={handleGiroDragEnd}
+                  >
                   <table className="w-full min-w-[680px] text-sm">
                     <thead>
                       <tr className="text-left text-xs text-neutral-400">
+                        <th className="w-8 py-2"></th>
                         <th className="w-32 py-2">Fecha</th>
                         <th className="w-40 py-2">Rubro</th>
                         <th className="py-2">Concepto</th>
-                        <th className="w-16 py-2">Cant.</th>
+                        <th className="w-24 py-2">Cant.</th>
                         <th className="w-28 py-2">Vlr. unitario</th>
                         <th className="w-28 py-2">Monto</th>
-                        <th className="w-20 py-2"></th>
+                        <th className="w-10 py-2"></th>
                       </tr>
                     </thead>
+                    <SortableContext items={activeGiros.map((g) => g.id)} strategy={verticalListSortingStrategy}>
                     <tbody>
-                      {activeGiros.map((g, idx) => (
-                        <tr key={g.id} className="border-t border-neutral-100">
+                      {activeGiros.map((g) => (
+                        <SortableRow key={g.id} id={g.id}>
+                          {(handle) => (
+                          <>
+                          <td className="py-1.5 pr-1">
+                            <DragHandle {...handle} label="Arrastrar para reordenar rubro" />
+                          </td>
                           <td className="py-1.5 pr-2">
                             <input
                               type="date"
@@ -640,7 +665,10 @@ export function ProduccionEditor({
                                 if (tarifa !== null) {
                                   selectRubroTarifa(g.id, label, tarifa);
                                 } else {
-                                  patchGiro(g.id, { rubro: label });
+                                  patchGiro(g.id, {
+                                    rubro: label,
+                                    personas: label === "Honorarios" ? g.personas : null,
+                                  });
                                 }
                               }}
                               className={inputClass}
@@ -684,16 +712,39 @@ export function ProduccionEditor({
                             />
                           </td>
                           <td className="py-1.5 pr-2">
-                            <input
-                              type="number"
-                              min={0}
-                              aria-label={g.rubro === "Honorarios" ? "Días" : "Cantidad"}
-                              value={g.cantidad}
-                              onChange={(e) => patchGiro(g.id, { cantidad: Number(e.target.value) || 0 })}
-                              className={inputClass}
-                            />
-                            {g.rubro === "Honorarios" && (
-                              <p className="mt-0.5 text-[10px] text-neutral-400">días</p>
+                            {g.rubro === "Honorarios" ? (
+                              <div className="space-y-1">
+                                <input
+                                  type="number"
+                                  min={0}
+                                  aria-label="N° de logísticos"
+                                  placeholder="N° logísticos"
+                                  value={g.personas ?? ""}
+                                  onChange={(e) =>
+                                    patchGiro(g.id, { personas: e.target.value ? Number(e.target.value) : null })
+                                  }
+                                  className={inputClass}
+                                />
+                                <p className="text-[10px] text-neutral-400">logísticos</p>
+                                <input
+                                  type="number"
+                                  min={0}
+                                  aria-label="Días"
+                                  value={g.cantidad}
+                                  onChange={(e) => patchGiro(g.id, { cantidad: Number(e.target.value) || 0 })}
+                                  className={inputClass}
+                                />
+                                <p className="text-[10px] text-neutral-400">días</p>
+                              </div>
+                            ) : (
+                              <input
+                                type="number"
+                                min={0}
+                                aria-label="Cantidad"
+                                value={g.cantidad}
+                                onChange={(e) => patchGiro(g.id, { cantidad: Number(e.target.value) || 0 })}
+                                className={inputClass}
+                              />
                             )}
                           </td>
                           <td className="py-1.5 pr-2">
@@ -711,42 +762,24 @@ export function ProduccionEditor({
                             {formatCOP(g.monto)}
                           </td>
                           <td className="py-1.5">
-                            <div className="flex items-center gap-0.5">
-                              <button
-                                type="button"
-                                onClick={() => moveGiro(activeStaff.id, g.id, "up")}
-                                disabled={idx === 0}
-                                className="icon-btn disabled:opacity-30"
-                                title="Mover arriba"
-                                aria-label="Mover rubro arriba"
-                              >
-                                ↑
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => moveGiro(activeStaff.id, g.id, "down")}
-                                disabled={idx === activeGiros.length - 1}
-                                className="icon-btn disabled:opacity-30"
-                                title="Mover abajo"
-                                aria-label="Mover rubro abajo"
-                              >
-                                ↓
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => removeGiro(g.id)}
-                                className="icon-btn"
-                                title="Quitar rubro"
-                                aria-label="Quitar rubro"
-                              >
-                                ✕
-                              </button>
-                            </div>
+                            <button
+                              type="button"
+                              onClick={() => removeGiro(g.id)}
+                              className="icon-btn"
+                              title="Quitar rubro"
+                              aria-label="Quitar rubro"
+                            >
+                              ✕
+                            </button>
                           </td>
-                        </tr>
+                          </>
+                          )}
+                        </SortableRow>
                       ))}
                     </tbody>
+                    </SortableContext>
                   </table>
+                  </DndContext>
                   </div>
                   {activeGiros.length === 0 && (
                     <p className="py-3 text-sm text-neutral-400">
@@ -996,7 +1029,9 @@ export function ProduccionEditor({
                                   {g.fecha_giro ? formatFechaCorta(g.fecha_giro) : "—"}
                                 </td>
                                 <td className="py-1">{g.concepto || g.rubro || "—"}</td>
-                                <td className="py-1 text-right">{g.cantidad}</td>
+                                <td className="py-1 text-right">
+                                  {g.personas ? `${g.cantidad} × ${g.personas}` : g.cantidad}
+                                </td>
                                 <td className="py-1 text-right">{formatCOP(g.valor_unitario)}</td>
                                 <td className="py-1 text-right">{formatCOP(g.monto)}</td>
                               </tr>

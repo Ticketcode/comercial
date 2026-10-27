@@ -7,6 +7,7 @@ import { formatFechaCorta } from "@/lib/fecha-local";
 import { LabeledField } from "@/app/components/labeled-field";
 import { MoneyInput } from "@/app/components/money-input";
 import { MobileSaveBar, SaveStatus, useConfirm, useUnsavedChanges } from "@/app/components/ui-guard";
+import { SortableRow, DragHandle } from "@/app/components/sortable-row";
 import { callSafe, problemsMessage, saveErrorMessage } from "@/lib/errors";
 import {
   saveLegalizacion,
@@ -15,6 +16,9 @@ import {
   type SaveGastoRow,
   type SaveMetaRow,
 } from "./actions";
+import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
+import { SortableContext, verticalListSortingStrategy, arrayMove } from "@dnd-kit/sortable";
+import { restrictToVerticalAxis, restrictToParentElement } from "@dnd-kit/modifiers";
 
 interface Props {
   proposalId: string;
@@ -251,22 +255,25 @@ export function LegalizacionEditor({
     if (!isTemp(id)) setDeletedIds((prev) => [...prev, id]);
   }
 
-  /** Intercambia el sort_order de este gasto con el de su vecino para reordenar la fila. */
-  function moveGasto(staffId: string, id: string, direction: "up" | "down") {
-    setGastos((prev) => {
-      const mine = prev.filter((g) => g.staff_id === staffId).sort((a, b) => a.sort_order - b.sort_order);
-      const idx = mine.findIndex((g) => g.id === id);
-      const swapIdx = direction === "up" ? idx - 1 : idx + 1;
-      if (idx === -1 || swapIdx < 0 || swapIdx >= mine.length) return prev;
-      const a = mine[idx];
-      const b = mine[swapIdx];
-      return prev.map((g) => {
-        if (g.id === a.id) return { ...g, sort_order: b.sort_order };
-        if (g.id === b.id) return { ...g, sort_order: a.sort_order };
-        return g;
-      });
-    });
+  /** Renumera el sort_order de los gastos de esta persona según el nuevo orden arrastrado. */
+  function reorderGastos(staffId: string, orderedIds: string[]) {
+    const order = new Map(orderedIds.map((id, i) => [id, i]));
+    setGastos((prev) =>
+      prev.map((g) => (g.staff_id === staffId && order.has(g.id) ? { ...g, sort_order: order.get(g.id)! } : g))
+    );
   }
+
+  function handleGastoDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (!over || active.id === over.id || !activeStaff) return;
+    const ids = gastosByStaff[activeStaff.id]?.map((g) => g.id) ?? [];
+    const oldIndex = ids.indexOf(String(active.id));
+    const newIndex = ids.indexOf(String(over.id));
+    if (oldIndex === -1 || newIndex === -1) return;
+    reorderGastos(activeStaff.id, arrayMove(ids, oldIndex, newIndex));
+  }
+
+  const dndSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
 
   function validar(): string[] {
     const problems: string[] = [];
@@ -516,21 +523,34 @@ export function LegalizacionEditor({
                 </p>
               ) : (
                 <div className="overflow-x-auto">
+                <DndContext
+                  sensors={dndSensors}
+                  collisionDetection={closestCenter}
+                  modifiers={[restrictToVerticalAxis, restrictToParentElement]}
+                  onDragEnd={handleGastoDragEnd}
+                >
                 <table className="w-full min-w-[720px] text-sm">
                   <thead>
                     <tr className="text-left text-xs text-neutral-400">
+                      <th className="w-8 py-1"></th>
                       <th className="w-28 py-1">Fecha</th>
                       <th className="w-24 py-1">N° Recibo</th>
                       <th className="py-1">Tercero</th>
                       <th className="w-40 py-1">Rubro</th>
                       <th className="py-1">Concepto</th>
                       <th className="w-28 py-1 text-right">Valor</th>
-                      <th className="w-20 py-1"></th>
+                      <th className="w-10 py-1"></th>
                     </tr>
                   </thead>
+                  <SortableContext items={activeGastos.map((g) => g.id)} strategy={verticalListSortingStrategy}>
                   <tbody>
-                    {activeGastos.map((g, idx) => (
-                      <tr key={g.id} className="border-t border-neutral-100">
+                    {activeGastos.map((g) => (
+                      <SortableRow key={g.id} id={g.id}>
+                      {(handle) => (
+                      <>
+                      <td className="py-1 pr-1">
+                        <DragHandle {...handle} label="Arrastrar para reordenar gasto" />
+                      </td>
                         <td className="py-1 pr-1">
                           <input
                             type="date"
@@ -582,42 +602,24 @@ export function LegalizacionEditor({
                           />
                         </td>
                         <td className="py-1">
-                          <div className="flex items-center gap-0.5">
-                            <button
-                              type="button"
-                              onClick={() => activeStaff && moveGasto(activeStaff.id, g.id, "up")}
-                              disabled={idx === 0}
-                              className="icon-btn disabled:opacity-30"
-                              title="Mover arriba"
-                              aria-label="Mover gasto arriba"
-                            >
-                              ↑
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => activeStaff && moveGasto(activeStaff.id, g.id, "down")}
-                              disabled={idx === activeGastos.length - 1}
-                              className="icon-btn disabled:opacity-30"
-                              title="Mover abajo"
-                              aria-label="Mover gasto abajo"
-                            >
-                              ↓
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => removeGasto(g.id)}
-                              className="icon-btn"
-                              title="Quitar gasto"
-                              aria-label="Quitar gasto"
-                            >
-                              ✕
-                            </button>
-                          </div>
+                          <button
+                            type="button"
+                            onClick={() => removeGasto(g.id)}
+                            className="icon-btn"
+                            title="Quitar gasto"
+                            aria-label="Quitar gasto"
+                          >
+                            ✕
+                          </button>
                         </td>
-                      </tr>
+                      </>
+                      )}
+                      </SortableRow>
                     ))}
                   </tbody>
+                  </SortableContext>
                 </table>
+                </DndContext>
                 </div>
               )}
               <datalist id="rubros-list">

@@ -214,6 +214,8 @@ export interface ViaticoGiro {
   estado: ViaticoEstado;
   fecha_giro: string | null;
   notas: string | null;
+  /** N° de logísticos — solo aplica al rubro Honorarios (cantidad pasa a ser días). */
+  personas: number | null;
   sort_order: number;
   created_at: string;
   updated_at: string;
