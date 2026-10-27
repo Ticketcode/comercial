@@ -4,9 +4,13 @@ import type { DraggableAttributes } from "@dnd-kit/core";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 
+// Se deriva del propio hook (en vez de anotar el tipo "Function" a mano) porque
+// SyntheticListenerMap de dnd-kit no es compatible con una firma de función explícita.
+type SortableListeners = ReturnType<typeof useSortable>["listeners"];
+
 export interface SortableHandleProps {
   attributes: DraggableAttributes;
-  listeners: Record<string, Function> | undefined;
+  listeners: SortableListeners;
 }
 
 /** Fila de tabla arrastrable (dnd-kit) — el handle se pasa al render-prop para que solo ese
