@@ -18,6 +18,8 @@ export interface TarifarioSummary {
   costoAsesorComercial: number;
   valorPropuestaFinal: number;
   iva: number;
+  ivaRate: number;
+  baseGravable: number;
 }
 
 /**
@@ -74,6 +76,12 @@ export function computeTarifarioSummary(
   const costoAsesorComercial = valorPropuestaInicial * Number(proposal.comision_asesor_pct);
   const valorPropuestaFinal = valorPropuestaInicial + costoDirectorComercial + costoAsesorComercial;
 
+  // Tasa de IVA y base gravable: por defecto se calcula igual que siempre
+  // (19% sobre el valor final), pero el comercial puede fijarlas a mano
+  // en el resumen del Tarifario para ese caso puntual.
+  const ivaRate = proposal.iva_rate_override ?? IVA_RATE;
+  const baseGravable = proposal.base_gravable_override ?? valorPropuestaFinal;
+
   return {
     logistica,
     subtotalServicios,
@@ -83,7 +91,9 @@ export function computeTarifarioSummary(
     costoDirectorComercial,
     costoAsesorComercial,
     valorPropuestaFinal,
-    iva: valorPropuestaFinal * IVA_RATE,
+    ivaRate,
+    baseGravable,
+    iva: baseGravable * ivaRate,
   };
 }
 

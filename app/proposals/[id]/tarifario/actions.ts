@@ -38,6 +38,8 @@ export interface SaveTarifarioPayload {
     extra_compra_agua: boolean;
     extra_compra_bloqueador_solar: boolean;
     extra_actividad_cierre: boolean;
+    iva_rate_override: number | null;
+    base_gravable_override: number | null;
   };
   serviceItems: SaveTarifarioItem[];
   salonesInternosAforos: number[];

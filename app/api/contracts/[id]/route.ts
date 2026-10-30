@@ -6,7 +6,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import type { Proposal, ProposalCostItem } from "@/lib/types";
 import { buildLogisticsRates } from "@/lib/pricing/logistics";
-import { applyCommercialDiscount, computeTarifarioSummary } from "@/lib/pricing/summary";
+import { applyCommercialDiscount, computeTarifarioSummary, formatCOP } from "@/lib/pricing/summary";
 import { getValidServiceCostItems } from "@/lib/data/service-items";
 import { numeroALetras } from "@/lib/numero-a-letras";
 import { fechaLarga, fechaFirmaLarga } from "@/lib/fecha-es";
@@ -35,6 +35,17 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     supabase.from("proposal_payment_milestones").select("*").eq("proposal_id", id).order("sort_order"),
   ]);
 
+  const { data: catalogItemsForModality } = await supabase
+    .from("catalog_items")
+    .select("*")
+    .in("category", ["componente_basico", "logistica_360"])
+    .in("modality", [proposal?.modality, "general"])
+    .order("sort_order");
+  const { data: catalogSelections } = await supabase
+    .from("proposal_catalog_selections")
+    .select("*")
+    .eq("proposal_id", id);
+
   if (!proposal) {
     return NextResponse.json({ error: "Propuesta no encontrada" }, { status: 404 });
   }
@@ -56,9 +67,31 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   const discount = applyCommercialDiscount(tarifarioSummary.valorPropuestaFinal, globalPct);
   const valorTotal = Math.round(discount.valorConDescuento + discount.ivaFinal);
 
+  // Cada hito de pago en pesos, sobre el valor final que paga el cliente (ya con IVA) —
+  // misma fórmula que ya se muestra en el paso de Propuesta.
   const formaPagoTexto = (milestones ?? [])
-    .map((m) => `${Number(m.pct)}% — ${m.label}`)
+    .map((m) => `${Number(m.pct)}% — ${m.label} — ${formatCOP((valorTotal * Number(m.pct)) / 100)}`)
     .join("\n");
+
+  // Los 3 bloques de "qué incluye" (componentes básicos, logística 360,
+  // servicios personalizados), igual fuente que la Propuesta: solo lo
+  // marcado como incluido.
+  function bulletList(names: string[]) {
+    return names.length > 0 ? names.map((n) => `• ${n}`).join("\n") : "No aplica para este evento.";
+  }
+  const includedCatalogNames = (category: string) =>
+    (catalogItemsForModality ?? [])
+      .filter((c) => c.category === category)
+      .filter((c) => (catalogSelections ?? []).find((s) => s.catalog_item_id === c.id)?.included)
+      .map((c) => {
+        const sel = (catalogSelections ?? []).find((s) => s.catalog_item_id === c.id);
+        return sel?.custom_name || c.name;
+      });
+  const componentesBasicosTexto = bulletList(includedCatalogNames("componente_basico"));
+  const logistica360Texto = bulletList(includedCatalogNames("logistica_360"));
+  const serviciosPersonalizadosTexto = bulletList(
+    validCostItems.filter((i) => i.included).map((i) => i.label)
+  );
 
   const f = fields ?? {};
 
@@ -84,6 +117,9 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     valor_contrato_letras: numeroALetras(valorTotal),
     valor_contrato_numero: valorTotal.toLocaleString("es-CO"),
     forma_pago_texto: formaPagoTexto || "____",
+    componentes_basicos_texto: componentesBasicosTexto,
+    logistica_360_texto: logistica360Texto,
+    servicios_personalizados_texto: serviciosPersonalizadosTexto,
     ciudad_firma: f.ciudad_firma || "Bogotá D.C.",
     fecha_firma_texto: fechaFirmaLarga(f.fecha_firma ?? null),
   };

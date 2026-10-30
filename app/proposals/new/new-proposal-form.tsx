@@ -34,13 +34,19 @@ export function NewProposalForm() {
             <label className={labelClass} htmlFor="client_name">
               Nombre del contacto
             </label>
-            <input id="client_name" name="client_name" required className={inputClass} />
+            <input id="client_name" name="client_name" required spellCheck lang="es" className={inputClass} />
           </div>
           <div className="space-y-1.5">
             <label className={labelClass} htmlFor="client_company">
               Empresa
             </label>
-            <input id="client_company" name="client_company" className={inputClass} />
+            <input id="client_company" name="client_company" spellCheck lang="es" className={inputClass} />
+          </div>
+          <div className="space-y-1.5">
+            <label className={labelClass} htmlFor="client_cargo">
+              Cargo del contacto
+            </label>
+            <input id="client_cargo" name="client_cargo" spellCheck lang="es" className={inputClass} />
           </div>
         </div>
       </fieldset>
@@ -51,7 +57,21 @@ export function NewProposalForm() {
           <label className={labelClass} htmlFor="event_name">
             Nombre del evento
           </label>
-          <input id="event_name" name="event_name" required className={inputClass} />
+          <input id="event_name" name="event_name" required spellCheck lang="es" className={inputClass} />
+        </div>
+
+        <div className="space-y-1.5">
+          <label className={labelClass} htmlFor="lugar">
+            Lugar
+          </label>
+          <input
+            id="lugar"
+            name="lugar"
+            placeholder="Ej. Centro de Convenciones..."
+            spellCheck
+            lang="es"
+            className={inputClass}
+          />
         </div>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -70,13 +90,28 @@ export function NewProposalForm() {
             <label className={labelClass} htmlFor="city">
               Ciudad
             </label>
-            <input id="city" name="city" className={inputClass} />
+            <input id="city" name="city" spellCheck lang="es" className={inputClass} />
           </div>
           <div className="space-y-1.5">
+            <label className={labelClass} htmlFor="dias">
+              Días de operación del evento
+            </label>
+            <input id="dias" name="dias" type="number" min={0} step="0.5" defaultValue={1} className={inputClass} />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="space-y-1.5">
             <label className={labelClass} htmlFor="aforo">
-              Aforo
+              Aforo presencial
             </label>
             <input id="aforo" name="aforo" type="number" min={0} className={inputClass} />
+          </div>
+          <div className="space-y-1.5">
+            <label className={labelClass} htmlFor="aforo_virtual">
+              Aforo virtual
+            </label>
+            <input id="aforo_virtual" name="aforo_virtual" type="number" min={0} className={inputClass} />
           </div>
         </div>
 

@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentProfile } from "@/lib/data/profile";
@@ -12,7 +13,10 @@ export default async function PerfilPage() {
 
   return (
     <div className="mx-auto max-w-xl px-6 py-10">
-      <h1 className="text-xl font-semibold text-neutral-900">Mi perfil</h1>
+      <Link href="/proposals" className="text-sm text-neutral-500 hover:underline">
+        ← Volver
+      </Link>
+      <h1 className="mt-2 text-xl font-semibold text-neutral-900">Mi perfil</h1>
       <p className="mt-1 text-sm text-neutral-500">
         Estos datos se usan como datos de contacto del asesor comercial en la Presentación de
         propuestas.

@@ -10,6 +10,7 @@ export interface SaveDatosPresentacionPayload {
   contactCargo: string;
   impactosRegistro: number | null;
   impactosAcreditacion: number | null;
+  hiddenSlides: string[];
 }
 
 export async function saveDatosPresentacion(payload: SaveDatosPresentacionPayload) {
@@ -31,6 +32,7 @@ export async function saveDatosPresentacion(payload: SaveDatosPresentacionPayloa
     .update({
       impactos_registro: payload.impactosRegistro,
       impactos_acreditacion: payload.impactosAcreditacion,
+      presentacion_hidden_slides: payload.hiddenSlides,
     })
     .eq("id", payload.proposalId);
   if (proposalError) return { error: proposalError.message };

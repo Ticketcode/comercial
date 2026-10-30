@@ -77,10 +77,17 @@ export default async function PropuestaPage({
   if (missingCatalogIds.length > 0) {
     const rows = missingCatalogIds.map((catalog_item_id) => {
       const item = catalogItemsForModality!.find((c) => c.id === catalog_item_id)!;
+      // Logística 360: si este ítem también existe como servicio personalizado en el
+      // Tarifario (mismo nombre), se usa lo que ahí se aprobó en vez del valor por
+      // defecto del catálogo — así no aparece marcado algo que nunca se seleccionó.
+      const tarifarioMatch =
+        item.category === "logistica_360"
+          ? allCostItems.find((c) => c.label === item.name)
+          : undefined;
       return {
         proposal_id: id,
         catalog_item_id,
-        included: item.default_included,
+        included: tarifarioMatch ? tarifarioMatch.included : item.default_included,
         quantity: 1,
       };
     });

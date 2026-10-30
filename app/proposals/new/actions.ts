@@ -14,10 +14,14 @@ export async function createProposal(
 ): Promise<NewProposalState> {
   const clientName = String(formData.get("client_name") ?? "").trim();
   const clientCompany = String(formData.get("client_company") ?? "").trim();
+  const clientCargo = String(formData.get("client_cargo") ?? "").trim();
   const eventName = String(formData.get("event_name") ?? "").trim();
+  const lugar = String(formData.get("lugar") ?? "").trim();
   const modality = String(formData.get("modality") ?? "");
   const city = String(formData.get("city") ?? "").trim();
   const aforo = Number(formData.get("aforo") ?? 0) || null;
+  const aforoVirtual = Number(formData.get("aforo_virtual") ?? 0) || 0;
+  const dias = Number(formData.get("dias") ?? 1) || 1;
   const eventStartDate = String(formData.get("event_start_date") ?? "") || null;
   const eventEndDate = String(formData.get("event_end_date") ?? "") || null;
 
@@ -38,6 +42,8 @@ export async function createProposal(
     .insert({
       name: clientName,
       company: clientCompany || null,
+      contact_name: clientName,
+      contact_cargo: clientCargo || null,
       city: city || null,
     })
     .select("id")
@@ -75,7 +81,10 @@ export async function createProposal(
       event_name: eventName,
       modality,
       city: city || null,
+      lugar: lugar || null,
       aforo,
+      aforo_virtual: aforoVirtual,
+      dias,
       event_start_date: eventStartDate,
       event_end_date: eventEndDate,
       ...staffingDefaults,

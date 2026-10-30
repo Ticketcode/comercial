@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
 import type { Modality, Proposal, ProposalCostItem } from "@/lib/types";
 import type {
@@ -44,6 +45,16 @@ const SALONES_INTERNOS_SERVICE_LABEL =
   "Módulo para obtención de datos en diferentes sitios simultáneos";
 const PREACREDITACION_SERVICE_LABEL = "Pre acreditación";
 
+// Servicios cuya cantidad se calcula sola (de solo lectura) en vez de digitarse a mano.
+const CLOUD_SERVER_LABEL = "Cloud server";
+const CLOUD_SERVER_VIRTUAL_LABEL = "Cloud server virtual";
+const AFORO_TOTAL_SERVICE_LABELS = new Set([
+  "Envío de correos electrónicos de confirmación personalizados",
+  "Envío de correos de recordación (hasta 2 envíos)",
+  "Envío de correos electrónicos de agradecimiento",
+  "Envío de certificados de asistencia",
+]);
+
 export function TarifarioEditor({
   proposal,
   serviceItems,
@@ -75,6 +86,8 @@ export function TarifarioEditor({
     extra_compra_agua: proposal.extra_compra_agua,
     extra_compra_bloqueador_solar: proposal.extra_compra_bloqueador_solar,
     extra_actividad_cierre: proposal.extra_actividad_cierre,
+    iva_rate_override: proposal.iva_rate_override,
+    base_gravable_override: proposal.base_gravable_override,
   });
 
   const [serviceRows, setServiceRows] = useState<Record<string, ServiceRow>>(() =>
@@ -176,6 +189,22 @@ export function TarifarioEditor({
     [salonesAforos]
   );
 
+  // Cantidad calculada (no digitada) para los servicios que dependen de aforo/días/tasa —
+  // devuelve null si el servicio no es uno de estos (se usa la cantidad digitada normal).
+  function computedServiceQuantity(label: string): number | null {
+    const tasa = eventFields.tasa_conversion_pct;
+    if (label === CLOUD_SERVER_LABEL) {
+      return Math.round(eventFields.aforo * eventFields.dias * tasa);
+    }
+    if (label === CLOUD_SERVER_VIRTUAL_LABEL) {
+      return Math.round(eventFields.aforo_virtual * eventFields.dias * tasa);
+    }
+    if (AFORO_TOTAL_SERVICE_LABELS.has(label)) {
+      return Math.round(eventFields.aforo + eventFields.aforo_virtual);
+    }
+    return null;
+  }
+
   const proposalForSummary: Proposal = useMemo(
     () => ({
       ...proposal,
@@ -191,10 +220,11 @@ export function TarifarioEditor({
       serviceItems.map((item) => ({
         ...item,
         included: serviceRows[item.id].included,
-        quantity: serviceRows[item.id].quantity,
+        quantity: computedServiceQuantity(item.label) ?? serviceRows[item.id].quantity,
         unit_cost: serviceRows[item.id].unit_cost,
       })),
-    [serviceItems, serviceRows]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [serviceItems, serviceRows, eventFields.aforo, eventFields.aforo_virtual, eventFields.dias, eventFields.tasa_conversion_pct]
   );
   const summary = useMemo(
     () =>
@@ -225,7 +255,11 @@ export function TarifarioEditor({
       const result = await callSafe(() => saveTarifario({
         proposalId: proposal.id,
         eventFields,
-        serviceItems: Object.values(serviceRows),
+        serviceItems: serviceItems.map((item) => {
+          const row = serviceRows[item.id];
+          const autoQty = computedServiceQuantity(item.label);
+          return autoQty !== null ? { ...row, quantity: autoQty } : row;
+        }),
         salonesInternosAforos: salonesAforos,
         logisticsOverrides,
       }));
@@ -256,6 +290,8 @@ export function TarifarioEditor({
             <Field label="Ciudad">
               <input
                 className={inputClass}
+                spellCheck
+                lang="es"
                 value={eventFields.city}
                 onChange={(e) => patchEvent("city", e.target.value)}
               />
@@ -488,7 +524,9 @@ export function TarifarioEditor({
             <tbody>
               {serviceItems.map((item) => {
                 const row = serviceRows[item.id];
-                const subtotal = row.included ? row.quantity * row.unit_cost : 0;
+                const autoQty = computedServiceQuantity(item.label);
+                const effectiveQty = autoQty ?? row.quantity;
+                const subtotal = row.included ? effectiveQty * row.unit_cost : 0;
                 const isSpecial =
                   item.label === PREACREDITACION_SERVICE_LABEL ||
                   item.label === SALONES_INTERNOS_SERVICE_LABEL;
@@ -503,7 +541,7 @@ export function TarifarioEditor({
                         aria-label={`Incluir ${item.label}`}
                         checked={row.included}
                         onChange={(e) => patchService(item.id, { included: e.target.checked })}
-                        className="h-4 w-4 accent-accent"
+                        className="h-5 w-5 accent-accent"
                       />
                     </td>
                     <td className="px-2 py-2 text-ink">
@@ -521,6 +559,12 @@ export function TarifarioEditor({
                           &gt;800 → 4 logísticos). Defínelos abajo.
                         </p>
                       )}
+                      {autoQty !== null && (
+                        <p className="text-[11px] font-normal text-muted">
+                          Cantidad calculada sola (aforo/días/tasa de conversión) — no se digita a
+                          mano.
+                        </p>
+                      )}
                     </td>
                     <td className="px-2 py-2">
                       <input
@@ -528,12 +572,12 @@ export function TarifarioEditor({
                         min={0}
                         step="0.5"
                         aria-label={`Cantidad de ${item.label}`}
-                        value={row.quantity}
-                        disabled={!row.included}
+                        value={effectiveQty}
+                        disabled={!row.included || autoQty !== null}
                         onChange={(e) =>
                           patchService(item.id, { quantity: Number(e.target.value) || 0 })
                         }
-                        className={cellInput}
+                        className={autoQty !== null ? `${cellInput} bg-surface2 text-muted` : cellInput}
                       />
                     </td>
                     <td className="px-2 py-2">
@@ -583,6 +627,16 @@ export function TarifarioEditor({
                 </tr>
               )}
             </tbody>
+            <tfoot>
+              <tr className="border-t border-border bg-surface2">
+                <td colSpan={4} className="px-4 py-2 text-right font-semibold text-ink">
+                  Subtotal Servicios personalizados
+                </td>
+                <td className="px-4 py-2 text-right font-bold text-ink">
+                  {formatCOP(summary.subtotalServicios)}
+                </td>
+              </tr>
+            </tfoot>
           </table>
         </section>
       </div>
@@ -615,7 +669,44 @@ export function TarifarioEditor({
             <p className="font-display mt-0.5 text-[32px] font-extrabold tracking-tight text-highlight-ink">
               {formatCOP(summary.valorPropuestaFinal)}
             </p>
-            <p className="mt-1 text-[13px] text-highlight-ink">+ IVA (19%) {formatCOP(summary.iva)}</p>
+            <p className="mt-1 text-[13px] text-highlight-ink">
+              + IVA ({Math.round(summary.ivaRate * 1000) / 10}%) {formatCOP(summary.iva)}
+            </p>
+          </div>
+
+          <div className="mt-2 rounded-inner-card border border-border p-3">
+            <p className="text-xs font-semibold text-ink">Ajustar IVA manualmente</p>
+            <p className="mt-0.5 text-[11px] text-muted">
+              Déjalos vacíos para usar el cálculo automático (19% sobre el valor propuesta final).
+            </p>
+            <div className="mt-2 grid grid-cols-2 gap-2">
+              <Field label="Tasa de IVA (%)">
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  step="0.1"
+                  placeholder="19"
+                  value={eventFields.iva_rate_override != null ? eventFields.iva_rate_override * 100 : ""}
+                  onChange={(e) =>
+                    patchEvent(
+                      "iva_rate_override",
+                      e.target.value === "" ? null : Number(e.target.value) / 100
+                    )
+                  }
+                  className={inputClass}
+                />
+              </Field>
+              <Field label="Base gravable">
+                <MoneyInput
+                  aria-label="Base gravable"
+                  value={eventFields.base_gravable_override}
+                  nullable
+                  onChange={(v) => patchEvent("base_gravable_override", v)}
+                  className={inputClass}
+                />
+              </Field>
+            </div>
           </div>
 
           <button
@@ -626,6 +717,14 @@ export function TarifarioEditor({
             {isPending ? "Guardando..." : "Guardar tarifario"}
           </button>
           <SaveStatus dirty={dirty} isPending={isPending} message={message} />
+          {message === "Guardado." && !dirty && (
+            <Link
+              href={`/proposals/${proposal.id}/propuesta`}
+              className="mt-3 flex min-h-11 w-full items-center justify-center rounded-pill bg-surface2 text-sm font-semibold text-ink"
+            >
+              Siguiente: Propuesta →
+            </Link>
+          )}
         </div>
       </div>
     </div>
@@ -689,7 +788,7 @@ function CheckboxField({
         type="checkbox"
         checked={checked}
         onChange={(e) => onChange(e.target.checked)}
-        className="h-4 w-4"
+        className="h-5 w-5 accent-accent"
       />
       {label}
     </label>

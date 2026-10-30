@@ -76,6 +76,15 @@ export interface Proposal {
   acuerdo_comercial_pct_global: number;
   impactos_registro: number | null;
   impactos_acreditacion: number | null;
+  /** Tasa de IVA manual (fracción, ej. 0.19) — si es null se usa IVA_RATE por defecto. */
+  iva_rate_override: number | null;
+  /** Base gravable manual — si es null se usa valorPropuestaFinal (comportamiento de siempre). */
+  base_gravable_override: number | null;
+  /** Cantidad de semanas/columnas de día configuradas en el Cronograma — null = se calcula del contenido existente. */
+  cronograma_semanas: number | null;
+  cronograma_dias: number | null;
+  /** Grupos de diapositivas ocultas en la Presentación (ej. "informes", "casos"). */
+  presentacion_hidden_slides: string[];
   created_at: string;
   updated_at: string;
 }
@@ -158,12 +167,17 @@ export interface ProposalCatalogSelection {
   included: boolean;
   quantity: number;
   unit_price: number | null;
+  /** Override por-propuesta del nombre/descripción del catálogo — null usa el del catálogo. */
+  custom_name: string | null;
+  custom_description: string | null;
 }
 
 export interface ProposalScheduleItem {
   id: string;
   proposal_id: string;
   week_number: number;
+  /** null = bloque de toda la semana; con número, es el día puntual dentro de la semana. */
+  day_number: number | null;
   hito: string;
   comentario: string | null;
   sort_order: number;

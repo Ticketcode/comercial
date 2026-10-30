@@ -1,4 +1,4 @@
-import { DISPLAY_FONT, Slide1920, THEME } from "./deck-shell";
+import { CheckBadge, DISPLAY_FONT, POR_DEFINIR, Slide1920, THEME } from "./deck-shell";
 
 const IMG = (name: string) => `/propuesta-deck/${name}`;
 
@@ -51,8 +51,20 @@ function Icon({ path, size = 36 }: { path: React.ReactNode; size?: number }) {
   );
 }
 
+// TODO: reemplazar por el link real del video de presentación de Ticketcode — mientras
+// quede en null, esta lámina se queda con la foto fija de siempre (sin ícono de play).
+const PLATAFORMA_VIDEO_URL: string | null = null;
+
 export function PlataformaSlide({ page, total }: { page: number; total: number }) {
   const t = THEME.light;
+  const foto = (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={IMG("p40k.jpg")}
+      alt="Teléfono mostrando un código QR de ingreso, más de 40.000 personas"
+      style={{ width: 640, height: 360, objectFit: "cover", borderRadius: 28, display: "block" }}
+    />
+  );
   return (
     <Slide1920 theme="light" section="Quiénes somos" page={page} total={total} contentStyle={{ gap: 48 }}>
       <div style={{ display: "flex", flexDirection: "row", gap: 64, alignItems: "center" }}>
@@ -64,12 +76,20 @@ export function PlataformaSlide({ page, total }: { page: number; total: number }
             Aumentamos la comodidad de los asistentes y generamos DATA real y segmentada en tiempo real.
           </p>
         </div>
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={IMG("p40k.jpg")}
-          alt="Teléfono mostrando un código QR de ingreso, más de 40.000 personas"
-          style={{ width: 640, height: 360, objectFit: "cover", borderRadius: 28 }}
-        />
+        {PLATAFORMA_VIDEO_URL ? (
+          <a
+            href={PLATAFORMA_VIDEO_URL}
+            target="_blank"
+            rel="noreferrer"
+            data-pdf-link={PLATAFORMA_VIDEO_URL}
+            style={{ position: "relative", display: "block" }}
+          >
+            {foto}
+            <PlayIcon />
+          </a>
+        ) : (
+          foto
+        )}
       </div>
       <div style={{ display: "flex", flexDirection: "row", gap: 24 }}>
         <FeatureCard icon={<Icon path={<path d="M13 2 3 14h7l-1 8 10-12h-7l1-8Z" />} />} title="Boletería electrónica" />
@@ -242,37 +262,9 @@ const INFORME_SEGUIMIENTO = [
   "Transferencia de conocimiento",
 ];
 
-function InformeCard({ title, items }: { title: string; items: string[] }) {
-  const t = THEME.light;
-  return (
-    <div
-      style={{
-        background: t.card,
-        border: `1px solid ${t.line}`,
-        borderRadius: 24,
-        padding: 40,
-        display: "flex",
-        flexDirection: "column",
-        gap: 20,
-        flex: 1,
-      }}
-    >
-      <h3 style={{ fontFamily: DISPLAY_FONT, fontSize: 40, fontWeight: 700, lineHeight: 1.1, color: t.accent2 }}>
-        {title}
-      </h3>
-      <ul style={{ fontSize: 26, lineHeight: 1.35, color: t.fg, paddingLeft: 26, margin: 0 }}>
-        {items.map((i) => (
-          <li key={i} style={{ marginBottom: 12 }}>
-            {i}
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
 export function InformesSlide({ page, total }: { page: number; total: number }) {
   const t = THEME.light;
+  const items = [...INFORME_GENERAL, ...INFORME_SEGUIMIENTO];
   return (
     <Slide1920 theme="light" section="La propuesta" page={page} total={total} contentStyle={{ gap: 32 }}>
       <h2 style={{ fontFamily: DISPLAY_FONT, fontSize: 68, fontWeight: 800, lineHeight: 1.05, letterSpacing: -1, color: t.fg }}>
@@ -281,22 +273,99 @@ export function InformesSlide({ page, total }: { page: number; total: number }) 
       <p style={{ fontSize: 28, lineHeight: 1.4, color: t.muted }}>
         DATA real y segmentada para indicadores, estadísticas, proyecciones y crecimiento del evento.
       </p>
-      <div style={{ display: "flex", flexDirection: "row", gap: 24, alignItems: "flex-start" }}>
-        <InformeCard title="Informe general" items={INFORME_GENERAL} />
-        <InformeCard title="Seguimiento y satisfacción" items={INFORME_SEGUIMIENTO} />
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "row",
+          flexWrap: "wrap",
+          columnGap: 48,
+          rowGap: 20,
+          background: t.card,
+          border: `1px solid ${t.line}`,
+          borderRadius: 24,
+          padding: 40,
+        }}
+      >
+        {items.map((i) => (
+          <div key={i} style={{ display: "flex", flexDirection: "row", gap: 16, alignItems: "flex-start", width: "calc(50% - 24px)" }}>
+            <CheckBadge size={30} iconSize={18} bg={t.accent} />
+            <p style={{ flex: 1, fontSize: 26, lineHeight: 1.3, color: t.fg, margin: 0 }}>{i}</p>
+          </div>
+        ))}
       </div>
     </Slide1920>
   );
 }
 
-const CASOS_IMAGES: [string, string, string][] = [
-  ["p40k.jpg", "Código QR de ingreso en un teléfono", "https://youtu.be/k2eV9_Y-QgQ"],
-  ["asistente.jpg", "Integrante del equipo Ticketcode en un evento", "https://youtu.be/FymqpvMFvfs"],
-  ["persona.jpg", "Fachada de un recinto de eventos", "https://youtu.be/uCZlG9ApDV0"],
-  ["arena.jpg", "Asistente sonriendo con su teléfono", "https://youtu.be/fs1jwiWRx5Q"],
-  ["heroes.jpg", "Arte del evento Héroes Fest", "https://youtu.be/X_s7qhyN5QU"],
-  ["cartagena.jpg", "Calle colonial de Cartagena", "https://youtu.be/ZdLbw4JGVRc"],
+const CASOS_IMAGES: [string, string, string, string | null][] = [
+  ["p40k.jpg", "Código QR de ingreso en un teléfono", "https://youtu.be/k2eV9_Y-QgQ", null],
+  ["asistente.jpg", "Integrante del equipo Ticketcode en un evento", "https://youtu.be/FymqpvMFvfs", null],
+  ["persona.jpg", "Fachada de un recinto de eventos", "https://youtu.be/uCZlG9ApDV0", null],
+  ["arena.jpg", "Asistente sonriendo con su teléfono", "https://youtu.be/fs1jwiWRx5Q", null],
+  ["heroes.jpg", "Arte del evento Héroes Fest", "https://youtu.be/X_s7qhyN5QU", "Héroes Fest"],
+  ["cartagena.jpg", "Calle colonial de Cartagena", "https://youtu.be/ZdLbw4JGVRc", null],
 ];
+
+function PlayIcon() {
+  return (
+    <div
+      style={{
+        position: "absolute",
+        inset: 0,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+      }}
+    >
+      <div
+        style={{
+          width: 72,
+          height: 72,
+          borderRadius: "50%",
+          background: "rgba(14,26,23,0.55)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="#FFFFFF">
+          <path d="M8 5v14l11-7z" />
+        </svg>
+      </div>
+    </div>
+  );
+}
+
+const PREPRODUCCION_ITEMS = [
+  "Reunión de onboarding: alcance, cronograma y responsables",
+  "Configuración y parametrización de la plataforma para el evento",
+  "Validación de componentes de la transmisión (agenda, status speakers, piezas de diseño)",
+  "Visita o revisión preoperativa del plan logístico (flujo de ingreso, internet, energía)",
+  "Capacitación al staff de logística antes del evento",
+  "Prueba general antes de la puesta en marcha",
+];
+
+export function PreproduccionSlide({ page, total }: { page: number; total: number }) {
+  const t = THEME.green;
+  return (
+    <Slide1920 theme="green" section="Ejecución" page={page} total={total} contentStyle={{ gap: 40 }}>
+      <h2 style={{ fontFamily: DISPLAY_FONT, fontSize: 68, fontWeight: 800, lineHeight: 1.05, letterSpacing: -1, color: t.fg }}>
+        Preproducción
+      </h2>
+      <p style={{ fontSize: 28, lineHeight: 1.4, color: t.muted }}>
+        Lo que preparamos antes del evento para que todo funcione desde el primer minuto.
+      </p>
+      <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+        {PREPRODUCCION_ITEMS.map((item) => (
+          <div key={item} style={{ display: "flex", flexDirection: "row", gap: 20, alignItems: "flex-start" }}>
+            <CheckBadge size={36} iconSize={20} bg={t.accent} />
+            <p style={{ flex: 1, fontSize: 28, lineHeight: 1.35, color: t.fg }}>{item}</p>
+          </div>
+        ))}
+      </div>
+    </Slide1920>
+  );
+}
 
 export function CasosSlide({ page, total }: { page: number; total: number }) {
   const t = THEME.light;
@@ -306,17 +375,30 @@ export function CasosSlide({ page, total }: { page: number; total: number }) {
         Casos de éxito
       </h2>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 24 }}>
-        {CASOS_IMAGES.map(([file, alt, url]) => (
+        {CASOS_IMAGES.map(([file, alt, url, eventName]) => (
           // Cada foto es un fotograma de un video de YouTube — queda como
           // link clickeable tanto en la vista previa como en el PDF
           // exportado (ver data-pdf-link, usado por renderSlidesToPdf).
-          <a key={file} href={url} target="_blank" rel="noreferrer" data-pdf-link={url} style={{ display: "block" }}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={IMG(file)}
-              alt={alt}
-              style={{ width: "100%", height: 303, objectFit: "cover", borderRadius: 24, display: "block" }}
-            />
+          <a
+            key={file}
+            href={url}
+            target="_blank"
+            rel="noreferrer"
+            data-pdf-link={url}
+            style={{ display: "block", textDecoration: "none" }}
+          >
+            <div style={{ position: "relative" }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={IMG(file)}
+                alt={alt}
+                style={{ width: "100%", height: 303, objectFit: "cover", borderRadius: 24, display: "block" }}
+              />
+              <PlayIcon />
+            </div>
+            <p style={{ marginTop: 10, fontSize: 24, fontWeight: 600, color: t.fg }}>
+              {eventName ?? POR_DEFINIR}
+            </p>
           </a>
         ))}
       </div>

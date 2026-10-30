@@ -12,6 +12,7 @@ export interface SaveAgreementItem {
 export interface SaveScheduleItem {
   id: string;
   week_number: number;
+  day_number: number | null;
   hito: string;
   comentario: string | null;
 }
@@ -19,6 +20,8 @@ export interface SaveScheduleItem {
 export interface SaveCatalogSelection {
   id: string;
   included: boolean;
+  custom_name: string | null;
+  custom_description: string | null;
 }
 
 export interface SaveMilestone {
@@ -38,6 +41,8 @@ export interface SavePropuestaPayload {
   proposalId: string;
   lugar: string;
   acuerdo_comercial_pct_global: number;
+  cronograma_semanas: number | null;
+  cronograma_dias: number | null;
   requerimientos: { existing: SaveRequirement[]; new: SaveRequirement[]; deletedIds: string[] };
   agreementItems: SaveAgreementItem[];
   scheduleItems: SaveScheduleItem[];
@@ -55,6 +60,8 @@ export async function savePropuesta(payload: SavePropuestaPayload) {
     .update({
       lugar: payload.lugar,
       acuerdo_comercial_pct_global: payload.acuerdo_comercial_pct_global,
+      cronograma_semanas: payload.cronograma_semanas,
+      cronograma_dias: payload.cronograma_dias,
       status: "propuesta",
     })
     .eq("id", payload.proposalId);
@@ -70,13 +77,22 @@ export async function savePropuesta(payload: SavePropuestaPayload) {
     ...payload.scheduleItems.map((item) =>
       supabase
         .from("proposal_schedule_items")
-        .update({ week_number: item.week_number, hito: item.hito, comentario: item.comentario })
+        .update({
+          week_number: item.week_number,
+          day_number: item.day_number,
+          hito: item.hito,
+          comentario: item.comentario,
+        })
         .eq("id", item.id)
     ),
     ...payload.catalogSelections.map((item) =>
       supabase
         .from("proposal_catalog_selections")
-        .update({ included: item.included })
+        .update({
+          included: item.included,
+          custom_name: item.custom_name,
+          custom_description: item.custom_description,
+        })
         .eq("id", item.id)
     ),
     ...payload.requerimientos.existing.map((item) =>
@@ -107,6 +123,7 @@ export async function savePropuesta(payload: SavePropuestaPayload) {
       payload.newScheduleItems.map((item) => ({
         proposal_id: payload.proposalId,
         week_number: item.week_number,
+        day_number: item.day_number,
         hito: item.hito,
         comentario: item.comentario,
       }))

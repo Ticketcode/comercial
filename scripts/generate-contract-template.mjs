@@ -111,6 +111,13 @@ const clausulas = [
   p(
     "Nota: Cuando la asistencia real supere el valor del aforo esperado se liquidará y cobrará el excedente en el pago final acordado."
   ),
+  h("QUÉ INCLUYE EL SERVICIO"),
+  p(["Componentes básicos:"], { spacing: { after: 50 } }),
+  p([tag("componentes_basicos_texto")]),
+  p(["Logística 360:"], { spacing: { after: 50 } }),
+  p([tag("logistica_360_texto")]),
+  p(["Servicios personalizados:"], { spacing: { after: 50 } }),
+  p([tag("servicios_personalizados_texto")]),
   h("CONDICIONES Y OBSERVACIONES ESPECÍFICAS DEL SERVICIO"),
   p([
     "Tiempo y Duración de la prestación del Servicio: Del ",
@@ -126,7 +133,7 @@ const clausulas = [
     boldTag("valor_contrato_letras"),
     " ($",
     tag("valor_contrato_numero"),
-    ") más IVA (19%) y la forma de pago definida según la propuesta comercial aprobada de la siguiente manera:",
+    ") (valor que incluye IVA del 19%) y la forma de pago definida según la propuesta comercial aprobada de la siguiente manera:",
   ]),
   p([tag("forma_pago_texto")]),
   p(

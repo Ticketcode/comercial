@@ -282,7 +282,10 @@ export function computeLogisticsBreakdown(
 
   const qtyStaffApoyo = qtySupervisor + qtyLogisticaSalonesInternos + qtyProductor;
   const qtyArl = qtyLogistico + qtyStaffApoyo;
-  const qtyAlmuerzoLogistica = bogota ? qtyArl : qtyLogistico;
+  // El almuerzo de los días del evento es para todo el equipo (productor +
+  // supervisor + logístico + logística de salones) en cualquier ciudad —
+  // antes solo contaba a todo el equipo en Bogotá.
+  const qtyAlmuerzoLogistica = qtyArl;
   const qtyTransporteCase = dias === 0 ? 0 : 2;
 
   // Staff que viaja (necesita tiquete/hotel) — los logísticos se contratan
@@ -385,15 +388,15 @@ export function computeLogisticsBreakdown(
   ]);
   const transporte = sumSubtotals(transporteItems);
 
-  // 4) Equipos
-  const computadores = virtual ? 0 : qtyComputadores * rates.alquilerPortatil;
-  const impresoras = virtual ? 0 : qtyImpresoras * rates.impresoras;
-  const rollosLabels = virtual ? 0 : qtyRollosLabels * rates.papelImpresora;
+  // 4) Equipos — se alquilan por todos los días del evento, no por un día fijo.
+  const computadores = virtual ? 0 : qtyComputadores * rates.alquilerPortatil * dias;
+  const impresoras = virtual ? 0 : qtyImpresoras * rates.impresoras * dias;
+  const rollosLabels = virtual ? 0 : qtyRollosLabels * rates.papelImpresora * dias;
 
   const equiposItems: LogisticsLineItem[] = withOverrides([
-    { label: "Computadores (alquiler portátil)", dias: 1, quantity: virtual ? 0 : qtyComputadores, rate: rates.alquilerPortatil, subtotal: computadores, basis: `Según escala de aforo (editable)` },
-    { label: "Impresoras", dias: 1, quantity: virtual ? 0 : qtyImpresoras, rate: rates.impresoras, subtotal: impresoras, basis: `Según escala de aforo (editable)` },
-    { label: "Rollos / Labels (papel impresora)", dias: 1, quantity: virtual ? 0 : qtyRollosLabels, rate: rates.papelImpresora, subtotal: rollosLabels, basis: `Según escala de aforo (editable)` },
+    { label: "Computadores (alquiler portátil)", dias, quantity: virtual ? 0 : qtyComputadores, rate: rates.alquilerPortatil, subtotal: computadores, basis: `Según escala de aforo (editable) — ${dias} día(s) de evento` },
+    { label: "Impresoras", dias, quantity: virtual ? 0 : qtyImpresoras, rate: rates.impresoras, subtotal: impresoras, basis: `Según escala de aforo (editable) — ${dias} día(s) de evento` },
+    { label: "Rollos / Labels (papel impresora)", dias, quantity: virtual ? 0 : qtyRollosLabels, rate: rates.papelImpresora, subtotal: rollosLabels, basis: `Según escala de aforo (editable) — ${dias} día(s) de evento` },
   ]);
   const equipos = sumSubtotals(equiposItems);
 

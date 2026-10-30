@@ -87,6 +87,8 @@ export function ContratoEditor({
           <Field label="Número de contrato">
             <input
               className={inputClass}
+              spellCheck
+              lang="es"
               value={form.contrato_numero ?? ""}
               onChange={(e) => patch("contrato_numero", e.target.value)}
               placeholder="Ej. 01-09-2026"
@@ -103,6 +105,8 @@ export function ContratoEditor({
           <Field label="Ciudad de firma">
             <input
               className={inputClass}
+              spellCheck
+              lang="es"
               value={form.ciudad_firma}
               onChange={(e) => patch("ciudad_firma", e.target.value)}
             />
@@ -124,6 +128,8 @@ export function ContratoEditor({
           <Field label="Representante legal (nombre completo)">
             <input
               className={inputClass}
+              spellCheck
+              lang="es"
               value={form.contratante_representante_legal ?? ""}
               onChange={(e) => patch("contratante_representante_legal", e.target.value)}
             />
@@ -138,6 +144,8 @@ export function ContratoEditor({
           <Field label="Cédula expedida en">
             <input
               className={inputClass}
+              spellCheck
+              lang="es"
               value={form.contratante_cedula_ciudad ?? ""}
               onChange={(e) => patch("contratante_cedula_ciudad", e.target.value)}
             />
@@ -145,6 +153,8 @@ export function ContratoEditor({
           <Field label="Ciudad de residencia del representante">
             <input
               className={inputClass}
+              spellCheck
+              lang="es"
               value={form.contratante_direccion_ciudad ?? ""}
               onChange={(e) => patch("contratante_direccion_ciudad", e.target.value)}
             />
@@ -152,6 +162,8 @@ export function ContratoEditor({
           <Field label="Empresa / organización">
             <input
               className={inputClass}
+              spellCheck
+              lang="es"
               value={form.contratante_nombre ?? ""}
               onChange={(e) => patch("contratante_nombre", e.target.value)}
             />
@@ -166,6 +178,8 @@ export function ContratoEditor({
           <Field label="Ciudad de domicilio de la empresa">
             <input
               className={inputClass}
+              spellCheck
+              lang="es"
               value={form.contratante_ciudad ?? ""}
               onChange={(e) => patch("contratante_ciudad", e.target.value)}
             />
@@ -173,6 +187,8 @@ export function ContratoEditor({
           <Field label="Dirección de notificaciones">
             <input
               className={inputClass}
+              spellCheck
+              lang="es"
               value={form.contratante_direccion ?? ""}
               onChange={(e) => patch("contratante_direccion", e.target.value)}
             />
@@ -187,6 +203,8 @@ export function ContratoEditor({
             <textarea
               rows={4}
               className="w-full rounded-field border border-border bg-input-bg p-2 text-sm text-ink outline-none focus:border-accent focus:ring-1 focus:ring-accent"
+              spellCheck
+              lang="es"
               value={form.objeto_particular ?? ""}
               onChange={(e) => patch("objeto_particular", e.target.value)}
               placeholder="Se usa un texto por defecto si lo dejas vacío."
@@ -245,6 +263,14 @@ export function ContratoEditor({
           Descargar contrato (.docx)
         </a>
         <SaveStatus dirty={dirty} isPending={isPending} message={message} className="text-sm" />
+        {message === "Guardado." && !dirty && (
+          <a
+            href={`/proposals/${proposal.id}/presentacion`}
+            className="flex min-h-11 items-center rounded-pill bg-surface2 px-5 text-sm font-semibold text-ink"
+          >
+            Siguiente: Presentación →
+          </a>
+        )}
       </div>
       <p className="text-xs text-muted">
         Guarda primero los datos para que el contrato descargado los incluya — el valor y la forma de

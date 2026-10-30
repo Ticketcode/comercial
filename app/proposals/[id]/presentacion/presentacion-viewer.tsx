@@ -13,6 +13,7 @@ import {
   InformesSlide,
   OrganizadorSlide,
   PlataformaSlide,
+  PreproduccionSlide,
 } from "./slides-fixed";
 import {
   AcuerdoSlide,
@@ -48,18 +49,46 @@ const inputClass =
  * cuando la propuesta no tiene ningún concepto incluido, y la numeración de
  * página se recalcula según cuántas láminas queden.
  */
-function buildSlides(data: DeckData) {
+/** Grupos de diapositiva que se pueden ocultar desde el panel — las que son
+ * estructurales (portada, perfil, cierre) no se incluyen. */
+export const HIDEABLE_SLIDE_GROUPS: { key: string; label: string }[] = [
+  { key: "plataforma", label: "Quiénes somos" },
+  { key: "cifras", label: "Cifras" },
+  { key: "organizador", label: "Organizador" },
+  { key: "presencial", label: "Presencial/Virtual" },
+  { key: "incluye", label: "Lo que incluye tu evento" },
+  { key: "componentes", label: "Componentes básicos" },
+  { key: "logistica", label: "Logística 360" },
+  { key: "comercial", label: "Comercialización" },
+  { key: "informes", label: "Informes y entregables" },
+  { key: "acuerdo", label: "Acuerdo comercial" },
+  { key: "inversion", label: "Inversión inicial" },
+  { key: "final", label: "Presupuesto final" },
+  { key: "pagos", label: "Modelo de pagos" },
+  { key: "preproduccion", label: "Preproducción" },
+  { key: "cronograma", label: "Cronograma" },
+  { key: "requerimientos", label: "Requerimientos operativos" },
+  { key: "casos", label: "Casos de éxito" },
+];
+
+function buildSlides(
+  data: DeckData,
+  hidden: string[],
+  onEditImpactos?: (field: "registro" | "acreditacion", value: number | null) => void
+) {
   type SlideFn = (p: { data: DeckData; page: number; total: number }) => JSX.Element;
-  const entries: { key: string; render: SlideFn }[] = [
-    { key: "cover", render: (p) => <CoverSlide {...p} /> },
-    { key: "plataforma", render: (p) => <PlataformaSlide page={p.page} total={p.total} /> },
-    { key: "cifras", render: (p) => <CifrasSlide page={p.page} total={p.total} /> },
-    { key: "organizador", render: (p) => <OrganizadorSlide page={p.page} total={p.total} /> },
-    { key: "presencial", render: (p) => <PresencialSlide {...p} /> },
-    { key: "perfil", render: (p) => <PerfilSlide {...p} /> },
-    { key: "incluye", render: (p) => <IncluyeSlide {...p} /> },
+  const isHidden = (group: string) => hidden.includes(group);
+  const entries: { key: string; group: string; render: SlideFn }[] = [
+    { key: "cover", group: "cover", render: (p) => <CoverSlide {...p} /> },
+    { key: "plataforma", group: "plataforma", render: (p) => <PlataformaSlide page={p.page} total={p.total} /> },
+    { key: "cifras", group: "cifras", render: (p) => <CifrasSlide page={p.page} total={p.total} /> },
+    { key: "organizador", group: "organizador", render: (p) => <OrganizadorSlide page={p.page} total={p.total} /> },
+    { key: "presencial", group: "presencial", render: (p) => <PresencialSlide {...p} /> },
+    { key: "perfil", group: "perfil", render: (p) => <PerfilSlide {...p} /> },
+    { key: "incluye", group: "incluye", render: (p) => <IncluyeSlide {...p} /> },
     ...chunkComponentesItems(getCheckedComponentesItems(data)).map((chunk, i, all) => ({
       key: `componentes-${i}`,
+      group: "componentes",
       render: (p: Parameters<SlideFn>[0]) => (
         <ComponentesSlide
           items={chunk}
@@ -71,6 +100,7 @@ function buildSlides(data: DeckData) {
     })),
     ...chunkLogisticaItems(getCheckedLogisticaItems(data)).map((chunk, i, all) => ({
       key: `logistica-${i}`,
+      group: "logistica",
       render: (p: Parameters<SlideFn>[0]) => (
         <LogisticaSlide
           items={chunk}
@@ -80,19 +110,36 @@ function buildSlides(data: DeckData) {
         />
       ),
     })),
-    { key: "comercial", render: (p) => <ComercialSlide {...p} /> },
-    { key: "informes", render: (p) => <InformesSlide page={p.page} total={p.total} /> },
-    ...(hasAcuerdoComercial(data) ? [{ key: "acuerdo", render: (p: Parameters<SlideFn>[0]) => <AcuerdoSlide {...p} /> }] : []),
-    { key: "inversion", render: (p) => <InversionSlide {...p} /> },
-    { key: "final", render: (p) => <FinalSlide {...p} /> },
-    { key: "pagos", render: (p) => <PagosSlide {...p} /> },
-    { key: "cronograma", render: (p) => <CronogramaSlide {...p} /> },
-    { key: "requerimientos", render: (p) => <RequerimientosSlide {...p} /> },
-    { key: "casos", render: (p) => <CasosSlide page={p.page} total={p.total} /> },
-    { key: "cierre", render: (p) => <CierreSlide {...p} /> },
+    {
+      key: "comercial",
+      group: "comercial",
+      render: (p) => <ComercialSlide {...p} onEditImpactos={onEditImpactos} />,
+    },
+    { key: "informes", group: "informes", render: (p) => <InformesSlide page={p.page} total={p.total} /> },
+    ...(hasAcuerdoComercial(data)
+      ? [{ key: "acuerdo", group: "acuerdo", render: (p: Parameters<SlideFn>[0]) => <AcuerdoSlide {...p} /> }]
+      : []),
+    // "Inversión inicial" solo tiene sentido como contraste antes/después
+    // cuando hay un % de acuerdo comercial que restar — si no hay acuerdo,
+    // el valor ya se muestra completo en "Presupuesto final".
+    ...(data.proposal.acuerdo_comercial_pct_global > 0
+      ? [{ key: "inversion", group: "inversion", render: (p: Parameters<SlideFn>[0]) => <InversionSlide {...p} /> }]
+      : []),
+    { key: "final", group: "final", render: (p) => <FinalSlide {...p} /> },
+    { key: "pagos", group: "pagos", render: (p) => <PagosSlide {...p} /> },
+    {
+      key: "preproduccion",
+      group: "preproduccion",
+      render: (p) => <PreproduccionSlide page={p.page} total={p.total} />,
+    },
+    { key: "cronograma", group: "cronograma", render: (p) => <CronogramaSlide {...p} /> },
+    { key: "requerimientos", group: "requerimientos", render: (p) => <RequerimientosSlide {...p} /> },
+    { key: "casos", group: "casos", render: (p) => <CasosSlide page={p.page} total={p.total} /> },
+    { key: "cierre", group: "cierre", render: (p) => <CierreSlide {...p} /> },
   ];
-  const total = entries.length;
-  return entries.map((e, i) => (
+  const visible = entries.filter((e) => !isHidden(e.group));
+  const total = visible.length;
+  return visible.map((e, i) => (
     <div key={e.key}>{e.render({ data, page: i + 1, total })}</div>
   ));
 }
@@ -106,6 +153,7 @@ export function PresentacionViewer({ data: initialData }: { data: DeckData }) {
   const [impactosAcreditacion, setImpactosAcreditacion] = useState(
     initialData.proposal.impactos_acreditacion != null ? String(initialData.proposal.impactos_acreditacion) : ""
   );
+  const [hiddenSlides, setHiddenSlides] = useState<string[]>(initialData.proposal.presentacion_hidden_slides ?? []);
   const [isPending, startTransition] = useTransition();
   const [isDownloading, setIsDownloading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -138,6 +186,7 @@ export function PresentacionViewer({ data: initialData }: { data: DeckData }) {
           contactCargo,
           impactosRegistro: impactosRegistro === "" ? null : Number(impactosRegistro),
           impactosAcreditacion: impactosAcreditacion === "" ? null : Number(impactosAcreditacion),
+          hiddenSlides,
         })
       );
       setMessage(result.error ? saveErrorMessage(result.error) : "Guardado.");
@@ -162,13 +211,23 @@ export function PresentacionViewer({ data: initialData }: { data: DeckData }) {
     }
   }
 
+  function onEditImpactos(field: "registro" | "acreditacion", value: number | null) {
+    if (field === "registro") setImpactosRegistro(value === null ? "" : String(value));
+    else setImpactosAcreditacion(value === null ? "" : String(value));
+  }
+
+  function toggleHiddenSlide(group: string) {
+    setHiddenSlides((prev) => (prev.includes(group) ? prev.filter((g) => g !== group) : [...prev, group]));
+  }
+
   return (
     <div className={`${exo.variable} ${poppins.variable} space-y-6`}>
       <section className="no-print rounded-xl border border-neutral-200 bg-white p-5">
         <h3 className="text-sm font-semibold text-neutral-900">Datos pendientes de la presentación</h3>
         <p className="mt-1 text-xs text-neutral-500">
-          Estos 3 datos no existen todavía en ningún otro paso de la app — complétalos aquí para que no
-          salgan como [Por definir]. Los datos del asesor comercial salen de{" "}
+          Estos datos no existen todavía en ningún otro paso de la app — complétalos aquí para que no salgan
+          como [Por definir]. Los demás datos (impacto inicial, etc.) ya se editan directo en su propia
+          lámina, más abajo. Los datos del asesor comercial salen de{" "}
           <Link href="/perfil" className="underline">
             tu perfil
           </Link>
@@ -180,24 +239,6 @@ export function PresentacionViewer({ data: initialData }: { data: DeckData }) {
           </LabeledField>
           <LabeledField label="Cargo del contacto">
             <input value={contactCargo} onChange={(e) => setContactCargo(e.target.value)} className={inputClass} />
-          </LabeledField>
-          <LabeledField label="Impactos de marca — Registro">
-            <input
-              type="number"
-              min={0}
-              value={impactosRegistro}
-              onChange={(e) => setImpactosRegistro(e.target.value)}
-              className={inputClass}
-            />
-          </LabeledField>
-          <LabeledField label="Impactos de marca — Acreditación">
-            <input
-              type="number"
-              min={0}
-              value={impactosAcreditacion}
-              onChange={(e) => setImpactosAcreditacion(e.target.value)}
-              className={inputClass}
-            />
           </LabeledField>
         </div>
         {pesoInvalido && (
@@ -222,8 +263,29 @@ export function PresentacionViewer({ data: initialData }: { data: DeckData }) {
         </div>
       </section>
 
+      <section className="no-print rounded-xl border border-neutral-200 bg-white p-5">
+        <h3 className="text-sm font-semibold text-neutral-900">Diapositivas a incluir</h3>
+        <p className="mt-1 text-xs text-neutral-500">
+          Desmarca las que no apliquen para esta propuesta — no se borra la información, solo se omiten al
+          generar.
+        </p>
+        <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-4">
+          {HIDEABLE_SLIDE_GROUPS.map((g) => (
+            <label key={g.key} className="flex items-center gap-2 text-xs text-neutral-700">
+              <input
+                type="checkbox"
+                checked={!hiddenSlides.includes(g.key)}
+                onChange={() => toggleHiddenSlide(g.key)}
+                className="h-4 w-4"
+              />
+              {g.label}
+            </label>
+          ))}
+        </div>
+      </section>
+
       <div className="no-print flex flex-col items-center gap-6 rounded-xl border border-neutral-200 bg-neutral-50 p-6">
-        {buildSlides(data).map((slide, i) => (
+        {buildSlides(data, hiddenSlides, onEditImpactos).map((slide, i) => (
           <div
             key={i}
             style={{ width: 1920 * PREVIEW_SCALE, height: 1080 * PREVIEW_SCALE, overflow: "hidden" }}
@@ -236,9 +298,9 @@ export function PresentacionViewer({ data: initialData }: { data: DeckData }) {
         ))}
       </div>
 
-      {/* Área oculta a tamaño real (1920x1080 por lámina) — de acá sale el PDF. */}
+      {/* Área oculta a tamaño real (1920x1080 por lámina) — de acá sale el PDF (sin inputs editables). */}
       <div className="fixed left-[-9999px] top-0 -z-10">
-        <div ref={printAreaRef}>{buildSlides(data)}</div>
+        <div ref={printAreaRef}>{buildSlides(data, hiddenSlides)}</div>
       </div>
     </div>
   );

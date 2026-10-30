@@ -4,6 +4,7 @@ import type { Metadata } from "next";
 import { getProposalBasic } from "@/lib/data/proposal-basic";
 import { ProposalStepsNav } from "./proposal-steps-nav";
 import { MarkCerradaButton } from "./mark-cerrada-button";
+import { EditBasicsPanel } from "./edit-basics-panel";
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params;
@@ -54,6 +55,25 @@ export default async function ProposalLayout({
             Ver en Producción →
           </Link>
         )}
+      </div>
+
+      <div className="no-print mt-4">
+        <EditBasicsPanel
+          proposalId={id}
+          clientId={client?.id ?? null}
+          eventName={proposal.event_name}
+          modality={proposal.modality}
+          city={proposal.city ?? ""}
+          lugar={proposal.lugar ?? ""}
+          aforo={proposal.aforo}
+          aforoVirtual={Number(proposal.aforo_virtual)}
+          dias={Number(proposal.dias)}
+          eventStartDate={proposal.event_start_date}
+          eventEndDate={proposal.event_end_date}
+          clientName={client?.name ?? ""}
+          clientCompany={client?.company ?? ""}
+          clientCargo={client?.contact_cargo ?? ""}
+        />
       </div>
 
       <div className="no-print">

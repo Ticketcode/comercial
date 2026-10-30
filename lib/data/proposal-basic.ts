@@ -9,7 +9,9 @@ export const getProposalBasic = cache(async (id: string) => {
   const supabase = await createClient();
   const { data } = await supabase
     .from("proposals")
-    .select("id, event_name, status, clients(name, company)")
+    .select(
+      "id, event_name, status, modality, city, lugar, aforo, aforo_virtual, dias, event_start_date, event_end_date, client_id, clients(id, name, company, contact_cargo)"
+    )
     .eq("id", id)
     .single();
   return data;

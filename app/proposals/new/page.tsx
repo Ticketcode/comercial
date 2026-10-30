@@ -1,9 +1,13 @@
+import Link from "next/link";
 import { NewProposalForm } from "./new-proposal-form";
 
 export default function NewProposalPage() {
   return (
     <div className="mx-auto max-w-2xl px-4 py-6 sm:px-6 sm:py-10">
-      <h1 className="text-2xl font-semibold text-neutral-900">Nueva propuesta</h1>
+      <Link href="/proposals" className="text-sm text-neutral-500 hover:underline">
+        ← Todas las propuestas
+      </Link>
+      <h1 className="mt-2 text-2xl font-semibold text-neutral-900">Nueva propuesta</h1>
       <p className="mt-1 text-sm text-neutral-500">
         Datos básicos del cliente y el evento. Los componentes y costos se arman en el
         siguiente paso.

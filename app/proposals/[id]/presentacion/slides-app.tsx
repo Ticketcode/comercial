@@ -19,6 +19,19 @@ const modalityLabel: Record<string, string> = {
   mundo_virtual: "Mundo virtual",
 };
 
+/** Algunos ítems de Logística 360 traen en el catálogo un texto de plantilla
+ * con cantidades sin llenar ("() personas", "(x) Portátiles") — se reemplaza
+ * por la dotación real definida en Tarifario, igual que ya la calcula
+ * recalcularSegunAforo. Si el comercial editó el texto a mano (lápiz en
+ * Propuesta) ese override manual tiene prioridad sobre esto. */
+const LOGISTICA_DYNAMIC_DESCRIPTIONS: Record<string, (p: DeckData["proposal"]) => string> = {
+  "Control de aceso a cada una de las sesiones internas del evento": (p) =>
+    `(${p.qty_logistico}) personas de logística, (${p.qty_logistico}) equipos de lectura`,
+  "Suministro de equipos": (p) =>
+    `(${p.qty_computadores}) Portátiles, (${p.qty_impresoras}) Impresoras, (${p.qty_logistico}) smartphones de lectura`,
+  "Suministro de consumibles": (p) => `(${p.qty_rollos_labels}) rollos de papel térmico para labels`,
+};
+
 function Stat({ label, value, highlight = false }: { label: string; value: string; highlight?: boolean }) {
   const t = THEME.light;
   return (
@@ -143,11 +156,11 @@ const PRESENCIAL_COPY: Record<string, { title: string; intro: string; bullets: s
 };
 
 export function PresencialSlide({ data, page, total }: { data: DeckData; page: number; total: number }) {
-  const t = THEME.dark;
+  const t = THEME.light;
   const copy = PRESENCIAL_COPY[data.proposal.modality] ?? PRESENCIAL_COPY.presencial;
   return (
     <Slide1920
-      theme="dark"
+      theme="light"
       section="Quiénes somos"
       page={page}
       total={total}
@@ -167,7 +180,7 @@ export function PresencialSlide({ data, page, total }: { data: DeckData; page: n
           ))}
         </div>
       </div>
-      <div style={{ flex: 1, background: THEME.light.bg, borderRadius: 28, padding: 24, display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ flex: 1, background: t.card, border: `1px solid ${t.line}`, borderRadius: 28, padding: 24, display: "flex", alignItems: "center", justifyContent: "center" }}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src="/propuesta-deck/plataforma.png"
@@ -278,15 +291,18 @@ function ChecklistCard({
 }
 
 export function IncluyeSlide({ data, page, total }: { data: DeckData; page: number; total: number }) {
-  const { catalogItems, catalogSelections, includedServices, proposal } = data;
-  const selectedMap = Object.fromEntries(catalogSelections.map((s) => [s.catalog_item_id, s]));
-  const componentesBasicos = catalogItems
-    .filter((c) => c.category === "componente_basico" && selectedMap[c.id]?.included)
-    .map((c) => ({ key: c.id, label: c.name, description: c.description }));
-  const logistica360 = catalogItems
-    .filter((c) => c.category === "logistica_360" && selectedMap[c.id]?.included)
-    .map((c) => ({ key: c.id, label: c.name, description: c.description }));
-  const servicios = includedServices.map((s) => ({ key: s.name, label: s.name, description: s.description }));
+  const { proposal } = data;
+  const componentesBasicos = getCheckedComponentesItems(data).map((c) => ({
+    key: c.id,
+    label: c.name,
+    description: c.description,
+  }));
+  const logistica360 = getCheckedLogisticaItems(data).map((c) => ({
+    key: c.id,
+    label: c.name,
+    description: c.description,
+  }));
+  const servicios = data.includedServices.map((s) => ({ key: s.name, label: s.name, description: s.description }));
 
   return (
     <Slide1920 theme="light" section="La propuesta" page={page} total={total}>
@@ -314,6 +330,7 @@ export function IncluyeSlide({ data, page, total }: { data: DeckData; page: numb
           title="Servicios personalizados"
           items={servicios}
           emptyLabel="Esta propuesta no incluye servicios personalizados adicionales."
+          showDescription={false}
         />
       </div>
     </Slide1920>
@@ -323,7 +340,13 @@ export function IncluyeSlide({ data, page, total }: { data: DeckData; page: numb
 export function getCheckedComponentesItems(data: DeckData) {
   const { catalogItems, catalogSelections } = data;
   const selectedMap = Object.fromEntries(catalogSelections.map((s) => [s.catalog_item_id, s]));
-  return catalogItems.filter((c) => c.category === "componente_basico" && selectedMap[c.id]?.included);
+  return catalogItems
+    .filter((c) => c.category === "componente_basico" && selectedMap[c.id]?.included)
+    .map((c) => ({
+      ...c,
+      name: selectedMap[c.id]?.custom_name || c.name,
+      description: selectedMap[c.id]?.custom_description || c.description,
+    }));
 }
 
 const COMPONENTES_WEIGHT_PER_PAGE = 7;
@@ -346,6 +369,13 @@ export function chunkComponentesItems(items: ReturnType<typeof getCheckedCompone
     weight += w;
   }
   if (current.length > 0) chunks.push(current);
+  // Si la última página quedó con un solo ítem suelto (ej. "Informes"), se ve
+  // desproporcionada frente al resto — se sube a la página anterior aunque
+  // eso exceda un poco el peso objetivo, en vez de dejarla casi vacía.
+  if (chunks.length > 1 && chunks[chunks.length - 1].length === 1) {
+    const last = chunks.pop()!;
+    chunks[chunks.length - 1].push(...last);
+  }
   return chunks.length > 0 ? chunks : [[]];
 }
 
@@ -530,9 +560,22 @@ function LogisticaDetail({ description }: { description: string | null }) {
 }
 
 export function getCheckedLogisticaItems(data: DeckData) {
-  const { catalogItems, catalogSelections } = data;
+  const { catalogItems, catalogSelections, proposal } = data;
   const selectedMap = Object.fromEntries(catalogSelections.map((s) => [s.catalog_item_id, s]));
-  return catalogItems.filter((c) => c.category === "logistica_360" && selectedMap[c.id]?.included);
+  return catalogItems
+    .filter((c) => c.category === "logistica_360" && selectedMap[c.id]?.included)
+    .map((c) => {
+      const custom = selectedMap[c.id]?.custom_description;
+      // Match por prefijo: algunos catálogos agregan detalle entre paréntesis al
+      // nombre base (ej. "Suministro de equipos (acreditación en sitio, ...)").
+      const dynamicKey = Object.keys(LOGISTICA_DYNAMIC_DESCRIPTIONS).find((key) => c.name.startsWith(key));
+      const dynamic = dynamicKey ? LOGISTICA_DYNAMIC_DESCRIPTIONS[dynamicKey](proposal) : undefined;
+      return {
+        ...c,
+        name: selectedMap[c.id]?.custom_name || c.name,
+        description: custom || dynamic || c.description,
+      };
+    });
 }
 
 /** Ítems simples (una línea) pesan poco; los que traen desglose de
@@ -622,15 +665,49 @@ export function LogisticaSlide({
   );
 }
 
-export function ComercialSlide({ data, page, total: totalPages }: { data: DeckData; page: number; total: number }) {
-  const t = THEME.dark;
+export function ComercialSlide({
+  data,
+  page,
+  total: totalPages,
+  onEditImpactos,
+}: {
+  data: DeckData;
+  page: number;
+  total: number;
+  /** Si se pasa, "Impacto inicial" se edita en la propia lámina en vez de solo mostrarse
+   * (no se pasa en el área oculta que exporta el PDF, para no capturar cajas de input). */
+  onEditImpactos?: (field: "registro" | "acreditacion", value: number | null) => void;
+}) {
+  const t = THEME.light;
   const { proposal } = data;
   const registro = proposal.impactos_registro;
   const acreditacion = proposal.impactos_acreditacion;
   const total = registro != null && acreditacion != null ? registro + acreditacion : null;
   const cell = (v: number | null) => (v != null ? `${formatNumber(v)} impactos de marca` : `${POR_DEFINIR} impactos de marca`);
+  const editableCell = (field: "registro" | "acreditacion", v: number | null) =>
+    onEditImpactos ? (
+      <input
+        type="number"
+        min={0}
+        value={v ?? ""}
+        onChange={(e) => onEditImpactos(field, e.target.value === "" ? null : Number(e.target.value))}
+        placeholder="N° de impactos"
+        style={{
+          width: 140,
+          fontSize: 24,
+          fontFamily: "inherit",
+          color: t.fg,
+          background: "transparent",
+          border: `1px solid ${t.line}`,
+          borderRadius: 8,
+          padding: "6px 10px",
+        }}
+      />
+    ) : (
+      cell(v)
+    );
   return (
-    <Slide1920 theme="dark" section="La propuesta" page={page} total={totalPages}>
+    <Slide1920 theme="light" section="La propuesta" page={page} total={totalPages}>
       <h2 style={{ fontFamily: DISPLAY_FONT, fontSize: 68, fontWeight: 800, lineHeight: 1.05, letterSpacing: -1, color: t.fg, marginBottom: 16 }}>
         Contribuimos con la comercialización del evento
       </h2>
@@ -653,7 +730,7 @@ export function ComercialSlide({ data, page, total: totalPages }: { data: DeckDa
               Correo de confirmación · Correo de recordación · Escarapela digital (descarga) · Impacto comercial a
               la base de datos
             </td>
-            <td style={{ padding: "16px 12px" }}>{cell(registro)}</td>
+            <td style={{ padding: "16px 12px" }}>{editableCell("registro", registro)}</td>
           </tr>
           <tr>
             <td style={{ padding: "16px 12px" }}>Acreditación y control de acceso</td>
@@ -661,7 +738,7 @@ export function ComercialSlide({ data, page, total: totalPages }: { data: DeckDa
               Escarapela digital (acceso) · Manilla biodegradable · Base de datos de visitantes a cada stand de la
               zona expo
             </td>
-            <td style={{ padding: "16px 12px" }}>{cell(acreditacion)}</td>
+            <td style={{ padding: "16px 12px" }}>{editableCell("acreditacion", acreditacion)}</td>
           </tr>
           <tr style={{ background: t.card }}>
             <td style={{ padding: "16px 12px" }}>Total estimado</td>
@@ -722,9 +799,9 @@ export function AcuerdoSlide({ data, page, total }: { data: DeckData; page: numb
 }
 
 export function InversionSlide({ data, page, total }: { data: DeckData; page: number; total: number }) {
-  const t = THEME.dark;
+  const t = THEME.light;
   return (
-    <Slide1920 theme="dark" section="Inversión" page={page} total={total} contentStyle={{ justifyContent: "center", gap: 20 }}>
+    <Slide1920 theme="light" section="Inversión" page={page} total={total} contentStyle={{ justifyContent: "center", gap: 20 }}>
       <p style={{ fontSize: 24, letterSpacing: 3, textTransform: "uppercase", color: t.accent }}>Inversión inicial</p>
       <p
         style={{
@@ -752,6 +829,7 @@ export function FinalSlide({ data, page, total }: { data: DeckData; page: number
   const { tarifarioSummary, proposal } = data;
   const base = tarifarioSummary.valorPropuestaFinal;
   const descuentoPct = proposal.acuerdo_comercial_pct_global;
+  const hasAcuerdo = descuentoPct > 0;
   const descuento = base * (descuentoPct / 100);
   const conDescuento = base - descuento;
 
@@ -768,27 +846,29 @@ export function FinalSlide({ data, page, total }: { data: DeckData; page: number
           Presupuesto final
         </h2>
         <p style={{ fontSize: 28, lineHeight: 1.4, color: t.muted }}>Valor justo y ganador para las partes.</p>
-        <div style={{ display: "flex", flexDirection: "column" }}>
-          {[
-            ["Valor sin descuento", formatCOP(base)],
-            [`Descuento comercial (${descuentoPct}%)`, `- ${formatCOP(descuento)}`],
-            ["Valor con descuento", formatCOP(conDescuento)],
-          ].map(([label, value], i) => (
-            <div
-              key={label}
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: 6,
-                padding: "22px 0",
-                borderBottom: i < 2 ? `2px solid ${t.line}` : undefined,
-              }}
-            >
-              <p style={{ fontSize: 24, color: t.muted }}>{label}</p>
-              <p style={{ fontFamily: DISPLAY_FONT, fontSize: 40, fontWeight: 700, color: t.fg }}>{value}</p>
-            </div>
-          ))}
-        </div>
+        {hasAcuerdo && (
+          <div style={{ display: "flex", flexDirection: "column" }}>
+            {[
+              ["Valor sin acuerdo comercial", formatCOP(base)],
+              [`Acuerdo comercial (${descuentoPct}%)`, `- ${formatCOP(descuento)}`],
+              ["Valor con acuerdo comercial", formatCOP(conDescuento)],
+            ].map(([label, value], i) => (
+              <div
+                key={label}
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 6,
+                  padding: "22px 0",
+                  borderBottom: i < 2 ? `2px solid ${t.line}` : undefined,
+                }}
+              >
+                <p style={{ fontSize: 24, color: t.muted }}>{label}</p>
+                <p style={{ fontFamily: DISPLAY_FONT, fontSize: 40, fontWeight: 700, color: t.fg }}>{value}</p>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
       <TicketCard
         width={800}
@@ -830,9 +910,27 @@ export function PagosSlide({ data, page, total }: { data: DeckData; page: number
 
   return (
     <Slide1920 theme="light" section="Inversión" page={page} total={total} contentStyle={{ gap: 48 }}>
-      <h2 style={{ fontFamily: DISPLAY_FONT, fontSize: 68, fontWeight: 800, lineHeight: 1.05, letterSpacing: -1, color: t.fg }}>
-        Modelo de pagos
-      </h2>
+      <div style={{ display: "flex", flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between" }}>
+        <h2 style={{ fontFamily: DISPLAY_FONT, fontSize: 68, fontWeight: 800, lineHeight: 1.05, letterSpacing: -1, color: t.fg, margin: 0 }}>
+          Modelo de pagos
+        </h2>
+        <a
+          href={`/proposals/${proposal.id}/propuesta#pagos`}
+          data-pdf-link={`/proposals/${proposal.id}/propuesta`}
+          style={{
+            fontFamily: DISPLAY_FONT,
+            fontSize: 22,
+            fontWeight: 700,
+            color: t.accent2,
+            border: `2px solid ${t.accent2}`,
+            borderRadius: 999,
+            padding: "12px 24px",
+            textDecoration: "none",
+          }}
+        >
+          Modificar modelo de pagos
+        </a>
+      </div>
       {hitos.length === 0 ? (
         <p style={{ fontSize: 28, color: t.muted }}>Todavía no hay hitos de pago definidos en la Propuesta.</p>
       ) : hitos.length === 1 ? (
@@ -887,7 +985,8 @@ export function PagosSlide({ data, page, total }: { data: DeckData; page: number
         </div>
       )}
       <p style={{ fontSize: 28, lineHeight: 1.4, color: t.muted }}>
-        Elaboramos una sola factura sobre la cual se pueden hacer los abonos o facturas por cada abono.
+        Elaboramos una sola factura sobre la cual se pueden hacer los abonos o facturas por cada abono. Valores
+        antes de IVA.
       </p>
     </Slide1920>
   );
@@ -940,10 +1039,10 @@ export function CronogramaSlide({ data, page, total }: { data: DeckData; page: n
 }
 
 export function RequerimientosSlide({ data, page, total }: { data: DeckData; page: number; total: number }) {
-  const t = THEME.dark;
+  const t = THEME.light;
   const items = data.operationalRequirements;
   return (
-    <Slide1920 theme="dark" section="Ejecución" page={page} total={total} contentStyle={{ gap: 32 }}>
+    <Slide1920 theme="light" section="Ejecución" page={page} total={total} contentStyle={{ gap: 32 }}>
       <h2 style={{ fontFamily: DISPLAY_FONT, fontSize: 68, fontWeight: 800, lineHeight: 1.05, letterSpacing: -1, color: t.fg }}>
         Requerimientos operativos
       </h2>

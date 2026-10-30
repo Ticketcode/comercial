@@ -120,6 +120,8 @@ export function PropuestaEditor({
   const [globalPct, setGlobalPct] = useState(Number(proposal.acuerdo_comercial_pct_global));
   const [scheduleRows, setScheduleRows] = useState(initialScheduleItems.map((s) => ({ ...s })));
   const [deletedScheduleIds, setDeletedScheduleIds] = useState<string[]>([]);
+  const [cronogramaSemanas, setCronogramaSemanas] = useState(proposal.cronograma_semanas);
+  const [cronogramaDias, setCronogramaDias] = useState(proposal.cronograma_dias);
   const [milestones, setMilestones] = useState<Milestone[]>(
     initialMilestones.map((m) => ({ ...m, pct: Number(m.pct) }))
   );
@@ -138,6 +140,8 @@ export function PropuestaEditor({
     globalPct,
     scheduleRows,
     deletedScheduleIds,
+    cronogramaSemanas,
+    cronogramaDias,
     milestones,
     deletedMilestoneIds,
     requirements,
@@ -157,6 +161,8 @@ export function PropuestaEditor({
       globalPct: Number(proposal.acuerdo_comercial_pct_global),
       scheduleRows: initialScheduleItems.map((s) => ({ ...s })),
       deletedScheduleIds: [] as string[],
+      cronogramaSemanas: proposal.cronograma_semanas,
+      cronogramaDias: proposal.cronograma_dias,
       milestones: initialMilestones.map((m) => ({ ...m, pct: Number(m.pct) })),
       deletedMilestoneIds: [] as string[],
       requirements: initialRequirements.map((r) => ({ ...r })),
@@ -168,6 +174,8 @@ export function PropuestaEditor({
     setGlobalPct(next.globalPct);
     setScheduleRows(next.scheduleRows);
     setDeletedScheduleIds(next.deletedScheduleIds);
+    setCronogramaSemanas(next.cronogramaSemanas);
+    setCronogramaDias(next.cronogramaDias);
     setMilestones(next.milestones);
     setDeletedMilestoneIds(next.deletedMilestoneIds);
     setRequirements(next.requirements);
@@ -212,6 +220,17 @@ export function PropuestaEditor({
     }));
   }
 
+  function editSelectionText(catalogItemId: string, name: string, description: string) {
+    setSelections((prev) => ({
+      ...prev,
+      [catalogItemId]: {
+        ...prev[catalogItemId],
+        custom_name: name.trim() || null,
+        custom_description: description.trim() || null,
+      },
+    }));
+  }
+
   function patchAgreement(id: string, patch: Partial<ProposalCommercialAgreement>) {
     setAgreementRows((prev) => prev.map((a) => (a.id === id ? { ...a, ...patch } : a)));
   }
@@ -220,13 +239,14 @@ export function PropuestaEditor({
     setScheduleRows((prev) => prev.map((s) => (s.id === id ? { ...s, ...patch } : s)));
   }
 
-  function addScheduleRow(week: number) {
+  function addScheduleRow(week: number, dayNumber: number | null = null) {
     setScheduleRows((prev) => [
       ...prev,
       {
         id: tempId(),
         proposal_id: proposal.id,
         week_number: week,
+        day_number: dayNumber,
         hito: "",
         comentario: null,
         sort_order: prev.length,
@@ -246,6 +266,57 @@ export function PropuestaEditor({
     }
     setScheduleRows((prev) => prev.filter((s) => s.id !== id));
     if (!id.startsWith("new-")) setDeletedScheduleIds((prev) => [...prev, id]);
+  }
+
+  // Semanas/días configurados explícitamente (pueden existir vacíos, antes de
+  // tener hitos cargados) — si nunca se tocó el +/- se derivan del contenido.
+  const configuredWeeks = cronogramaSemanas ?? Math.max(0, ...scheduleRows.map((s) => s.week_number), 0);
+  const configuredDays = cronogramaDias ?? Math.max(0, ...scheduleRows.map((s) => s.day_number ?? 0));
+
+  function addWeek() {
+    setCronogramaSemanas(configuredWeeks + 1);
+  }
+
+  async function removeWeek(week: number) {
+    const hasContent = scheduleRows.some((s) => s.week_number === week && s.hito.trim());
+    if (hasContent) {
+      const ok = await confirm({
+        title: `¿Quitar la semana ${week}?`,
+        message: "Se borran todos los hitos cargados en esa semana. El cambio se aplica al pulsar Guardar propuesta.",
+        confirmLabel: "Quitar semana",
+        danger: true,
+      });
+      if (!ok) return;
+    }
+    const toRemove = scheduleRows.filter((s) => s.week_number === week);
+    setScheduleRows((prev) =>
+      prev
+        .filter((s) => s.week_number !== week)
+        .map((s) => (s.week_number > week ? { ...s, week_number: s.week_number - 1 } : s))
+    );
+    setDeletedScheduleIds((prev) => [...prev, ...toRemove.filter((s) => !s.id.startsWith("new-")).map((s) => s.id)]);
+    setCronogramaSemanas(Math.max(0, configuredWeeks - 1));
+  }
+
+  function addDayColumn() {
+    setCronogramaDias(configuredDays + 1);
+  }
+
+  async function removeDayColumn() {
+    const hasContent = scheduleRows.some((s) => s.day_number === configuredDays && s.hito.trim());
+    if (hasContent) {
+      const ok = await confirm({
+        title: `¿Quitar la columna del día ${configuredDays}?`,
+        message: "Se borran todos los hitos cargados en ese día, en todas las semanas. El cambio se aplica al pulsar Guardar propuesta.",
+        confirmLabel: "Quitar día",
+        danger: true,
+      });
+      if (!ok) return;
+    }
+    const toRemove = scheduleRows.filter((s) => s.day_number === configuredDays);
+    setScheduleRows((prev) => prev.filter((s) => s.day_number !== configuredDays));
+    setDeletedScheduleIds((prev) => [...prev, ...toRemove.filter((s) => !s.id.startsWith("new-")).map((s) => s.id)]);
+    setCronogramaDias(Math.max(0, configuredDays - 1));
   }
 
   async function removeMilestoneRow(id: string) {
@@ -328,21 +399,30 @@ export function PropuestaEditor({
         proposalId: proposal.id,
         lugar,
         acuerdo_comercial_pct_global: globalPct,
+        cronograma_semanas: cronogramaSemanas,
+        cronograma_dias: cronogramaDias,
         agreementItems: agreementRows.map((a) => ({ id: a.id, included: a.included, pct: Number(a.pct) })),
         scheduleItems: existingSchedule.map((s) => ({
           id: s.id,
           week_number: s.week_number,
+          day_number: s.day_number,
           hito: s.hito,
           comentario: s.comentario,
         })),
         newScheduleItems: newSchedule.map((s) => ({
           id: s.id,
           week_number: s.week_number,
+          day_number: s.day_number,
           hito: s.hito,
           comentario: s.comentario,
         })),
         deletedScheduleItemIds: deletedScheduleIds,
-        catalogSelections: Object.values(selections).map((s) => ({ id: s.id, included: s.included })),
+        catalogSelections: Object.values(selections).map((s) => ({
+          id: s.id,
+          included: s.included,
+          custom_name: s.custom_name,
+          custom_description: s.custom_description,
+        })),
         milestones: {
           existing: existingMilestones,
           new: newMilestones,
@@ -362,10 +442,14 @@ export function PropuestaEditor({
   const componentesBasicos = catalogItems.filter((c) => c.category === "componente_basico");
   const logistica360 = catalogItems.filter((c) => c.category === "logistica_360");
 
-  const weekNumbers = useMemo(() => {
-    const set = new Set(scheduleRows.map((s) => s.week_number));
-    return Array.from(set).sort((a, b) => a - b);
-  }, [scheduleRows]);
+  const weekNumbers = useMemo(
+    () => Array.from({ length: configuredWeeks }, (_, i) => i + 1),
+    [configuredWeeks]
+  );
+  const dayNumbers = useMemo(
+    () => Array.from({ length: configuredDays }, (_, i) => i + 1),
+    [configuredDays]
+  );
 
   return (
     <div className="space-y-6">
@@ -390,6 +474,8 @@ export function PropuestaEditor({
               </p>
               <input
                 aria-label="Lugar del evento"
+                spellCheck
+                lang="es"
                 value={lugar}
                 onChange={(e) => setLugar(e.target.value)}
                 placeholder="Ej. Centro de Convenciones..."
@@ -398,7 +484,16 @@ export function PropuestaEditor({
             </div>
             <Stat label="Ciudad" value={proposal.city ?? "—"} />
             <Stat label="Modalidad" value={modalityLabel[proposal.modality] ?? proposal.modality} />
-            <Stat label="Aforo" value={String(proposal.aforo ?? "—")} />
+            {proposal.modality === "hibrido" ? (
+              <>
+                <Stat label="Aforo presencial" value={String(proposal.aforo ?? "—")} />
+                <Stat label="Aforo virtual" value={String(proposal.aforo_virtual ?? "—")} />
+              </>
+            ) : proposal.modality === "virtual" || proposal.modality === "mundo_virtual" ? (
+              <Stat label="Aforo virtual" value={String(proposal.aforo_virtual ?? "—")} />
+            ) : (
+              <Stat label="Aforo" value={String(proposal.aforo ?? "—")} />
+            )}
             <Stat
               label="Fechas"
               value={
@@ -418,10 +513,11 @@ export function PropuestaEditor({
               color={BRAND.teal}
               items={componentesBasicos.map((c) => ({
                 key: c.id,
-                label: c.name,
-                description: c.description,
+                label: selections[c.id]?.custom_name || c.name,
+                description: selections[c.id]?.custom_description || c.description,
                 checked: selections[c.id]?.included ?? false,
                 onToggle: () => toggleSelection(c.id),
+                onEditSave: (name, description) => editSelectionText(c.id, name, description),
               }))}
               emptyLabel="No hay componentes básicos definidos para esta modalidad."
             />
@@ -430,10 +526,11 @@ export function PropuestaEditor({
               color={BRAND.orange}
               items={logistica360.map((c) => ({
                 key: c.id,
-                label: c.name,
-                description: c.description,
+                label: selections[c.id]?.custom_name || c.name,
+                description: selections[c.id]?.custom_description || c.description,
                 checked: selections[c.id]?.included ?? false,
                 onToggle: () => toggleSelection(c.id),
+                onEditSave: (name, description) => editSelectionText(c.id, name, description),
               }))}
               emptyLabel="No aplica logística presencial para esta modalidad."
             />
@@ -573,6 +670,8 @@ export function PropuestaEditor({
               <div key={m.id} className="flex flex-wrap items-center gap-3">
                 <input
                   aria-label="Descripción del hito de pago"
+                  spellCheck
+                  lang="es"
                   value={m.label}
                   onChange={(e) =>
                     setMilestones((prev) =>
@@ -621,60 +720,108 @@ export function PropuestaEditor({
           )}
         </Slide>
 
-        {/* Cronograma — grilla horizontal por semana */}
+        {/* Cronograma — semanas en filas, días en columnas (configurables). "General" es
+            el bloque de toda la semana; las columnas de día son para desglosar puntualmente. */}
         <Slide kicker="Plan de trabajo" title="Cronograma" accent={BRAND.orange}>
-          <div className="grid grid-cols-3 gap-4 sm:grid-cols-6">
-            {weekNumbers.map((week) => (
-              <div key={week} className="rounded-lg p-3" style={{ backgroundColor: BRAND.lightGrey }}>
-                <p className="mb-2 text-center text-xs font-bold uppercase" style={{ color: BRAND.orange }}>
-                  Semana {week}
-                </p>
-                <div className="space-y-2">
-                  {scheduleRows
-                    .filter((r) => r.week_number === week)
-                    .map((row) => (
-                      <div key={row.id} className="rounded bg-white p-1.5 shadow-sm">
-                        <input
-                          aria-label={`Hito del cronograma, semana ${row.week_number}`}
-                          value={row.hito}
-                          onChange={(e) => patchSchedule(row.id, { hito: e.target.value })}
-                          placeholder="Hito"
-                          className="w-full border-none bg-transparent text-xs outline-none"
-                          style={{ color: BRAND.dark }}
-                        />
-                        {!isDownloading && (
-                          <div className="mt-1 flex justify-end">
-                            <button
-                              onClick={() => removeScheduleRow(row.id)}
-                              className="no-print text-[10px] text-red-500 hover:underline"
-                            >
-                              Eliminar
-                            </button>
-                          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full border-separate text-xs" style={{ borderSpacing: 6 }}>
+              <thead>
+                <tr>
+                  <th className="w-20 text-left text-[11px] font-bold uppercase" style={{ color: BRAND.orange }}>
+                    Semana
+                  </th>
+                  <th className="w-40 text-left text-[11px] font-bold uppercase" style={{ color: BRAND.grey }}>
+                    General
+                  </th>
+                  {dayNumbers.map((day) => (
+                    <th key={day} className="w-40 text-left text-[11px] font-bold uppercase" style={{ color: BRAND.grey }}>
+                      Día {day}
+                    </th>
+                  ))}
+                  {!isDownloading && (
+                    <th className="no-print w-20">
+                      <div className="flex gap-1">
+                        <button
+                          onClick={addDayColumn}
+                          title="Agregar columna de día"
+                          aria-label="Agregar columna de día"
+                          className="rounded px-2 py-1 text-xs font-bold"
+                          style={{ backgroundColor: BRAND.lightGrey, color: BRAND.orange }}
+                        >
+                          +Día
+                        </button>
+                        {dayNumbers.length > 0 && (
+                          <button
+                            onClick={removeDayColumn}
+                            title="Quitar la última columna de día"
+                            aria-label="Quitar la última columna de día"
+                            className="rounded px-2 py-1 text-xs font-bold"
+                            style={{ backgroundColor: BRAND.lightGrey, color: BRAND.grey }}
+                          >
+                            −Día
+                          </button>
                         )}
                       </div>
-                    ))}
-                  {!isDownloading && (
-                    <button
-                      onClick={() => addScheduleRow(week)}
-                      className="no-print w-full text-center text-[11px] font-medium underline"
-                      style={{ color: BRAND.grey }}
-                    >
-                      + hito
-                    </button>
+                    </th>
                   )}
-                </div>
-              </div>
-            ))}
-            {!isDownloading && (
-              <button
-                onClick={() => addScheduleRow((weekNumbers.at(-1) ?? 0) + 1)}
-                className="no-print rounded-lg border-2 border-dashed p-3 text-xs font-medium"
-                style={{ borderColor: BRAND.grey, color: BRAND.grey }}
-              >
-                + Semana
-              </button>
-            )}
+                </tr>
+              </thead>
+              <tbody>
+                {weekNumbers.map((week) => (
+                  <tr key={week} className="align-top">
+                    <td className="pt-1">
+                      <p className="text-[11px] font-bold" style={{ color: BRAND.orange }}>
+                        Semana {week}
+                      </p>
+                      {!isDownloading && (
+                        <button
+                          onClick={() => removeWeek(week)}
+                          className="no-print mt-1 text-[10px] text-red-500 hover:underline"
+                        >
+                          Quitar semana
+                        </button>
+                      )}
+                    </td>
+                    <CronogramaCell
+                      rows={scheduleRows.filter((r) => r.week_number === week && r.day_number === null)}
+                      onAdd={() => addScheduleRow(week, null)}
+                      onPatch={patchSchedule}
+                      onRemove={removeScheduleRow}
+                      isDownloading={isDownloading}
+                      ariaLabel={`Hito general, semana ${week}`}
+                      textColor={BRAND.dark}
+                      grey={BRAND.grey}
+                    />
+                    {dayNumbers.map((day) => (
+                      <CronogramaCell
+                        key={day}
+                        rows={scheduleRows.filter((r) => r.week_number === week && r.day_number === day)}
+                        onAdd={() => addScheduleRow(week, day)}
+                        onPatch={patchSchedule}
+                        onRemove={removeScheduleRow}
+                        isDownloading={isDownloading}
+                        ariaLabel={`Hito semana ${week}, día ${day}`}
+                        textColor={BRAND.dark}
+                        grey={BRAND.grey}
+                      />
+                    ))}
+                  </tr>
+                ))}
+                {!isDownloading && (
+                  <tr>
+                    <td colSpan={2 + dayNumbers.length}>
+                      <button
+                        onClick={addWeek}
+                        className="no-print mt-1 rounded border-2 border-dashed px-3 py-1.5 text-[11px] font-medium"
+                        style={{ borderColor: BRAND.grey, color: BRAND.grey }}
+                      >
+                        + Semana
+                      </button>
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
           </div>
         </Slide>
 
@@ -686,6 +833,8 @@ export function PropuestaEditor({
                 <span className="mt-2.5 h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: BRAND.blue }} />
                 <input
                   aria-label="Requerimiento operativo"
+                  spellCheck
+                  lang="es"
                   value={req.text}
                   onChange={(e) =>
                     setRequirements((prev) =>
@@ -727,6 +876,14 @@ export function PropuestaEditor({
           {isPending ? "Guardando..." : "Guardar propuesta"}
         </button>
         <SaveStatus dirty={dirty} isPending={isPending} message={message} />
+        {message === "Guardado." && !dirty && (
+          <a
+            href={`/proposals/${proposal.id}/contrato`}
+            className="no-print flex min-h-11 items-center rounded-pill bg-surface2 px-5 text-sm font-semibold text-ink"
+          >
+            Siguiente: Contrato →
+          </a>
+        )}
       </div>
     </div>
   );
@@ -742,6 +899,66 @@ function Stat({ label, value }: { label: string; value: string }) {
         {value}
       </p>
     </div>
+  );
+}
+
+function CronogramaCell({
+  rows,
+  onAdd,
+  onPatch,
+  onRemove,
+  isDownloading,
+  ariaLabel,
+  textColor,
+  grey,
+}: {
+  rows: ProposalScheduleItem[];
+  onAdd: () => void;
+  onPatch: (id: string, patch: Partial<ProposalScheduleItem>) => void;
+  onRemove: (id: string) => void;
+  isDownloading: boolean;
+  ariaLabel: string;
+  textColor: string;
+  grey: string;
+}) {
+  return (
+    <td className="align-top">
+      <div className="space-y-1.5">
+        {rows.map((row) => (
+          <div key={row.id} className="rounded p-1.5 shadow-sm" style={{ backgroundColor: "white" }}>
+            <input
+              aria-label={ariaLabel}
+              spellCheck
+              lang="es"
+              value={row.hito}
+              onChange={(e) => onPatch(row.id, { hito: e.target.value })}
+              placeholder="Hito"
+              className="w-full border-none bg-transparent text-xs outline-none"
+              style={{ color: textColor }}
+            />
+            {!isDownloading && (
+              <div className="mt-1 flex justify-end">
+                <button
+                  onClick={() => onRemove(row.id)}
+                  className="no-print text-[10px] text-red-500 hover:underline"
+                >
+                  Eliminar
+                </button>
+              </div>
+            )}
+          </div>
+        ))}
+        {!isDownloading && (
+          <button
+            onClick={onAdd}
+            className="no-print w-full text-center text-[11px] font-medium underline"
+            style={{ color: grey }}
+          >
+            + hito
+          </button>
+        )}
+      </div>
+    </td>
   );
 }
 
@@ -784,10 +1001,26 @@ function ChecklistBox({
     checked: boolean;
     onToggle?: () => void;
     readOnly?: boolean;
+    onEditSave?: (name: string, description: string) => void;
   }[];
   emptyLabel: string;
   footnote?: string;
 }) {
+  const [editingKey, setEditingKey] = useState<string | null>(null);
+  const [draftName, setDraftName] = useState("");
+  const [draftDescription, setDraftDescription] = useState("");
+
+  function startEdit(item: (typeof items)[number]) {
+    setEditingKey(item.key);
+    setDraftName(item.label);
+    setDraftDescription(item.description ?? "");
+  }
+
+  function saveEdit(item: (typeof items)[number]) {
+    item.onEditSave?.(draftName, draftDescription);
+    setEditingKey(null);
+  }
+
   return (
     <div className="rounded-xl border p-4" style={{ borderColor: BRAND.lightGrey }}>
       <p className="mb-3 text-sm font-bold" style={{ color }}>
@@ -809,16 +1042,64 @@ function ChecklistBox({
                 onChange={item.onToggle}
                 className="mt-0.5 h-3.5 w-3.5 shrink-0"
               />
-              <div>
-                <p className={item.checked ? "font-medium" : "text-neutral-400 line-through"} style={item.checked ? { color: BRAND.dark } : undefined}>
-                  {item.label}
-                </p>
-                {item.description && item.checked && (
-                  <p className="mt-0.5 whitespace-pre-line" style={{ color: BRAND.grey }}>
-                    {item.description}
+              {editingKey === item.key ? (
+                <div className="flex-1 space-y-1">
+                  <input
+                    value={draftName}
+                    onChange={(e) => setDraftName(e.target.value)}
+                    spellCheck
+                    lang="es"
+                    className="w-full rounded border border-neutral-300 px-1.5 py-0.5 text-xs font-medium"
+                  />
+                  <textarea
+                    value={draftDescription}
+                    onChange={(e) => setDraftDescription(e.target.value)}
+                    spellCheck
+                    lang="es"
+                    rows={2}
+                    className="w-full rounded border border-neutral-300 px-1.5 py-0.5 text-xs"
+                  />
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => saveEdit(item)}
+                      className="text-[11px] font-semibold underline"
+                      style={{ color }}
+                    >
+                      Guardar texto
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditingKey(null)}
+                      className="text-[11px] text-neutral-400 underline"
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex-1">
+                  <p className={item.checked ? "font-medium" : "text-neutral-400 line-through"} style={item.checked ? { color: BRAND.dark } : undefined}>
+                    {item.label}
+                    {item.onEditSave && (
+                      <button
+                        type="button"
+                        onClick={() => startEdit(item)}
+                        title="Editar título y descripción"
+                        aria-label={`Editar ${item.label}`}
+                        className="ml-1.5 text-neutral-400 hover:text-neutral-700"
+                      >
+                        ✎
+                      </button>
+                    )}
                   </p>
-                )}
-              </div>
+                  {item.description && item.checked && (
+                    <p className="mt-0.5 whitespace-pre-line" style={{ color: BRAND.grey }}>
+                      {item.description}
+                    </p>
+                  )}
+                </div>
+              )}
             </li>
           ))}
         </ul>
