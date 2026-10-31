@@ -139,6 +139,8 @@ export interface ProposalCostItem {
   unit_price: number;
   notes: string | null;
   sort_order: number;
+  custom_name: string | null;
+  custom_description: string | null;
 }
 
 export interface CommercialAgreementTier {

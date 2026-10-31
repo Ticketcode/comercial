@@ -70,8 +70,8 @@ export default async function PresentacionPage({ params }: { params: Promise<{ i
   const includedServices = allCostItems
     .filter((i) => i.included)
     .map((i) => ({
-      name: i.label,
-      description: serviceCatalogItems?.find((c) => c.name === i.label)?.description ?? null,
+      name: i.custom_name || i.label,
+      description: i.custom_description || serviceCatalogItems?.find((c) => c.name === i.label)?.description || null,
     }));
 
   const catalogItems = (catalogItemsForModality ?? []).filter(

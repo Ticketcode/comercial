@@ -25,6 +25,9 @@ const modalityLabel: Record<string, string> = {
  * recalcularSegunAforo. Si el comercial editó el texto a mano (lápiz en
  * Propuesta) ese override manual tiene prioridad sobre esto. */
 const LOGISTICA_DYNAMIC_DESCRIPTIONS: Record<string, (p: DeckData["proposal"]) => string> = {
+  "Acompañamiento durante el evento": (p) => `(${p.qty_productor}) Productor, (${p.qty_supervisor}) Supervisores`,
+  "Suministro de personal logístico": (p) =>
+    `(${p.qty_logistico}) Logísticos para cubrir todos los espacios definidos (registro, acreditación, sesiones principales, sesiones internas)`,
   "Control de aceso a cada una de las sesiones internas del evento": (p) =>
     `(${p.qty_logistico}) personas de logística, (${p.qty_logistico}) equipos de lectura`,
   "Suministro de equipos": (p) =>
@@ -416,7 +419,7 @@ export function ComponentesSlide({
         </p>
       ) : (
         <div style={{ borderRadius: 16, overflow: "hidden", flex: 1, minHeight: 0 }}>
-          <table style={{ width: "100%", height: "100%", borderCollapse: "collapse", fontSize: dense ? 22 : 26, color: t.fg }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: dense ? 22 : 26, color: t.fg }}>
             <tbody>
               <tr style={{ background: t.accent2 }}>
                 <th style={{ width: "34%", padding: dense ? "10px 16px" : "14px 20px", color: "#FFFFFF", textAlign: "left" }}>
@@ -484,7 +487,7 @@ export function ServiciosSlide({
         </p>
       ) : (
         <div style={{ borderRadius: 16, overflow: "hidden", flex: 1, minHeight: 0 }}>
-          <table style={{ width: "100%", height: "100%", borderCollapse: "collapse", fontSize: dense ? 22 : 26, color: t.fg }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: dense ? 22 : 26, color: t.fg }}>
             <tbody>
               <tr style={{ background: t.accent2 }}>
                 <th style={{ width: "34%", padding: dense ? "10px 16px" : "14px 20px", color: "#FFFFFF", textAlign: "left" }}>
@@ -669,7 +672,7 @@ function estimateLogisticaWeight(description: string | null): number {
   return w;
 }
 
-const LOGISTICA_WEIGHT_PER_PAGE = 6;
+const LOGISTICA_WEIGHT_PER_PAGE = 14;
 
 export function chunkLogisticaItems(items: ReturnType<typeof getCheckedLogisticaItems>) {
   const chunks: typeof items[] = [];
@@ -714,7 +717,7 @@ export function LogisticaSlide({
         </p>
       ) : (
         <div style={{ borderRadius: 16, overflow: "hidden", flex: 1, minHeight: 0 }}>
-          <table style={{ width: "100%", height: "100%", borderCollapse: "collapse", fontSize: dense ? 20 : 24, color: t.fg }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: dense ? 20 : 24, color: t.fg }}>
             <tbody>
               <tr style={{ background: t.accent2 }}>
                 <th style={{ width: "30%", padding: dense ? "10px 16px" : "14px 20px", color: "#FFFFFF", textAlign: "left" }}>

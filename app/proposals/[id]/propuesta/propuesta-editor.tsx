@@ -35,8 +35,11 @@ const BRAND = {
 };
 
 interface IncludedService {
+  id: string;
   name: string;
   description: string | null;
+  custom_name: string | null;
+  custom_description: string | null;
 }
 
 interface Props {
@@ -106,7 +109,7 @@ export function PropuestaEditor({
   tarifarioSummary,
   catalogItems,
   catalogSelections: initialSelections,
-  includedServices,
+  includedServices: initialIncludedServices,
   agreementItems: initialAgreementItems,
   scheduleItems: initialScheduleItems,
   paymentMilestones: initialMilestones,
@@ -115,6 +118,9 @@ export function PropuestaEditor({
   const [lugar, setLugar] = useState(proposal.lugar ?? "");
   const [selections, setSelections] = useState(
     Object.fromEntries(initialSelections.map((s) => [s.catalog_item_id, { ...s }]))
+  );
+  const [servicios, setServicios] = useState(
+    Object.fromEntries(initialIncludedServices.map((s) => [s.id, { ...s }]))
   );
   const [agreementRows, setAgreementRows] = useState(initialAgreementItems.map((a) => ({ ...a })));
   const [globalPct, setGlobalPct] = useState(Number(proposal.acuerdo_comercial_pct_global));
@@ -136,6 +142,7 @@ export function PropuestaEditor({
   const { dirty, resetTo } = useUnsavedChanges({
     lugar,
     selections,
+    servicios,
     agreementRows,
     globalPct,
     scheduleRows,
@@ -157,6 +164,7 @@ export function PropuestaEditor({
     const next = {
       lugar: proposal.lugar ?? "",
       selections: Object.fromEntries(initialSelections.map((s) => [s.catalog_item_id, { ...s }])),
+      servicios: Object.fromEntries(initialIncludedServices.map((s) => [s.id, { ...s }])),
       agreementRows: initialAgreementItems.map((a) => ({ ...a })),
       globalPct: Number(proposal.acuerdo_comercial_pct_global),
       scheduleRows: initialScheduleItems.map((s) => ({ ...s })),
@@ -170,6 +178,7 @@ export function PropuestaEditor({
     };
     setLugar(next.lugar);
     setSelections(next.selections);
+    setServicios(next.servicios);
     setAgreementRows(next.agreementRows);
     setGlobalPct(next.globalPct);
     setScheduleRows(next.scheduleRows);
@@ -225,6 +234,17 @@ export function PropuestaEditor({
       ...prev,
       [catalogItemId]: {
         ...prev[catalogItemId],
+        custom_name: name.trim() || null,
+        custom_description: description.trim() || null,
+      },
+    }));
+  }
+
+  function editServicioText(costItemId: string, name: string, description: string) {
+    setServicios((prev) => ({
+      ...prev,
+      [costItemId]: {
+        ...prev[costItemId],
         custom_name: name.trim() || null,
         custom_description: description.trim() || null,
       },
@@ -423,6 +443,11 @@ export function PropuestaEditor({
           custom_name: s.custom_name,
           custom_description: s.custom_description,
         })),
+        costItems: Object.values(servicios).map((s) => ({
+          id: s.id,
+          custom_name: s.custom_name,
+          custom_description: s.custom_description,
+        })),
         milestones: {
           existing: existingMilestones,
           new: newMilestones,
@@ -537,12 +562,13 @@ export function PropuestaEditor({
             <ChecklistBox
               title="Servicios personalizados"
               color={BRAND.blueText}
-              items={includedServices.map((s) => ({
-                key: s.name,
-                label: s.name,
-                description: s.description,
+              items={Object.values(servicios).map((s) => ({
+                key: s.id,
+                label: s.custom_name || s.name,
+                description: s.custom_description || s.description,
                 checked: true,
                 readOnly: true,
+                onEditSave: (name, description) => editServicioText(s.id, name, description),
               }))}
               emptyLabel="No se seleccionó ningún servicio personalizado en el Tarifario."
               footnote="Se eligen en el paso 1 (Tarifario)."

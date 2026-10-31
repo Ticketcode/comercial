@@ -51,8 +51,11 @@ export default async function PropuestaPage({
   const includedServices = allCostItems
     .filter((i) => i.included)
     .map((i) => ({
-      name: i.label,
-      description: serviceCatalogItems?.find((c) => c.name === i.label)?.description ?? null,
+      id: i.id,
+      name: i.custom_name || i.label,
+      description: i.custom_description || serviceCatalogItems?.find((c) => c.name === i.label)?.description || null,
+      custom_name: i.custom_name,
+      custom_description: i.custom_description,
     }));
 
   // Siembra perezosa: Componentes básicos + Logística 360 (según

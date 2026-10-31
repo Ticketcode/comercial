@@ -90,7 +90,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   const componentesBasicosTexto = bulletList(includedCatalogNames("componente_basico"));
   const logistica360Texto = bulletList(includedCatalogNames("logistica_360"));
   const serviciosPersonalizadosTexto = bulletList(
-    validCostItems.filter((i) => i.included).map((i) => i.label)
+    validCostItems.filter((i) => i.included).map((i) => i.custom_name || i.label)
   );
 
   const f = fields ?? {};

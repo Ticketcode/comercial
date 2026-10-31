@@ -24,6 +24,12 @@ export interface SaveCatalogSelection {
   custom_description: string | null;
 }
 
+export interface SaveCostItemText {
+  id: string;
+  custom_name: string | null;
+  custom_description: string | null;
+}
+
 export interface SaveMilestone {
   id: string;
   label: string;
@@ -49,6 +55,7 @@ export interface SavePropuestaPayload {
   newScheduleItems: SaveScheduleItem[];
   deletedScheduleItemIds: string[];
   catalogSelections: SaveCatalogSelection[];
+  costItems: SaveCostItemText[];
   milestones: { existing: SaveMilestone[]; new: SaveMilestone[]; deletedIds: string[] };
 }
 
@@ -90,6 +97,15 @@ export async function savePropuesta(payload: SavePropuestaPayload) {
         .from("proposal_catalog_selections")
         .update({
           included: item.included,
+          custom_name: item.custom_name,
+          custom_description: item.custom_description,
+        })
+        .eq("id", item.id)
+    ),
+    ...payload.costItems.map((item) =>
+      supabase
+        .from("proposal_cost_items")
+        .update({
           custom_name: item.custom_name,
           custom_description: item.custom_description,
         })

@@ -153,13 +153,21 @@ function buildSlides(
     { key: "casos", group: "casos", render: (p) => <CasosSlide page={p.page} total={p.total} /> },
     { key: "cierre", group: "cierre", render: (p) => <CierreSlide {...p} /> },
   ];
-  const visible = entries.filter((e) => !isHidden(e.group));
-  const total = visible.length;
-  return visible.map((e, i) => ({
-    key: e.key,
-    group: e.group,
-    node: e.render({ data, page: i + 1, total }),
-  }));
+  // La numeración de página (dibujada dentro de cada lámina) solo cuenta las
+  // visibles — una oculta conserva el número de la última visible, ya que no
+  // se le asigna un puesto propio en el PDF final.
+  const total = entries.filter((e) => !isHidden(e.group)).length;
+  let counter = 0;
+  return entries.map((e) => {
+    const hidden = isHidden(e.group);
+    if (!hidden) counter += 1;
+    return {
+      key: e.key,
+      group: e.group,
+      hidden,
+      node: e.render({ data, page: Math.max(counter, 1), total }),
+    };
+  });
 }
 
 export function PresentacionViewer({ data: initialData }: { data: DeckData }) {
@@ -281,27 +289,6 @@ export function PresentacionViewer({ data: initialData }: { data: DeckData }) {
         </div>
       </section>
 
-      <section className="no-print rounded-xl border border-neutral-200 bg-white p-5">
-        <h3 className="text-sm font-semibold text-neutral-900">Diapositivas a incluir</h3>
-        <p className="mt-1 text-xs text-neutral-500">
-          Desmarca las que no apliquen para esta propuesta — no se borra la información, solo se omiten al
-          generar.
-        </p>
-        <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-4">
-          {HIDEABLE_SLIDE_GROUPS.map((g) => (
-            <label key={g.key} className="flex items-center gap-2 text-xs text-neutral-700">
-              <input
-                type="checkbox"
-                checked={!hiddenSlides.includes(g.key)}
-                onChange={() => toggleHiddenSlide(g.key)}
-                className="h-4 w-4"
-              />
-              {g.label}
-            </label>
-          ))}
-        </div>
-      </section>
-
       <div className="no-print flex flex-col items-center gap-6 rounded-xl border border-neutral-200 bg-neutral-50 p-6">
         {buildSlides(data, hiddenSlides, onEditImpactos).map((slide) => {
           const hideable = HIDEABLE_SLIDE_GROUPS.some((g) => g.key === slide.group);
@@ -311,14 +298,17 @@ export function PresentacionViewer({ data: initialData }: { data: DeckData }) {
               className="relative"
               style={{ width: 1920 * PREVIEW_SCALE, height: 1080 * PREVIEW_SCALE, overflow: "hidden" }}
             >
-              <div className="h-full w-full rounded-lg border border-neutral-300 shadow-sm">
+              <div
+                className="h-full w-full overflow-hidden rounded-lg border border-neutral-300 shadow-sm"
+                style={{ opacity: slide.hidden ? 0.35 : 1, filter: slide.hidden ? "grayscale(70%)" : undefined }}
+              >
                 <div
                   style={{ width: 1920, height: 1080, transform: `scale(${PREVIEW_SCALE})`, transformOrigin: "top left" }}
                 >
                   {slide.node}
                 </div>
               </div>
-              {hideable && (
+              {hideable && !slide.hidden && (
                 <button
                   type="button"
                   onClick={() => toggleHiddenSlide(slide.group)}
@@ -328,14 +318,32 @@ export function PresentacionViewer({ data: initialData }: { data: DeckData }) {
                   <EyeOffIcon />
                 </button>
               )}
+              {slide.hidden && (
+                <button
+                  type="button"
+                  onClick={() => toggleHiddenSlide(slide.group)}
+                  title="Mostrar esta diapositiva"
+                  className="absolute inset-0 flex items-center justify-center"
+                >
+                  <span className="flex h-16 w-16 items-center justify-center rounded-full bg-black/70 text-white hover:bg-black/85">
+                    <EyeIcon />
+                  </span>
+                </button>
+              )}
             </div>
           );
         })}
       </div>
 
-      {/* Área oculta a tamaño real (1920x1080 por lámina) — de acá sale el PDF (sin inputs editables). */}
+      {/* Área oculta a tamaño real (1920x1080 por lámina) — de acá sale el PDF (sin inputs editables). Las ocultas no se incluyen. */}
       <div className="fixed left-[-9999px] top-0 -z-10">
-        <div ref={printAreaRef}>{buildSlides(data, hiddenSlides).map((s) => <div key={s.key}>{s.node}</div>)}</div>
+        <div ref={printAreaRef}>
+          {buildSlides(data, hiddenSlides)
+            .filter((s) => !s.hidden)
+            .map((s) => (
+              <div key={s.key}>{s.node}</div>
+            ))}
+        </div>
       </div>
     </div>
   );
@@ -346,6 +354,15 @@ function EyeOffIcon() {
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
       <line x1="1" y1="1" x2="23" y2="23" />
+    </svg>
+  );
+}
+
+function EyeIcon() {
+  return (
+    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z" />
+      <circle cx="12" cy="12" r="3" />
     </svg>
   );
 }

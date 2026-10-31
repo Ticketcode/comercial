@@ -298,12 +298,12 @@ export function InformesSlide({ page, total }: { page: number; total: number }) 
 }
 
 const CASOS_IMAGES: [string, string, string, string | null][] = [
-  ["p40k.jpg", "Código QR de ingreso en un teléfono", "https://youtu.be/k2eV9_Y-QgQ", null],
-  ["asistente.jpg", "Integrante del equipo Ticketcode en un evento", "https://youtu.be/FymqpvMFvfs", null],
-  ["persona.jpg", "Fachada de un recinto de eventos", "https://youtu.be/uCZlG9ApDV0", null],
-  ["arena.jpg", "Asistente sonriendo con su teléfono", "https://youtu.be/fs1jwiWRx5Q", null],
+  ["p40k.jpg", "Código QR de ingreso en un teléfono", "https://youtu.be/k2eV9_Y-QgQ", "Colombia 4.0"],
+  ["asistente.jpg", "Integrante del equipo Ticketcode en un evento", "https://youtu.be/FymqpvMFvfs", "Ulibro 2023"],
+  ["persona.jpg", "Fachada de un recinto de eventos", "https://youtu.be/uCZlG9ApDV0", "EXMA 2019"],
+  ["arena.jpg", "Asistente sonriendo con su teléfono", "https://youtu.be/fs1jwiWRx5Q", "Festival Gabo 2024"],
   ["heroes.jpg", "Arte del evento Héroes Fest", "https://youtu.be/X_s7qhyN5QU", "Héroes Fest"],
-  ["cartagena.jpg", "Calle colonial de Cartagena", "https://youtu.be/ZdLbw4JGVRc", null],
+  ["cartagena.jpg", "Calle colonial de Cartagena", "https://youtu.be/ZdLbw4JGVRc", "FICCI 63"],
 ];
 
 function PlayIcon() {
