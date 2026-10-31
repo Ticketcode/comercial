@@ -208,7 +208,16 @@ export function PerfilSlide({ data, page, total }: { data: DeckData; page: numbe
           <Stat label="Nombre" value={proposal.event_name} highlight />
         </div>
         <Stat label="Modalidad" value={modalityLabel[proposal.modality] ?? proposal.modality} highlight />
-        <Stat label="Aforo" value={val(proposal.aforo)} highlight={!!proposal.aforo} />
+        {proposal.modality === "hibrido" ? (
+          <>
+            <Stat label="Aforo presencial" value={val(proposal.aforo)} highlight={!!proposal.aforo} />
+            <Stat label="Aforo virtual" value={val(proposal.aforo_virtual)} highlight={!!proposal.aforo_virtual} />
+          </>
+        ) : proposal.modality === "virtual" || proposal.modality === "mundo_virtual" ? (
+          <Stat label="Aforo virtual" value={val(proposal.aforo_virtual)} highlight={!!proposal.aforo_virtual} />
+        ) : (
+          <Stat label="Aforo" value={val(proposal.aforo)} highlight={!!proposal.aforo} />
+        )}
         <div style={{ gridColumn: "span 2" }}>
           <Stat label="Lugar" value={val(proposal.lugar)} highlight={!!proposal.lugar} />
         </div>
@@ -412,6 +421,74 @@ export function ComponentesSlide({
               <tr style={{ background: t.accent2 }}>
                 <th style={{ width: "34%", padding: dense ? "10px 16px" : "14px 20px", color: "#FFFFFF", textAlign: "left" }}>
                   Componente
+                </th>
+                <th style={{ width: "66%", padding: dense ? "10px 16px" : "14px 20px", color: "#FFFFFF", textAlign: "left" }}>
+                  Qué incluye
+                </th>
+              </tr>
+              {items.map((item, i) => (
+                <tr key={item.id} style={{ background: i % 2 === 0 ? t.card : "transparent" }}>
+                  <td style={{ padding: dense ? "10px 16px" : "14px 20px", fontWeight: 700, verticalAlign: "top" }}>
+                    {item.name}
+                  </td>
+                  <td style={{ padding: dense ? "10px 16px" : "14px 20px", color: t.fg, verticalAlign: "top" }}>
+                    {val(item.description)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </Slide1920>
+  );
+}
+
+export function getCheckedServiciosItems(data: DeckData) {
+  return data.includedServices.map((s, i) => ({ id: `servicio-${i}`, name: s.name, description: s.description }));
+}
+
+export function chunkServiciosItems(items: ReturnType<typeof getCheckedServiciosItems>) {
+  const chunks: typeof items[] = [];
+  for (let i = 0; i < items.length; i += COMPONENTES_WEIGHT_PER_PAGE) {
+    chunks.push(items.slice(i, i + COMPONENTES_WEIGHT_PER_PAGE));
+  }
+  return chunks.length > 0 ? chunks : [[]];
+}
+
+export function ServiciosSlide({
+  items,
+  chunkLabel,
+  page,
+  total,
+}: {
+  items: ReturnType<typeof getCheckedServiciosItems>;
+  chunkLabel?: string;
+  page: number;
+  total: number;
+}) {
+  const t = THEME.light;
+  const dense = items.length > 6;
+
+  return (
+    <Slide1920 theme="light" section="La propuesta" page={page} total={total} contentStyle={{ gap: 32 }}>
+      <h2 style={{ fontFamily: DISPLAY_FONT, fontSize: 68, fontWeight: 800, lineHeight: 1.05, letterSpacing: -1, color: t.fg }}>
+        Servicios personalizados{chunkLabel ? ` (${chunkLabel})` : ""}
+      </h2>
+      <p style={{ fontSize: 28, lineHeight: 1.4, color: t.muted }}>
+        Servicios adicionales elegidos para esta propuesta, por fuera de los componentes y la logística base.
+      </p>
+      {items.length === 0 ? (
+        <p style={{ fontSize: 28, color: t.muted }}>
+          Esta propuesta no incluye servicios personalizados adicionales.
+        </p>
+      ) : (
+        <div style={{ borderRadius: 16, overflow: "hidden", flex: 1, minHeight: 0 }}>
+          <table style={{ width: "100%", height: "100%", borderCollapse: "collapse", fontSize: dense ? 22 : 26, color: t.fg }}>
+            <tbody>
+              <tr style={{ background: t.accent2 }}>
+                <th style={{ width: "34%", padding: dense ? "10px 16px" : "14px 20px", color: "#FFFFFF", textAlign: "left" }}>
+                  Servicio
                 </th>
                 <th style={{ width: "66%", padding: dense ? "10px 16px" : "14px 20px", color: "#FFFFFF", textAlign: "left" }}>
                   Qué incluye

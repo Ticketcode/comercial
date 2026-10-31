@@ -30,10 +30,13 @@ import {
   PerfilSlide,
   PresencialSlide,
   RequerimientosSlide,
+  ServiciosSlide,
   chunkComponentesItems,
   chunkLogisticaItems,
+  chunkServiciosItems,
   getCheckedComponentesItems,
   getCheckedLogisticaItems,
+  getCheckedServiciosItems,
   hasAcuerdoComercial,
 } from "./slides-app";
 
@@ -59,6 +62,7 @@ export const HIDEABLE_SLIDE_GROUPS: { key: string; label: string }[] = [
   { key: "incluye", label: "Lo que incluye tu evento" },
   { key: "componentes", label: "Componentes básicos" },
   { key: "logistica", label: "Logística 360" },
+  { key: "servicios", label: "Servicios personalizados" },
   { key: "comercial", label: "Comercialización" },
   { key: "informes", label: "Informes y entregables" },
   { key: "acuerdo", label: "Acuerdo comercial" },
@@ -110,6 +114,18 @@ function buildSlides(
         />
       ),
     })),
+    ...chunkServiciosItems(getCheckedServiciosItems(data)).map((chunk, i, all) => ({
+      key: `servicios-${i}`,
+      group: "servicios",
+      render: (p: Parameters<SlideFn>[0]) => (
+        <ServiciosSlide
+          items={chunk}
+          chunkLabel={all.length > 1 ? `${i + 1}/${all.length}` : undefined}
+          page={p.page}
+          total={p.total}
+        />
+      ),
+    })),
     {
       key: "comercial",
       group: "comercial",
@@ -139,9 +155,11 @@ function buildSlides(
   ];
   const visible = entries.filter((e) => !isHidden(e.group));
   const total = visible.length;
-  return visible.map((e, i) => (
-    <div key={e.key}>{e.render({ data, page: i + 1, total })}</div>
-  ));
+  return visible.map((e, i) => ({
+    key: e.key,
+    group: e.group,
+    node: e.render({ data, page: i + 1, total }),
+  }));
 }
 
 export function PresentacionViewer({ data: initialData }: { data: DeckData }) {
@@ -285,23 +303,49 @@ export function PresentacionViewer({ data: initialData }: { data: DeckData }) {
       </section>
 
       <div className="no-print flex flex-col items-center gap-6 rounded-xl border border-neutral-200 bg-neutral-50 p-6">
-        {buildSlides(data, hiddenSlides, onEditImpactos).map((slide, i) => (
-          <div
-            key={i}
-            style={{ width: 1920 * PREVIEW_SCALE, height: 1080 * PREVIEW_SCALE, overflow: "hidden" }}
-            className="rounded-lg border border-neutral-300 shadow-sm"
-          >
-            <div style={{ width: 1920, height: 1080, transform: `scale(${PREVIEW_SCALE})`, transformOrigin: "top left" }}>
-              {slide}
+        {buildSlides(data, hiddenSlides, onEditImpactos).map((slide) => {
+          const hideable = HIDEABLE_SLIDE_GROUPS.some((g) => g.key === slide.group);
+          return (
+            <div
+              key={slide.key}
+              className="relative"
+              style={{ width: 1920 * PREVIEW_SCALE, height: 1080 * PREVIEW_SCALE, overflow: "hidden" }}
+            >
+              <div className="h-full w-full rounded-lg border border-neutral-300 shadow-sm">
+                <div
+                  style={{ width: 1920, height: 1080, transform: `scale(${PREVIEW_SCALE})`, transformOrigin: "top left" }}
+                >
+                  {slide.node}
+                </div>
+              </div>
+              {hideable && (
+                <button
+                  type="button"
+                  onClick={() => toggleHiddenSlide(slide.group)}
+                  title="Ocultar esta diapositiva"
+                  className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/80"
+                >
+                  <EyeOffIcon />
+                </button>
+              )}
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* Área oculta a tamaño real (1920x1080 por lámina) — de acá sale el PDF (sin inputs editables). */}
       <div className="fixed left-[-9999px] top-0 -z-10">
-        <div ref={printAreaRef}>{buildSlides(data, hiddenSlides)}</div>
+        <div ref={printAreaRef}>{buildSlides(data, hiddenSlides).map((s) => <div key={s.key}>{s.node}</div>)}</div>
       </div>
     </div>
+  );
+}
+
+function EyeOffIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
+      <line x1="1" y1="1" x2="23" y2="23" />
+    </svg>
   );
 }
