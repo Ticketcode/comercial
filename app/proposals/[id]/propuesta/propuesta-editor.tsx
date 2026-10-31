@@ -1057,78 +1057,87 @@ function ChecklistBox({
           {emptyLabel}
         </p>
       ) : (
-        <ul className="max-h-72 space-y-2 overflow-y-auto pr-1 text-xs">
+        <div className="max-h-[32rem] space-y-2 overflow-y-auto pr-1">
           {items.map((item) => (
-            <li key={item.key} className="flex items-start gap-2">
-              <input
-                type="checkbox"
-                aria-label={item.label}
-                checked={item.checked}
-                disabled={item.readOnly}
-                onChange={item.onToggle}
-                className="mt-0.5 h-3.5 w-3.5 shrink-0"
-              />
-              {editingKey === item.key ? (
-                <div className="flex-1 space-y-1">
-                  <input
-                    value={draftName}
-                    onChange={(e) => setDraftName(e.target.value)}
-                    spellCheck
-                    lang="es"
-                    className="w-full rounded border border-neutral-300 px-1.5 py-0.5 text-xs font-medium"
-                  />
-                  <textarea
-                    value={draftDescription}
-                    onChange={(e) => setDraftDescription(e.target.value)}
-                    spellCheck
-                    lang="es"
-                    rows={2}
-                    className="w-full rounded border border-neutral-300 px-1.5 py-0.5 text-xs"
-                  />
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => saveEdit(item)}
-                      className="text-[11px] font-semibold underline"
-                      style={{ color }}
-                    >
-                      Guardar texto
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setEditingKey(null)}
-                      className="text-[11px] text-neutral-400 underline"
-                    >
-                      Cancelar
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div className="flex-1">
-                  <p className={item.checked ? "font-medium" : "text-neutral-400 line-through"} style={item.checked ? { color: BRAND.dark } : undefined}>
-                    {item.label}
-                    {item.onEditSave && (
+            <div
+              key={item.key}
+              className="rounded-lg border p-2.5 text-xs"
+              style={{ borderColor: BRAND.lightGrey, background: item.checked ? "white" : "#FAFAFC" }}
+            >
+              <div className="flex items-start gap-2">
+                <input
+                  type="checkbox"
+                  aria-label={item.label}
+                  checked={item.checked}
+                  disabled={item.readOnly}
+                  onChange={item.onToggle}
+                  className="mt-0.5 h-3.5 w-3.5 shrink-0"
+                />
+                {editingKey === item.key ? (
+                  <div className="flex-1 space-y-1">
+                    <input
+                      value={draftName}
+                      onChange={(e) => setDraftName(e.target.value)}
+                      spellCheck
+                      lang="es"
+                      className="w-full rounded border border-neutral-300 px-1.5 py-0.5 text-xs font-medium"
+                    />
+                    <textarea
+                      value={draftDescription}
+                      onChange={(e) => setDraftDescription(e.target.value)}
+                      spellCheck
+                      lang="es"
+                      rows={2}
+                      className="w-full rounded border border-neutral-300 px-1.5 py-0.5 text-xs"
+                    />
+                    <div className="flex gap-2">
                       <button
                         type="button"
-                        onClick={() => startEdit(item)}
-                        title="Editar título y descripción"
-                        aria-label={`Editar ${item.label}`}
-                        className="ml-1.5 text-neutral-400 hover:text-neutral-700"
+                        onClick={() => saveEdit(item)}
+                        className="text-[11px] font-semibold underline"
+                        style={{ color }}
                       >
-                        ✎
+                        Guardar texto
                       </button>
-                    )}
-                  </p>
-                  {item.description && item.checked && (
-                    <p className="mt-0.5 whitespace-pre-line" style={{ color: BRAND.grey }}>
-                      {item.description}
+                      <button
+                        type="button"
+                        onClick={() => setEditingKey(null)}
+                        className="text-[11px] text-neutral-400 underline"
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex-1">
+                    <p className={item.checked ? "font-medium" : "text-neutral-400 line-through"} style={item.checked ? { color: BRAND.dark } : undefined}>
+                      {item.label}
+                      {item.onEditSave && (
+                        <button
+                          type="button"
+                          onClick={() => startEdit(item)}
+                          title="Editar título y descripción"
+                          aria-label={`Editar ${item.label}`}
+                          className="ml-1.5 text-neutral-400 hover:text-neutral-700"
+                        >
+                          ✎
+                        </button>
+                      )}
                     </p>
-                  )}
-                </div>
-              )}
-            </li>
+                    {item.checked &&
+                      (item.description ? (
+                        <p className="mt-0.5 whitespace-pre-line" style={{ color: BRAND.grey }}>
+                          {item.description}
+                        </p>
+                      ) : (
+                        <p className="mt-0.5 italic text-amber-600">Sin descripción — agrégala con el lápiz.</p>
+                      ))}
+                  </div>
+                )}
+              </div>
+            </div>
           ))}
-        </ul>
+        </div>
       )}
       {footnote && (
         <p className="mt-3 text-[10px] italic" style={{ color: BRAND.grey }}>

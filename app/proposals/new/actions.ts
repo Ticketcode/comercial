@@ -104,6 +104,7 @@ export async function createProposal(
     .from("catalog_items")
     .select("id, name, default_unit_price, default_included")
     .eq("category", "servicio_personalizado")
+    .in("modality", [modality, "general"])
     .order("sort_order");
 
   const costItemRows = (serviceItems ?? []).map((item, index) => ({

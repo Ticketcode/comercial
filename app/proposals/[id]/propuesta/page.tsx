@@ -36,7 +36,8 @@ export default async function PropuestaPage({
 
   const { items: allCostItems, catalog: serviceCatalogItems } = await getValidServiceCostItems(
     supabase,
-    (costItems ?? []) as ProposalCostItem[]
+    (costItems ?? []) as ProposalCostItem[],
+    proposal.modality
   );
   const tarifarioSummary = computeTarifarioSummary(
     proposal as Proposal,

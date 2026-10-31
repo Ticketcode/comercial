@@ -37,7 +37,8 @@ async function computeValoresConocidos(supabase: SupabaseClient, proposalId: str
   const logisticsRates = buildLogisticsRates(rateRows ?? []);
   const { items: serviceItems } = await getValidServiceCostItems(
     supabase,
-    (costItems ?? []) as ProposalCostItem[]
+    (costItems ?? []) as ProposalCostItem[],
+    (proposal as Proposal).modality
   );
   const summary = computeTarifarioSummary(
     proposal as Proposal,

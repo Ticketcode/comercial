@@ -54,7 +54,8 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
 
   const { items: validCostItems } = await getValidServiceCostItems(
     supabase,
-    (costItems ?? []) as ProposalCostItem[]
+    (costItems ?? []) as ProposalCostItem[],
+    proposal.modality
   );
   const tarifarioSummary = computeTarifarioSummary(
     proposal as Proposal,

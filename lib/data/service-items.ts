@@ -11,12 +11,14 @@ import type { ProposalCostItem } from "@/lib/types";
  */
 export async function getValidServiceCostItems(
   supabase: SupabaseClient,
-  costItems: ProposalCostItem[]
+  costItems: ProposalCostItem[],
+  modality: string
 ) {
   const { data: catalog } = await supabase
     .from("catalog_items")
     .select("name, description")
-    .eq("category", "servicio_personalizado");
+    .eq("category", "servicio_personalizado")
+    .in("modality", [modality, "general"]);
 
   const validNames = new Set((catalog ?? []).map((c) => c.name));
   const items = costItems.filter((item) => validNames.has(item.label));

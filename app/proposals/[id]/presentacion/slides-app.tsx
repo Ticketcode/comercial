@@ -12,6 +12,19 @@ import {
   type DeckData,
 } from "./deck-shell";
 
+/** Tamaño de fuente/padding de las tablas de detalle (Componentes básicos,
+ * Logística 360, Servicios personalizados) — escala según cuántos ítems hay
+ * en la página en vez de un único corte "denso", para que con pocos ítems
+ * las filas usen el espacio disponible en vez de quedar chicas con huecos
+ * vacíos debajo. */
+function tableScale(n: number) {
+  const clamped = Math.min(Math.max(n, 3), 10);
+  const t = (clamped - 3) / (10 - 3);
+  const fontSize = Math.round(30 - t * 10);
+  const vPad = Math.round(20 - t * 10);
+  return { fontSize, padding: `${vPad}px ${vPad + 6}px` };
+}
+
 const modalityLabel: Record<string, string> = {
   presencial: "Presencial",
   virtual: "Virtual",
@@ -26,8 +39,12 @@ const modalityLabel: Record<string, string> = {
  * Propuesta) ese override manual tiene prioridad sobre esto. */
 const LOGISTICA_DYNAMIC_DESCRIPTIONS: Record<string, (p: DeckData["proposal"]) => string> = {
   "Acompañamiento durante el evento": (p) => `(${p.qty_productor}) Productor, (${p.qty_supervisor}) Supervisores`,
-  "Suministro de personal logístico": (p) =>
-    `(${p.qty_logistico}) Logísticos para cubrir todos los espacios definidos (registro, acreditación, sesiones principales, sesiones internas)`,
+  "Suministro de personal logístico": (p) => {
+    const base = `(${p.qty_logistico}) Logísticos para registro, acreditación, sesiones principales y sesiones internas`;
+    return p.qty_logistica_salones_internos > 0
+      ? `${base}, (${p.qty_logistica_salones_internos}) Logísticos adicionales para los salones internos`
+      : base;
+  },
   "Control de aceso a cada una de las sesiones internas del evento": (p) =>
     `(${p.qty_logistico}) personas de logística, (${p.qty_logistico}) equipos de lectura`,
   "Suministro de equipos": (p) =>
@@ -403,7 +420,7 @@ export function ComponentesSlide({
   total: number;
 }) {
   const t = THEME.light;
-  const dense = items.length > 6;
+  const { fontSize, padding } = tableScale(items.length);
 
   return (
     <Slide1920 theme="light" section="La propuesta" page={page} total={total} contentStyle={{ gap: 32 }}>
@@ -419,22 +436,22 @@ export function ComponentesSlide({
         </p>
       ) : (
         <div style={{ borderRadius: 16, overflow: "hidden", flex: 1, minHeight: 0 }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: dense ? 22 : 26, color: t.fg }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize, color: t.fg }}>
             <tbody>
               <tr style={{ background: t.accent2 }}>
-                <th style={{ width: "34%", padding: dense ? "10px 16px" : "14px 20px", color: "#FFFFFF", textAlign: "left" }}>
+                <th style={{ width: "34%", padding, color: "#FFFFFF", textAlign: "left" }}>
                   Componente
                 </th>
-                <th style={{ width: "66%", padding: dense ? "10px 16px" : "14px 20px", color: "#FFFFFF", textAlign: "left" }}>
+                <th style={{ width: "66%", padding, color: "#FFFFFF", textAlign: "left" }}>
                   Qué incluye
                 </th>
               </tr>
               {items.map((item, i) => (
                 <tr key={item.id} style={{ background: i % 2 === 0 ? t.card : "transparent" }}>
-                  <td style={{ padding: dense ? "10px 16px" : "14px 20px", fontWeight: 700, verticalAlign: "top" }}>
+                  <td style={{ padding, fontWeight: 700, verticalAlign: "top" }}>
                     {item.name}
                   </td>
-                  <td style={{ padding: dense ? "10px 16px" : "14px 20px", color: t.fg, verticalAlign: "top" }}>
+                  <td style={{ padding, color: t.fg, verticalAlign: "top" }}>
                     {val(item.description)}
                   </td>
                 </tr>
@@ -471,7 +488,7 @@ export function ServiciosSlide({
   total: number;
 }) {
   const t = THEME.light;
-  const dense = items.length > 6;
+  const { fontSize, padding } = tableScale(items.length);
 
   return (
     <Slide1920 theme="light" section="La propuesta" page={page} total={total} contentStyle={{ gap: 32 }}>
@@ -487,22 +504,22 @@ export function ServiciosSlide({
         </p>
       ) : (
         <div style={{ borderRadius: 16, overflow: "hidden", flex: 1, minHeight: 0 }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: dense ? 22 : 26, color: t.fg }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize, color: t.fg }}>
             <tbody>
               <tr style={{ background: t.accent2 }}>
-                <th style={{ width: "34%", padding: dense ? "10px 16px" : "14px 20px", color: "#FFFFFF", textAlign: "left" }}>
+                <th style={{ width: "34%", padding, color: "#FFFFFF", textAlign: "left" }}>
                   Servicio
                 </th>
-                <th style={{ width: "66%", padding: dense ? "10px 16px" : "14px 20px", color: "#FFFFFF", textAlign: "left" }}>
+                <th style={{ width: "66%", padding, color: "#FFFFFF", textAlign: "left" }}>
                   Qué incluye
                 </th>
               </tr>
               {items.map((item, i) => (
                 <tr key={item.id} style={{ background: i % 2 === 0 ? t.card : "transparent" }}>
-                  <td style={{ padding: dense ? "10px 16px" : "14px 20px", fontWeight: 700, verticalAlign: "top" }}>
+                  <td style={{ padding, fontWeight: 700, verticalAlign: "top" }}>
                     {item.name}
                   </td>
-                  <td style={{ padding: dense ? "10px 16px" : "14px 20px", color: t.fg, verticalAlign: "top" }}>
+                  <td style={{ padding, color: t.fg, verticalAlign: "top" }}>
                     {val(item.description)}
                   </td>
                 </tr>
@@ -704,7 +721,7 @@ export function LogisticaSlide({
   total: number;
 }) {
   const t = THEME.light;
-  const dense = items.length > 5;
+  const { fontSize, padding } = tableScale(items.length);
 
   return (
     <Slide1920 theme="light" section="La propuesta" page={page} total={total} contentStyle={{ gap: 32 }}>
@@ -717,22 +734,22 @@ export function LogisticaSlide({
         </p>
       ) : (
         <div style={{ borderRadius: 16, overflow: "hidden", flex: 1, minHeight: 0 }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: dense ? 20 : 24, color: t.fg }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize, color: t.fg }}>
             <tbody>
               <tr style={{ background: t.accent2 }}>
-                <th style={{ width: "30%", padding: dense ? "10px 16px" : "14px 20px", color: "#FFFFFF", textAlign: "left" }}>
+                <th style={{ width: "30%", padding, color: "#FFFFFF", textAlign: "left" }}>
                   Componente
                 </th>
-                <th style={{ width: "70%", padding: dense ? "10px 16px" : "14px 20px", color: "#FFFFFF", textAlign: "left" }}>
+                <th style={{ width: "70%", padding, color: "#FFFFFF", textAlign: "left" }}>
                   Qué incluye
                 </th>
               </tr>
               {items.map((item, i) => (
                 <tr key={item.id} style={{ background: i % 2 === 0 ? t.card : "transparent" }}>
-                  <td style={{ padding: dense ? "10px 16px" : "14px 20px", fontWeight: 700, verticalAlign: "top" }}>
+                  <td style={{ padding, fontWeight: 700, verticalAlign: "top" }}>
                     {item.name}
                   </td>
-                  <td style={{ padding: dense ? "10px 16px" : "14px 20px", lineHeight: 1.4, verticalAlign: "top" }}>
+                  <td style={{ padding, lineHeight: 1.4, verticalAlign: "top" }}>
                     <LogisticaDetail description={item.description} />
                   </td>
                 </tr>

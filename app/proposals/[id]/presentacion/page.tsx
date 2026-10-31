@@ -59,7 +59,8 @@ export default async function PresentacionPage({ params }: { params: Promise<{ i
   const logisticsRates = buildLogisticsRates(rateRows ?? []);
   const { items: allCostItems, catalog: serviceCatalogItems } = await getValidServiceCostItems(
     supabase,
-    (costItems ?? []) as ProposalCostItem[]
+    (costItems ?? []) as ProposalCostItem[],
+    proposal.modality
   );
   const tarifarioSummary = computeTarifarioSummary(
     proposal as Proposal,
