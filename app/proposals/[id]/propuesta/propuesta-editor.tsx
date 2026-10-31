@@ -532,7 +532,7 @@ export function PropuestaEditor({
 
         {/* Qué incluye — componentes básicos, logística 360, servicios personalizados */}
         <Slide kicker="Propuesta" title="Lo que incluye tu evento" accent={BRAND.teal}>
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
+          <div className="space-y-6">
             <ChecklistBox
               title="Componentes básicos"
               color={BRAND.teal}
