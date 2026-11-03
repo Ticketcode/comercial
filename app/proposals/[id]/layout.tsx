@@ -5,6 +5,7 @@ import { getProposalBasic } from "@/lib/data/proposal-basic";
 import { ProposalStepsNav } from "./proposal-steps-nav";
 import { MarkCerradaButton } from "./mark-cerrada-button";
 import { EditBasicsPanel } from "./edit-basics-panel";
+import { AsistentePanel } from "./asistente/asistente-panel";
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params;
@@ -81,6 +82,7 @@ export default async function ProposalLayout({
       </div>
 
       <div className="mt-7">{children}</div>
+      <AsistentePanel proposalId={id} />
     </div>
   );
 }
