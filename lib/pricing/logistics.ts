@@ -340,6 +340,8 @@ export function computeLogisticsBreakdown(
     ? rates.honorariosLogisticoMedioDia
     : rates.honorariosLogistico;
   const duracionPre = preacreditacionMedioDia ? "medio día" : "día completo";
+  // Medio día: se da un solo refrigerio (no AM y PM); el almuerzo se mantiene.
+  const refrigeriosPre = preacreditacionMedioDia ? 1 : 2;
 
   // 1) Honorarios
   const honorariosLogistico = virtual ? 0 : qtyLogistico * dias * rates.honorariosLogistico;
@@ -398,8 +400,9 @@ export function computeLogisticsBreakdown(
     { label: "Hotel (noches, staff que viaja)", dias: diasEnTierra, quantity: bogota ? 0 : qtyStaffViaja, rate: rates.hospedaje, subtotal: hotel, basis: `Noches en tierra — solo fuera de Bogotá (hoy: ${ciudadLabel})` },
     ...(staffPre > 0
       ? [
+          // Almuerzo siempre; refrigerio AM y PM en día completo, uno solo en medio día.
           { label: "Almuerzo pre-acreditación", dias: preDias, quantity: staffPre, rate: rates.almuerzoLogistica, subtotal: staffPre * preDias * rates.almuerzoLogistica, basis: `${staffPre} personas × ${preDias} día(s)` },
-          { label: "Refrigerio AM+PM pre-acreditación", dias: preDias, quantity: staffPre * 2, rate: rates.refrigerioLogistica, subtotal: staffPre * 2 * preDias * rates.refrigerioLogistica, basis: `${staffPre} personas × 2 (AM+PM) × ${preDias} día(s)` },
+          { label: preacreditacionMedioDia ? "Refrigerio pre-acreditación" : "Refrigerio AM+PM pre-acreditación", dias: preDias, quantity: staffPre * refrigeriosPre, rate: rates.refrigerioLogistica, subtotal: staffPre * refrigeriosPre * preDias * rates.refrigerioLogistica, basis: preacreditacionMedioDia ? `${staffPre} personas × 1 refrigerio × ${preDias} día(s)` : `${staffPre} personas × 2 (AM+PM) × ${preDias} día(s)` },
         ]
       : []),
   ]);

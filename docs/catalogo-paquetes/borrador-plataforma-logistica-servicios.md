@@ -132,7 +132,7 @@ Cosas que no cuadran con lo que hace el código hoy:
 - **Hoy el código suma los días de pre-acreditación a TODO el equipo** (honorarios, alimentación y transporte completos de todos los logísticos), no a la mitad (`tarifario-editor.tsx`, comentario de "Pre acreditación (servicio #25)"). Eso cobra de más frente a tu regla. Y tampoco distingue día completo de medio día, aunque ya existen tarifas de medio día en el catálogo de honorarios.
 - **Precio del módulo — decidido: $120.000 por día.** Los $350.000 que tiene hoy el catálogo ya contemplaban la logística, y ahora la logística se calcula aparte en Logística 360. Hay que bajar el precio del servicio "Pre acreditación" de $350.000 a $120.000 para no cobrar dos veces.
 - **Redondeo — decidido:** con un número impar de logísticos la mitad se **sube al entero siguiente** (7 → 3,5 → 4).
-- **Día completo o medio día — decidido:** cambia el honorario del logístico. En el catálogo hoy: **día completo $70.000** y **medio día $60.000**. **Confirmado: el medio día es $60.000**, el catálogo está bien. El supervisor tiene medio día de $70.000 frente a $120.000 de día completo. La misma regla de medio día se aplica a toda la pre-acreditación.
+- **Día completo o medio día — decidido:** cambia el honorario del logístico. En el catálogo hoy: **día completo $70.000** y **medio día $60.000**. **Confirmado: el medio día es $60.000**, el catálogo está bien. El supervisor tiene medio día de $70.000 frente a $120.000 de día completo. La misma regla de medio día se aplica a toda la pre-acreditación. **Alimentación en medio día — decidido:** se da un solo refrigerio (no AM y PM) y el almuerzo se mantiene. Día completo: almuerzo y refrigerio AM y PM.
 
 ### Venta de boletería en sitio: cómo se calcula
 
