@@ -19,19 +19,19 @@ export const THEME: Record<SlideTheme, { bg: string; fg: string; muted: string; 
     bg: "#0E1A17",
     fg: "#EAF3F0",
     muted: "#9DB3AC",
-    card: "#14251F",
+    card: "#1B2F28",
     line: "#26403A",
     accent: "#3CD65C",
-    accent2: "#B49BFF",
+    accent2: "#7BE08F",
   },
   light: {
-    bg: "#EEF6F3",
+    bg: "#F2F6F4",
     fg: "#0E1A17",
     muted: "#4B5B57",
-    card: "#FBFDFC",
-    line: "#CFE2DC",
+    card: "#E3EBE8",
+    line: "#D3DFDA",
     accent: "#3CCB57",
-    accent2: "#5B2FD1",
+    accent2: "#1B5E3B",
   },
   green: {
     bg: "#3CCB57",
@@ -280,6 +280,115 @@ export function TicketCard({
         }}
       />
     </div>
+  );
+}
+
+/**
+ * Diseño de tarjetas modulares: cada tarjeta ("tile") toma uno de cuatro
+ * rellenos — tinta, menta, gris o verde profundo — para dar jerarquía sin
+ * depender de bordes. Reemplaza a las tarjetas blancas con borde del diseño
+ * anterior.
+ */
+export type TileVariant = "ink" | "mint" | "gray" | "deep";
+
+export function tileColors(variant: TileVariant, on: SlideTheme = "light") {
+  switch (variant) {
+    case "ink":
+      return { bg: on === "dark" ? "#060D0B" : "#0E1A17", fg: "#EAF3F0", muted: "#9DB3AC", accent: "#7BE08F", line: "#26403A" };
+    case "mint":
+      return { bg: "#7BE08F", fg: "#0E1A17", muted: "#1B4D2E", accent: "#0E1A17", line: "#5CC873" };
+    case "deep":
+      return { bg: "#1B5E3B", fg: "#EAF3F0", muted: "#BFE3CC", accent: "#7BE08F", line: "#2A7A50" };
+    default:
+      return on === "dark"
+        ? { bg: "#1B2F28", fg: "#EAF3F0", muted: "#9DB3AC", accent: "#7BE08F", line: "#26403A" }
+        : { bg: "#E3EBE8", fg: "#0E1A17", muted: "#4B5B57", accent: "#1B5E3B", line: "#D3DFDA" };
+  }
+}
+
+/** Flecha dentro del círculo que se monta sobre la esquina de una tarjeta. */
+export function ArrowIcon({ size = 36 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="#0E1A17" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M7 17 17 7" />
+      <path d="M8 7h9v9" />
+    </svg>
+  );
+}
+
+export function Tile({
+  variant = "gray",
+  on = "light",
+  badge,
+  style,
+  children,
+}: {
+  variant?: TileVariant;
+  /** Tema de fondo de la lámina donde va la tarjeta (cambia el gris y el borde del círculo). */
+  on?: SlideTheme;
+  /** Círculo verde con flecha que se monta sobre la esquina superior derecha. */
+  badge?: boolean;
+  style?: CSSProperties;
+  children: ReactNode;
+}) {
+  const c = tileColors(variant, on);
+  return (
+    <div
+      style={{
+        position: "relative",
+        background: c.bg,
+        color: c.fg,
+        borderRadius: 36,
+        padding: 40,
+        boxSizing: "border-box",
+        display: "flex",
+        flexDirection: "column",
+        minWidth: 0,
+        ...style,
+      }}
+    >
+      {badge && (
+        <div
+          style={{
+            position: "absolute",
+            right: -20,
+            top: -20,
+            width: 80,
+            height: 80,
+            borderRadius: "50%",
+            background: "#3CD65C",
+            border: `12px solid ${THEME[on].bg}`,
+            boxSizing: "content-box",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <ArrowIcon />
+        </div>
+      )}
+      {children}
+    </div>
+  );
+}
+
+/** Etiqueta corta en píldora verde — encabezado de una lámina o una tarjeta. */
+export function Pill({ children, dark = false }: { children: ReactNode; dark?: boolean }) {
+  return (
+    <span
+      style={{
+        alignSelf: "flex-start",
+        display: "inline-block",
+        background: dark ? "#0E1A17" : "#3CD65C",
+        color: dark ? "#7BE08F" : "#0E1A17",
+        fontSize: 24,
+        fontWeight: 600,
+        borderRadius: 999,
+        padding: "8px 28px",
+      }}
+    >
+      {children}
+    </span>
   );
 }
 

@@ -1,51 +1,41 @@
-import { CheckBadge, DISPLAY_FONT, POR_DEFINIR, Slide1920, THEME } from "./deck-shell";
+import { CheckBadge, DISPLAY_FONT, POR_DEFINIR, Pill, Slide1920, THEME, Tile, tileColors, type TileVariant } from "./deck-shell";
 
 const IMG = (name: string) => `/propuesta-deck/${name}`;
 
 function FeatureCard({
   icon,
   title,
+  variant,
 }: {
-  icon: React.ReactNode;
+  icon: (stroke: string) => React.ReactNode;
   title: string;
+  variant: TileVariant;
 }) {
-  const t = THEME.light;
+  const c = tileColors(variant);
+  const mint = variant === "mint";
   return (
-    <div
-      style={{
-        background: t.card,
-        border: `1px solid ${t.line}`,
-        borderRadius: 24,
-        padding: 36,
-        display: "flex",
-        flexDirection: "column",
-        gap: 24,
-        flex: 1,
-      }}
-    >
+    <Tile variant={variant} style={{ gap: 28, flex: 1 }}>
       <div
         style={{
-          width: 72,
-          height: 72,
+          width: 80,
+          height: 80,
           borderRadius: "50%",
-          background: t.accent,
+          background: mint ? "#0E1A17" : "#3CD65C",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
         }}
       >
-        {icon}
+        {icon(mint ? "#7BE08F" : "#0E1A17")}
       </div>
-      <h3 style={{ fontFamily: DISPLAY_FONT, fontSize: 40, fontWeight: 700, lineHeight: 1.1, color: t.fg }}>
-        {title}
-      </h3>
-    </div>
+      <h3 style={{ fontFamily: DISPLAY_FONT, fontSize: 40, fontWeight: 700, lineHeight: 1.1, color: c.fg }}>{title}</h3>
+    </Tile>
   );
 }
 
-function Icon({ path, size = 36 }: { path: React.ReactNode; size?: number }) {
+function Icon({ path, stroke = "#0E1A17", size = 40 }: { path: React.ReactNode; stroke?: string; size?: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="#0E1A17" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={stroke} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
       {path}
     </svg>
   );
@@ -62,7 +52,7 @@ export function PlataformaSlide({ page, total }: { page: number; total: number }
     <img
       src={IMG("p40k.jpg")}
       alt="Teléfono mostrando un código QR de ingreso, más de 40.000 personas"
-      style={{ width: 640, height: 360, objectFit: "cover", borderRadius: 28, display: "block" }}
+      style={{ width: 640, height: 360, objectFit: "cover", borderRadius: 36, display: "block" }}
     />
   );
   return (
@@ -92,10 +82,12 @@ export function PlataformaSlide({ page, total }: { page: number; total: number }
         )}
       </div>
       <div style={{ display: "flex", flexDirection: "row", gap: 24 }}>
-        <FeatureCard icon={<Icon path={<path d="M13 2 3 14h7l-1 8 10-12h-7l1-8Z" />} />} title="Boletería electrónica" />
+        <FeatureCard variant="ink" icon={(s) => <Icon stroke={s} path={<path d="M13 2 3 14h7l-1 8 10-12h-7l1-8Z" />} />} title="Boletería electrónica" />
         <FeatureCard
-          icon={
+          variant="mint"
+          icon={(s) => (
             <Icon
+              stroke={s}
               path={
                 <>
                   <circle cx="9" cy="7" r="4" />
@@ -105,12 +97,14 @@ export function PlataformaSlide({ page, total }: { page: number; total: number }
                 </>
               }
             />
-          }
+          )}
           title="Logística 360"
         />
         <FeatureCard
-          icon={
+          variant="gray"
+          icon={(s) => (
             <Icon
+              stroke={s}
               path={
                 <>
                   <rect x="5" y="11" width="14" height="10" rx="2" />
@@ -118,12 +112,14 @@ export function PlataformaSlide({ page, total }: { page: number; total: number }
                 </>
               }
             />
-          }
+          )}
           title="Protocolos de seguridad"
         />
         <FeatureCard
-          icon={
+          variant="deep"
+          icon={(s) => (
             <Icon
+              stroke={s}
               path={
                 <>
                   <path d="M3 3v18h18" />
@@ -133,7 +129,7 @@ export function PlataformaSlide({ page, total }: { page: number; total: number }
                 </>
               }
             />
-          }
+          )}
           title="DATA real"
         />
       </div>
@@ -142,17 +138,18 @@ export function PlataformaSlide({ page, total }: { page: number; total: number }
 }
 
 export function CifrasSlide({ page, total }: { page: number; total: number }) {
-  const t = THEME.green;
-  const stats: [string, string][] = [
-    ["12", "años en la industria"],
-    ["+5.000", "eventos"],
-    ["+1.000.000", "asistentes"],
-    ["Global", "plataforma"],
+  const t = THEME.light;
+  const stats: [string, string, TileVariant][] = [
+    ["12", "años en la industria", "ink"],
+    ["+5.000", "eventos", "mint"],
+    ["+1.000.000", "asistentes", "gray"],
+    ["Global", "plataforma", "deep"],
   ];
   return (
-    <Slide1920 theme="green" section="Quiénes somos" page={page} total={total}>
-      <div style={{ display: "flex", flexDirection: "row", gap: 96, alignItems: "center", flex: 1 }}>
-        <div style={{ width: 600, display: "flex", flexDirection: "column", gap: 28 }}>
+    <Slide1920 theme="light" section="Quiénes somos" page={page} total={total}>
+      <div style={{ display: "flex", flexDirection: "row", alignItems: "center", flex: 1 }}>
+        <div style={{ width: 560, display: "flex", flexDirection: "column", gap: 28, marginRight: 72 }}>
+          <Pill>Quiénes somos</Pill>
           <h2 style={{ fontFamily: DISPLAY_FONT, fontSize: 68, fontWeight: 800, lineHeight: 1.05, letterSpacing: -1, color: t.fg }}>
             Nuestra experiencia en la industria no se improvisa
           </h2>
@@ -161,25 +158,18 @@ export function CifrasSlide({ page, total }: { page: number; total: number }) {
             haciendo bien.
           </p>
         </div>
-        <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
-          {stats.map(([n, label], i) => (
-            <div
-              key={label}
-              style={{
-                display: "flex",
-                flexDirection: "row",
-                alignItems: "baseline",
-                justifyContent: "space-between",
-                padding: "20px 0",
-                borderBottom: i < stats.length - 1 ? `2px solid ${t.line}` : undefined,
-              }}
-            >
-              <p style={{ fontFamily: DISPLAY_FONT, fontSize: 120, fontWeight: 800, lineHeight: 1, letterSpacing: -3, color: t.fg }}>
-                {n}
-              </p>
-              <p style={{ fontSize: 28, fontWeight: 600, color: t.fg, width: 300, textAlign: "right" }}>{label}</p>
-            </div>
-          ))}
+        <div style={{ flex: 1, display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 24 }}>
+          {stats.map(([n, label, variant]) => {
+            const c = tileColors(variant);
+            return (
+              <Tile key={label} variant={variant} badge={variant === "ink"} style={{ gap: 12, height: 280, justifyContent: "flex-end" }}>
+                <p style={{ fontFamily: DISPLAY_FONT, fontSize: 84, fontWeight: 800, lineHeight: 1, letterSpacing: -2, color: c.fg }}>
+                  {n}
+                </p>
+                <p style={{ fontSize: 28, fontWeight: 600, color: c.muted }}>{label}</p>
+              </Tile>
+            );
+          })}
         </div>
       </div>
     </Slide1920>
@@ -211,6 +201,7 @@ const ORGANIZADOR_ITEMS = [
 
 export function OrganizadorSlide({ page, total }: { page: number; total: number }) {
   const t = THEME.light;
+  const variants: TileVariant[] = ["ink", "mint", "gray", "deep"];
   return (
     <Slide1920 theme="light" section="Quiénes somos" page={page} total={total} contentStyle={{ gap: 32 }}>
       <h2 style={{ fontFamily: DISPLAY_FONT, fontSize: 68, fontWeight: 800, lineHeight: 1.05, letterSpacing: -1, color: t.fg }}>
@@ -220,27 +211,18 @@ export function OrganizadorSlide({ page, total }: { page: number; total: number 
         Los eventos son la capacidad de administrar con éxito la mayor cantidad de detalles.
       </p>
       <div style={{ display: "flex", flexDirection: "row", gap: 24 }}>
-        {ORGANIZADOR_ITEMS.map((item) => (
-          <div
-            key={item.n}
-            style={{
-              background: t.card,
-              border: `1px solid ${t.line}`,
-              borderRadius: 24,
-              padding: 36,
-              display: "flex",
-              flexDirection: "column",
-              gap: 16,
-              flex: 1,
-            }}
-          >
-            <p style={{ fontSize: 24, letterSpacing: 2, color: t.accent2 }}>{item.n}</p>
-            <h3 style={{ fontFamily: DISPLAY_FONT, fontSize: 40, fontWeight: 700, lineHeight: 1.1, color: t.fg }}>
-              {item.title}
-            </h3>
-            <p style={{ fontSize: 28, lineHeight: 1.4, color: t.muted }}>{item.body}</p>
-          </div>
-        ))}
+        {ORGANIZADOR_ITEMS.map((item, i) => {
+          const c = tileColors(variants[i]);
+          return (
+            <Tile key={item.n} variant={variants[i]} style={{ gap: 16, flex: 1 }}>
+              <p style={{ fontSize: 24, letterSpacing: 2, fontWeight: 600, color: c.accent }}>{item.n}</p>
+              <h3 style={{ fontFamily: DISPLAY_FONT, fontSize: 40, fontWeight: 700, lineHeight: 1.1, color: c.fg }}>
+                {item.title}
+              </h3>
+              <p style={{ fontSize: 26, lineHeight: 1.4, color: c.muted }}>{item.body}</p>
+            </Tile>
+          );
+        })}
       </div>
     </Slide1920>
   );
@@ -295,17 +277,13 @@ export function InformesSlide({
       <p style={{ fontSize: 28, lineHeight: 1.4, color: t.muted }}>
         DATA real y segmentada para indicadores, estadísticas, proyecciones y crecimiento del evento.
       </p>
-      <div
+      <Tile
+        variant="gray"
         style={{
-          display: "flex",
           flexDirection: "row",
           flexWrap: "wrap",
           columnGap: 48,
           rowGap: 20,
-          background: t.card,
-          border: `1px solid ${t.line}`,
-          borderRadius: 24,
-          padding: 40,
         }}
       >
         {items.map((text, idx) => (
@@ -343,7 +321,7 @@ export function InformesSlide({
             )}
           </div>
         ))}
-      </div>
+      </Tile>
       {onEditInformes && (
         <div style={{ display: "flex", flexDirection: "row", gap: 16 }}>
           <button type="button" onClick={() => onEditInformes([...items, ""])} style={actionStyle}>
@@ -407,22 +385,26 @@ const PREPRODUCCION_ITEMS = [
 ];
 
 export function PreproduccionSlide({ page, total }: { page: number; total: number }) {
-  const t = THEME.green;
+  const t = THEME.light;
+  const variants: TileVariant[] = ["ink", "mint", "gray", "deep", "gray", "ink"];
   return (
-    <Slide1920 theme="green" section="Ejecución" page={page} total={total} contentStyle={{ gap: 40 }}>
+    <Slide1920 theme="light" section="Ejecución" page={page} total={total} contentStyle={{ gap: 32 }}>
       <h2 style={{ fontFamily: DISPLAY_FONT, fontSize: 68, fontWeight: 800, lineHeight: 1.05, letterSpacing: -1, color: t.fg }}>
         Preproducción
       </h2>
       <p style={{ fontSize: 28, lineHeight: 1.4, color: t.muted }}>
         Lo que preparamos antes del evento para que todo funcione desde el primer minuto.
       </p>
-      <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-        {PREPRODUCCION_ITEMS.map((item) => (
-          <div key={item} style={{ display: "flex", flexDirection: "row", gap: 20, alignItems: "flex-start" }}>
-            <CheckBadge size={36} iconSize={20} bg={t.accent} />
-            <p style={{ flex: 1, fontSize: 28, lineHeight: 1.35, color: t.fg }}>{item}</p>
-          </div>
-        ))}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 24 }}>
+        {PREPRODUCCION_ITEMS.map((item, i) => {
+          const c = tileColors(variants[i]);
+          return (
+            <Tile key={item} variant={variants[i]} badge={i === 0} style={{ gap: 14, padding: 32, height: 232 }}>
+              <p style={{ fontFamily: DISPLAY_FONT, fontSize: 40, fontWeight: 800, color: c.accent }}>{String(i + 1).padStart(2, "0")}</p>
+              <p style={{ fontSize: 26, lineHeight: 1.3, color: c.fg }}>{item}</p>
+            </Tile>
+          );
+        })}
       </div>
     </Slide1920>
   );
@@ -453,13 +435,26 @@ export function CasosSlide({ page, total }: { page: number; total: number }) {
               <img
                 src={IMG(file)}
                 alt={alt}
-                style={{ width: "100%", height: 303, objectFit: "cover", borderRadius: 24, display: "block" }}
+                style={{ width: "100%", height: 320, objectFit: "cover", borderRadius: 36, display: "block" }}
               />
               <PlayIcon />
+              <p
+                style={{
+                  position: "absolute",
+                  left: 20,
+                  bottom: 20,
+                  background: t.bg,
+                  borderRadius: 999,
+                  padding: "8px 28px",
+                  fontSize: 24,
+                  fontWeight: 600,
+                  color: t.fg,
+                  margin: 0,
+                }}
+              >
+                {eventName ?? POR_DEFINIR}
+              </p>
             </div>
-            <p style={{ marginTop: 10, fontSize: 24, fontWeight: 600, color: t.fg }}>
-              {eventName ?? POR_DEFINIR}
-            </p>
           </a>
         ))}
       </div>

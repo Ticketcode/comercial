@@ -22,35 +22,67 @@
         "bg": "#0E1A17",
         "fg": "#EAF3F0",
         "muted": "#9DB3AC",
-        "card": "#14251F",
+        "card": "#1B2F28",
         "line": "#26403A",
         "accent": "#3CD65C",
-        "accent2": "#B49BFF"
+        "accent2": "#7BE08F"
       },
       "light": {
-        "bg": "#EEF6F3",
+        "bg": "#F2F6F4",
         "fg": "#0E1A17",
         "muted": "#4B5B57",
-        "card": "#FBFDFC",
-        "line": "#CFE2DC",
+        "card": "#E3EBE8",
+        "line": "#D3DFDA",
         "accent_fill": "#3CCB57",
-        "accent2_text": "#5B2FD1"
+        "accent2_text": "#1B5E3B"
       },
       "green": {
         "bg": "#3CCB57",
         "fg": "#0E1A17",
         "muted": "#173524",
         "line": "#2A8E43",
-        "card": "#0E1A17"
+        "card": "#0E1A17",
+        "note": "Ya no se usa como fondo de lámina; queda soportado en deck-shell."
       }
     },
-    "motif": "Tarjetas tipo ticket: borde punteado de perforación y dos muescas circulares del color del fondo; el talón va en verde #3CD65C.",
+    "motif": "Tarjetas modulares con esquinas de 36px y rellenos tinta, menta, gris y verde profundo; círculo con flecha montado sobre una esquina (eco de las muescas del ticket). Reemplaza al motivo anterior de tarjeta con borde punteado y talón verde.",
     "layout_rules": [
       "márgenes 128px (inferior 160px)",
       "logo arriba a la izquierda, sección arriba a la derecha, pie con www.ticketcode.co y número de página",
-      "en láminas verdes el logo va dentro de una píldora oscura",
-      "no usar texto menor de 24px"
-    ]
+      "no usar texto menor de 24px",
+      "fondo claro casi siempre; fondo oscuro para portada, presupuesto final y contacto",
+      "los montos van en filas apiladas con el total destacado (antes de IVA, IVA y total con IVA)",
+      "sin degradados, desenfoques ni sombras suaves: no se exportan bien a PDF con html2canvas"
+    ],
+    "tiles": {
+      "note": "Diseño de tarjetas modulares (actualizado). Cada tarjeta toma uno de cuatro rellenos y se agrupa en cuadrículas con esquinas de 36px, sin borde.",
+      "variants": {
+        "ink": {
+          "bg": "#0E1A17",
+          "fg": "#EAF3F0",
+          "muted": "#9DB3AC",
+          "accent": "#7BE08F"
+        },
+        "mint": {
+          "bg": "#7BE08F",
+          "fg": "#0E1A17",
+          "muted": "#1B4D2E"
+        },
+        "gray": {
+          "light": "#E3EBE8",
+          "dark": "#1B2F28"
+        },
+        "deep": {
+          "bg": "#1B5E3B",
+          "fg": "#EAF3F0",
+          "muted": "#BFE3CC",
+          "accent": "#7BE08F"
+        }
+      },
+      "radius_px": 36,
+      "badge": "Círculo verde #3CD65C con flecha, montado sobre la esquina superior derecha de una tarjeta y con un anillo del color del fondo de la lámina (recuerda la muesca del ticket). Una por lámina como máximo.",
+      "pill": "Etiqueta corta en píldora verde para encabezados de lámina."
+    }
   },
   "slides": [
     {
@@ -72,7 +104,7 @@
     },
     {
       "id": "cifras",
-      "theme": "green",
+      "theme": "light",
       "source": "fixed",
       "note": "Cifras de la plantilla anterior: 12 años, +5.000 eventos, +1.000.000 asistentes. Confirmar vigencia."
     },
@@ -172,7 +204,7 @@
     },
     {
       "id": "final",
-      "theme": "green",
+      "theme": "dark",
       "source": "app",
       "bind": [
         "presupuesto.valor_sin_descuento",

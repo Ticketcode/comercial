@@ -6,9 +6,12 @@ import {
   CheckBadge,
   DISPLAY_FONT,
   POR_DEFINIR,
+  Pill,
   Slide1920,
   THEME,
-  TicketCard,
+  Tile,
+  tileColors,
+  type TileVariant,
   formatNumber,
   val,
   type DeckData,
@@ -54,33 +57,33 @@ const LOGISTICA_DYNAMIC_DESCRIPTIONS: Record<string, (p: DeckData["proposal"]) =
   "Suministro de consumibles": (p) => `(${p.qty_rollos_labels}) rollos de papel térmico para labels`,
 };
 
-function Stat({ label, value, highlight = false }: { label: string; value: string; highlight?: boolean }) {
-  const t = THEME.light;
+function Stat({
+  label,
+  value,
+  highlight = false,
+  variant = "gray",
+}: {
+  label: string;
+  value: string;
+  highlight?: boolean;
+  variant?: TileVariant;
+}) {
+  const c = tileColors(variant);
   return (
-    <div
-      style={{
-        background: t.card,
-        border: `1px solid ${t.line}`,
-        borderRadius: 24,
-        padding: 40,
-        display: "flex",
-        flexDirection: "column",
-        gap: 12,
-      }}
-    >
-      <p style={{ fontSize: 24, letterSpacing: 2, textTransform: "uppercase", color: t.accent2 }}>{label}</p>
+    <Tile variant={variant} style={{ gap: 12, flex: 1, minHeight: 190 }}>
+      <p style={{ fontSize: 24, letterSpacing: 2, textTransform: "uppercase", fontWeight: 600, color: c.accent }}>{label}</p>
       <p
         style={{
           fontFamily: DISPLAY_FONT,
           fontSize: 40,
           fontWeight: 700,
           lineHeight: 1.1,
-          color: highlight ? t.fg : t.muted,
+          color: highlight ? c.fg : c.muted,
         }}
       >
         {value}
       </p>
-    </div>
+    </Tile>
   );
 }
 
@@ -100,7 +103,7 @@ export function CoverSlide({ data, page, total }: { data: DeckData; page: number
       contentStyle={{ flexDirection: "row", alignItems: "center", gap: 96 }}
     >
       <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 32 }}>
-        <p style={{ fontSize: 24, letterSpacing: 3, textTransform: "uppercase", color: t.accent }}>Propuesta comercial</p>
+        <Pill>Propuesta comercial</Pill>
         <h1 style={{ fontFamily: DISPLAY_FONT, fontSize: 120, fontWeight: 800, lineHeight: 1, letterSpacing: -3, color: t.fg }}>
           {proposal.event_name}
         </h1>
@@ -109,31 +112,22 @@ export function CoverSlide({ data, page, total }: { data: DeckData; page: number
           logística
         </p>
       </div>
-      <TicketCard
-        width={640}
-        height={448}
-        cardBg={t.card}
-        cardBorder={t.line}
-        leftWidth={450}
-        notchBg={t.bg}
-        accentBg={t.accent}
-        left={
-          <>
-            <p style={{ fontSize: 24, letterSpacing: 2, textTransform: "uppercase", color: t.accent }}>Atención</p>
-            <p style={{ fontFamily: DISPLAY_FONT, fontSize: 40, fontWeight: 700, lineHeight: 1.1, color: t.fg }}>
-              {val(client?.contact_name)}
-            </p>
-            <p style={{ fontSize: 28, color: t.muted }}>{val(client?.contact_cargo)}</p>
-          </>
-        }
-        right={
-          <>
-            <p style={{ fontFamily: DISPLAY_FONT, fontSize: 68, fontWeight: 800, lineHeight: 1, color: "#0E1A17" }}>{dia}</p>
-            <p style={{ fontSize: 28, fontWeight: 700, color: "#0E1A17" }}>{mes}</p>
-            <p style={{ fontSize: 24, color: "#0E1A17" }}>{anio}</p>
-          </>
-        }
-      />
+      <div style={{ width: 640, display: "flex", flexDirection: "column" }}>
+        <Tile variant="gray" on="dark" badge style={{ gap: 12, height: 232 }}>
+          <p style={{ fontSize: 24, letterSpacing: 2, textTransform: "uppercase", fontWeight: 600, color: t.accent }}>Atención</p>
+          <p style={{ fontFamily: DISPLAY_FONT, fontSize: 40, fontWeight: 700, lineHeight: 1.1, color: t.fg }}>
+            {val(client?.contact_name)}
+          </p>
+          <p style={{ fontSize: 28, color: t.muted }}>{val(client?.contact_cargo)}</p>
+        </Tile>
+        <Tile variant="mint" style={{ marginTop: 24, height: 232, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+          <p style={{ fontFamily: DISPLAY_FONT, fontSize: 120, fontWeight: 800, lineHeight: 1, letterSpacing: -3, color: "#0E1A17" }}>{dia}</p>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
+            <p style={{ fontSize: 40, fontWeight: 700, color: "#0E1A17" }}>{mes}</p>
+            <p style={{ fontSize: 28, color: "#1B4D2E" }}>{anio}</p>
+          </div>
+        </Tile>
+      </div>
     </Slide1920>
   );
 }
@@ -202,14 +196,14 @@ export function PresencialSlide({ data, page, total }: { data: DeckData; page: n
           ))}
         </div>
       </div>
-      <div style={{ flex: 1, background: t.card, border: `1px solid ${t.line}`, borderRadius: 28, padding: 24, display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <Tile variant="gray" style={{ flex: 1, padding: 24, alignItems: "center", justifyContent: "center" }}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src="/propuesta-deck/plataforma.png"
           alt="Panel de configuración de entradas de la plataforma Ticketcode"
-          style={{ width: 752, height: 456, objectFit: "contain", borderRadius: 12 }}
+          style={{ width: 752, height: 456, objectFit: "contain", borderRadius: 16 }}
         />
-      </div>
+      </Tile>
     </Slide1920>
   );
 }
@@ -226,10 +220,10 @@ export function PerfilSlide({ data, page, total }: { data: DeckData; page: numbe
         Perfil del evento
       </h2>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 24 }}>
-        <div style={{ gridColumn: "span 2" }}>
-          <Stat label="Nombre" value={proposal.event_name} highlight />
+        <div style={{ gridColumn: "span 2", display: "flex" }}>
+          <Stat label="Nombre" value={proposal.event_name} highlight variant="ink" />
         </div>
-        <Stat label="Modalidad" value={modalityLabel[proposal.modality] ?? proposal.modality} highlight />
+        <Stat label="Modalidad" value={modalityLabel[proposal.modality] ?? proposal.modality} highlight variant="mint" />
         {proposal.modality === "hibrido" ? (
           <>
             <Stat label="Aforo presencial" value={val(proposal.aforo)} highlight={!!proposal.aforo} />
@@ -240,8 +234,8 @@ export function PerfilSlide({ data, page, total }: { data: DeckData; page: numbe
         ) : (
           <Stat label="Aforo" value={val(proposal.aforo)} highlight={!!proposal.aforo} />
         )}
-        <div style={{ gridColumn: "span 2" }}>
-          <Stat label="Lugar" value={val(proposal.lugar)} highlight={!!proposal.lugar} />
+        <div style={{ gridColumn: "span 2", display: "flex" }}>
+          <Stat label="Lugar" value={val(proposal.lugar)} highlight={!!proposal.lugar} variant="deep" />
         </div>
         <Stat label="Ciudad" value={val(proposal.city)} highlight={!!proposal.city} />
         <Stat label="Fechas" value={fechas} highlight={fechas !== POR_DEFINIR} />
@@ -254,11 +248,13 @@ function ChecklistCard({
   title,
   items,
   emptyLabel,
+  variant,
   showDescription = true,
 }: {
   title: string;
   items: { key: string; label: string; description: string | null }[];
   emptyLabel: string;
+  variant: TileVariant;
   /** Componentes básicos y Logística 360 ya tienen su propia lámina de
       detalle con la descripción completa (ver ComponentesSlide/LogisticaSlide)
       — acá solo se listan los nombres, para no depender de recortar texto con
@@ -266,7 +262,7 @@ function ChecklistCard({
       html2canvas para el PDF, y se veía como si el contenido se cortara). */
   showDescription?: boolean;
 }) {
-  const t = THEME.light;
+  const c = tileColors(variant);
   // Con muchos ítems marcados, listar cada uno con su línea completa puede
   // no caber en la tarjeta — esta lámina es solo el resumen (el detalle
   // completo vive en Componentes básicos / Logística 360), así que de
@@ -276,48 +272,36 @@ function ChecklistCard({
   const visible = items.slice(0, MAX_ROWS);
   const hiddenCount = items.length - visible.length;
   const compact = items.length > 7;
+  const checkBg = variant === "mint" ? "#EAF3F0" : "#3CD65C";
 
   return (
-    <div
-      style={{
-        background: t.card,
-        border: `1px solid ${t.line}`,
-        borderRadius: 24,
-        padding: 28,
-        display: "flex",
-        flexDirection: "column",
-        gap: 18,
-        flex: 1,
-        height: "100%",
-        overflow: "hidden",
-      }}
-    >
-      <h3 style={{ fontFamily: DISPLAY_FONT, fontSize: 36, fontWeight: 700, lineHeight: 1.1, color: t.accent2 }}>{title}</h3>
+    <Tile variant={variant} style={{ padding: 32, gap: 18, flex: 1, height: "100%", overflow: "hidden" }}>
+      <h3 style={{ fontFamily: DISPLAY_FONT, fontSize: 36, fontWeight: 700, lineHeight: 1.1, color: c.accent }}>{title}</h3>
       {items.length === 0 ? (
-        <p style={{ fontSize: 24, lineHeight: 1.4, color: t.muted }}>{emptyLabel}</p>
+        <p style={{ fontSize: 24, lineHeight: 1.4, color: c.muted }}>{emptyLabel}</p>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: compact ? 10 : 14, overflow: "hidden" }}>
           {visible.map((item) => (
             <div key={item.key} style={{ display: "flex", flexDirection: "row", gap: 12, alignItems: "flex-start" }}>
-              <CheckBadge size={compact ? 24 : 30} iconSize={compact ? 14 : 18} bg={t.accent} />
+              <CheckBadge size={compact ? 24 : 30} iconSize={compact ? 14 : 18} bg={checkBg} />
               <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 4, minWidth: 0 }}>
-                <p style={{ fontSize: compact ? 20 : 24, fontWeight: 600, lineHeight: 1.25, color: t.fg, margin: 0 }}>
+                <p style={{ fontSize: 24, fontWeight: 600, lineHeight: 1.25, color: c.fg, margin: 0 }}>
                   {item.label}
                 </p>
                 {showDescription && item.description && (
-                  <p style={{ fontSize: 20, lineHeight: 1.3, color: t.muted, margin: 0 }}>{item.description}</p>
+                  <p style={{ fontSize: 24, lineHeight: 1.3, color: c.muted, margin: 0 }}>{item.description}</p>
                 )}
               </div>
             </div>
           ))}
           {hiddenCount > 0 && (
-            <p style={{ fontSize: 20, fontWeight: 600, color: t.accent2, margin: 0 }}>
+            <p style={{ fontSize: 24, fontWeight: 600, color: c.accent, margin: 0 }}>
               + {hiddenCount} más — ver detalle en la siguiente lámina
             </p>
           )}
         </div>
       )}
-    </div>
+    </Tile>
   );
 }
 
@@ -343,12 +327,14 @@ export function IncluyeSlide({ data, page, total }: { data: DeckData; page: numb
       <div style={{ display: "flex", flexDirection: "row", gap: 20, alignItems: "stretch", flex: 1, minHeight: 0 }}>
         <ChecklistCard
           title="Componentes básicos"
+          variant="ink"
           items={componentesBasicos}
           emptyLabel="No hay componentes básicos definidos para esta modalidad."
           showDescription={false}
         />
         <ChecklistCard
           title="Logística 360"
+          variant="mint"
           items={logistica360}
           emptyLabel={
             proposal.modality === "virtual"
@@ -359,6 +345,7 @@ export function IncluyeSlide({ data, page, total }: { data: DeckData; page: numb
         />
         <ChecklistCard
           title="Servicios personalizados"
+          variant="gray"
           items={servicios}
           emptyLabel="Esta propuesta no incluye servicios personalizados adicionales."
           showDescription={false}
@@ -437,7 +424,7 @@ export function ComponentesSlide({
           No hay componentes básicos incluidos en esta propuesta.
         </p>
       ) : (
-        <div style={{ borderRadius: 16, overflow: "hidden", flex: 1, minHeight: 0 }}>
+        <div style={{ borderRadius: 28, overflow: "hidden", flex: 1, minHeight: 0 }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize, color: t.fg }}>
             <tbody>
               <tr style={{ background: t.accent2 }}>
@@ -505,7 +492,7 @@ export function ServiciosSlide({
           Esta propuesta no incluye servicios personalizados adicionales.
         </p>
       ) : (
-        <div style={{ borderRadius: 16, overflow: "hidden", flex: 1, minHeight: 0 }}>
+        <div style={{ borderRadius: 28, overflow: "hidden", flex: 1, minHeight: 0 }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize, color: t.fg }}>
             <tbody>
               <tr style={{ background: t.accent2 }}>
@@ -623,7 +610,7 @@ function CountBadges({ boxes }: { boxes: CountBox[] }) {
             display: "inline-flex",
             alignItems: "baseline",
             gap: 4,
-            background: t.bg,
+            background: "#FFFFFF",
             borderRadius: 999,
             padding: "3px 12px",
           }}
@@ -735,7 +722,7 @@ export function LogisticaSlide({
           No se incluyó logística 360 en esta propuesta.
         </p>
       ) : (
-        <div style={{ borderRadius: 16, overflow: "hidden", flex: 1, minHeight: 0 }}>
+        <div style={{ borderRadius: 28, overflow: "hidden", flex: 1, minHeight: 0 }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize, color: t.fg }}>
             <tbody>
               <tr style={{ background: t.accent2 }}>
@@ -814,40 +801,42 @@ export function ComercialSlide({
         Generamos piezas y espacios digitales para vender a marcas aliadas y patrocinadores en el registro, la
         acreditación y el control de acceso.
       </p>
+      <div style={{ borderRadius: 28, overflow: "hidden" }}>
       <table style={{ fontFamily: "inherit", fontSize: 28, color: t.fg, borderCollapse: "collapse", width: "100%" }}>
         <tbody>
-          <tr style={{ background: t.card }}>
-            <th style={{ width: "22%", color: t.accent, textAlign: "left", padding: "16px 12px" }}>Concepto</th>
-            <th style={{ width: "54%", color: t.accent, textAlign: "left", padding: "16px 12px" }}>
+          <tr style={{ background: t.accent2 }}>
+            <th style={{ width: "22%", color: "#FFFFFF", textAlign: "left", padding: "16px 20px" }}>Concepto</th>
+            <th style={{ width: "54%", color: "#FFFFFF", textAlign: "left", padding: "16px 20px" }}>
               Elementos con presencia de marca del patrocinador
             </th>
-            <th style={{ width: "24%", color: t.accent, textAlign: "left", padding: "16px 12px" }}>Impacto inicial</th>
+            <th style={{ width: "24%", color: "#FFFFFF", textAlign: "left", padding: "16px 20px" }}>Impacto inicial</th>
           </tr>
           <tr>
-            <td style={{ padding: "16px 12px" }}>Registro</td>
-            <td style={{ padding: "16px 12px" }}>
+            <td style={{ padding: "16px 20px" }}>Registro</td>
+            <td style={{ padding: "16px 20px" }}>
               Correo de confirmación · Correo de recordación · Escarapela digital (descarga) · Impacto comercial a
               la base de datos
             </td>
-            <td style={{ padding: "16px 12px" }}>{editableCell("registro", registro)}</td>
+            <td style={{ padding: "16px 20px" }}>{editableCell("registro", registro)}</td>
           </tr>
           <tr>
-            <td style={{ padding: "16px 12px" }}>Acreditación y control de acceso</td>
-            <td style={{ padding: "16px 12px" }}>
+            <td style={{ padding: "16px 20px" }}>Acreditación y control de acceso</td>
+            <td style={{ padding: "16px 20px" }}>
               Escarapela digital (acceso) · Manilla biodegradable · Base de datos de visitantes a cada stand de la
               zona expo
             </td>
-            <td style={{ padding: "16px 12px" }}>{editableCell("acreditacion", acreditacion)}</td>
+            <td style={{ padding: "16px 20px" }}>{editableCell("acreditacion", acreditacion)}</td>
           </tr>
           <tr style={{ background: t.card }}>
-            <td style={{ padding: "16px 12px" }}>Total estimado</td>
+            <td style={{ padding: "16px 20px" }}>Total estimado</td>
             <td />
-            <td style={{ padding: "16px 12px" }}>
+            <td style={{ padding: "16px 20px" }}>
               {total != null ? `${formatNumber(total)} impactos` : `${POR_DEFINIR} impactos`}
             </td>
           </tr>
         </tbody>
       </table>
+      </div>
     </Slide1920>
   );
 }
@@ -860,6 +849,7 @@ export function hasAcuerdoComercial(data: DeckData): boolean {
 export function AcuerdoSlide({ data, page, total }: { data: DeckData; page: number; total: number }) {
   const t = THEME.light;
   const items = data.agreementItems.filter((a) => a.included);
+  const variants: TileVariant[] = ["ink", "mint", "gray", "deep"];
   return (
     <Slide1920 theme="light" section="Inversión" page={page} total={total} contentStyle={{ gap: 40 }}>
       <h2 style={{ fontFamily: DISPLAY_FONT, fontSize: 68, fontWeight: 800, lineHeight: 1.05, letterSpacing: -1, color: t.fg }}>
@@ -869,132 +859,138 @@ export function AcuerdoSlide({ data, page, total }: { data: DeckData; page: numb
         Lo que podemos negociar para optimizar el presupuesto inicial.
       </p>
       {items.length > 0 && (
-        <div style={{ display: "flex", flexDirection: "row", gap: 20, alignItems: "flex-start" }}>
-          {items.map((item, i) => (
-            <div
-              key={item.id}
-              style={{
-                background: t.card,
-                border: `1px solid ${t.line}`,
-                borderRadius: 24,
-                padding: 28,
-                display: "flex",
-                flexDirection: "column",
-                gap: 14,
-                flex: 1,
-              }}
-            >
-              <p style={{ fontSize: 24, letterSpacing: 2, color: t.accent2 }}>{String(i + 1).padStart(2, "0")}</p>
-              <h3 style={{ fontFamily: DISPLAY_FONT, fontSize: 28, fontWeight: 700, lineHeight: 1.15, color: t.fg }}>
-                {item.label}
-              </h3>
-              {item.notes && <p style={{ fontSize: 24, lineHeight: 1.4, color: t.muted }}>{item.notes}</p>}
-            </div>
-          ))}
+        <div style={{ display: "flex", flexDirection: "row", gap: 20, alignItems: "stretch" }}>
+          {items.map((item, i) => {
+            const v = variants[i % variants.length];
+            const c = tileColors(v);
+            return (
+              <Tile key={item.id} variant={v} style={{ padding: 32, gap: 14, flex: 1 }}>
+                <p style={{ fontSize: 24, letterSpacing: 2, fontWeight: 600, color: c.accent }}>{String(i + 1).padStart(2, "0")}</p>
+                <h3 style={{ fontFamily: DISPLAY_FONT, fontSize: 32, fontWeight: 700, lineHeight: 1.15, color: c.fg }}>
+                  {item.label}
+                </h3>
+                {item.notes && <p style={{ fontSize: 24, lineHeight: 1.4, color: c.muted }}>{item.notes}</p>}
+              </Tile>
+            );
+          })}
         </div>
       )}
     </Slide1920>
   );
 }
 
+/** Fila de la cuenta de inversión: etiqueta a la izquierda y monto a la derecha. */
+function MoneyRow({
+  label,
+  value,
+  variant,
+  on = "light",
+  big = false,
+  width,
+}: {
+  label: string;
+  value: string;
+  variant: TileVariant;
+  on?: "light" | "dark";
+  big?: boolean;
+  width?: string;
+}) {
+  const c = tileColors(variant, on);
+  return (
+    <Tile
+      variant={variant}
+      on={on}
+      style={{
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+        padding: big ? "36px 48px" : "24px 48px",
+        borderRadius: big ? 48 : 36,
+        width,
+        alignSelf: "flex-end",
+      }}
+    >
+      <p style={{ fontSize: big ? 32 : 28, fontWeight: 600, color: c.muted }}>{label}</p>
+      <p style={{ fontFamily: DISPLAY_FONT, fontSize: big ? 68 : 48, fontWeight: 800, color: c.fg, whiteSpace: "nowrap" }}>
+        {value}
+      </p>
+    </Tile>
+  );
+}
+
+function ivaLabel(rate: number) {
+  return `IVA ${Math.round(rate * 100)}%`;
+}
+
 export function InversionSlide({ data, page, total }: { data: DeckData; page: number; total: number }) {
   const t = THEME.light;
+  const { tarifarioSummary, proposal } = data;
+  const base = tarifarioSummary.valorPropuestaFinal;
+  const iva = base * tarifarioSummary.ivaRate;
   return (
-    <Slide1920 theme="light" section="Inversión" page={page} total={total} contentStyle={{ justifyContent: "center", gap: 20 }}>
-      <p style={{ fontSize: 24, letterSpacing: 3, textTransform: "uppercase", color: t.accent }}>Inversión inicial</p>
-      <p
-        style={{
-          fontFamily: DISPLAY_FONT,
-          fontSize: 120,
-          fontWeight: 800,
-          lineHeight: 1.15,
-          letterSpacing: -3,
-          color: t.fg,
-          margin: 0,
-        }}
-      >
-        {formatCOP(data.tarifarioSummary.valorPropuestaFinal)}
-      </p>
-      <div style={{ width: 160, height: 8, borderRadius: 4, background: t.accent, marginTop: 16 }} />
-      <p style={{ fontSize: 28, color: t.muted, marginTop: 8 }}>
-        Valor de la propuesta final, antes de IVA y del acuerdo comercial.
-      </p>
+    <Slide1920 theme="light" section="Inversión" page={page} total={total} contentStyle={{ flexDirection: "row", alignItems: "stretch", gap: 48 }}>
+      <Tile variant="ink" badge style={{ width: 520, height: 640, alignSelf: "center", justifyContent: "flex-end", gap: 16, padding: 48 }}>
+        <p style={{ fontSize: 24, letterSpacing: 3, textTransform: "uppercase", fontWeight: 600, color: "#7BE08F" }}>Inversión inicial</p>
+        <p style={{ fontFamily: DISPLAY_FONT, fontSize: 56, fontWeight: 800, lineHeight: 1.05, color: "#EAF3F0" }}>
+          {proposal.event_name}
+        </p>
+        <p style={{ fontSize: 26, color: "#9DB3AC" }}>Valor antes del acuerdo comercial.</p>
+      </Tile>
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center" }}>
+        <MoneyRow label="Valor de la propuesta antes de IVA" value={formatCOP(base)} variant="mint" width="90%" />
+        <div style={{ height: 20 }} />
+        <MoneyRow label={ivaLabel(tarifarioSummary.ivaRate)} value={formatCOP(iva)} variant="gray" width="95%" />
+        <div style={{ height: 20 }} />
+        <MoneyRow label="Total con IVA" value={formatCOP(base + iva)} variant="ink" width="100%" big />
+        <p style={{ fontSize: 24, color: t.muted, marginTop: 24, textAlign: "right" }}>Valores en pesos colombianos.</p>
+      </div>
     </Slide1920>
   );
 }
 
 export function FinalSlide({ data, page, total }: { data: DeckData; page: number; total: number }) {
-  const t = THEME.green;
+  const t = THEME.dark;
   const { tarifarioSummary, proposal } = data;
   const base = tarifarioSummary.valorPropuestaFinal;
   const descuentoPct = proposal.acuerdo_comercial_pct_global;
   const hasAcuerdo = descuentoPct > 0;
   const descuento = base * (descuentoPct / 100);
   const conDescuento = base - descuento;
+  const iva = conDescuento * tarifarioSummary.ivaRate;
 
   return (
     <Slide1920
-      theme="green"
+      theme="dark"
       section="Inversión"
       page={page}
       total={total}
-      contentStyle={{ flexDirection: "row", gap: 96, alignItems: "center" }}
+      contentStyle={{ flexDirection: "row", gap: 72, alignItems: "center" }}
     >
-      <div style={{ width: 640, display: "flex", flexDirection: "column", gap: 20 }}>
+      <div style={{ width: 760, display: "flex", flexDirection: "column", gap: 20 }}>
         <h2 style={{ fontFamily: DISPLAY_FONT, fontSize: 68, fontWeight: 800, lineHeight: 1.05, letterSpacing: -1, color: t.fg }}>
           Presupuesto final
         </h2>
         <p style={{ fontSize: 28, lineHeight: 1.4, color: t.muted }}>Valor justo y ganador para las partes.</p>
         {hasAcuerdo && (
-          <div style={{ display: "flex", flexDirection: "column" }}>
-            {[
-              ["Valor sin acuerdo comercial", formatCOP(base)],
-              [`Acuerdo comercial (${descuentoPct}%)`, `- ${formatCOP(descuento)}`],
-              ["Valor con acuerdo comercial", formatCOP(conDescuento)],
-            ].map(([label, value], i) => (
-              <div
-                key={label}
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: 6,
-                  padding: "22px 0",
-                  borderBottom: i < 2 ? `2px solid ${t.line}` : undefined,
-                }}
-              >
-                <p style={{ fontSize: 24, color: t.muted }}>{label}</p>
-                <p style={{ fontFamily: DISPLAY_FONT, fontSize: 40, fontWeight: 700, color: t.fg }}>{value}</p>
-              </div>
-            ))}
+          <div style={{ display: "flex", flexDirection: "column", marginTop: 12 }}>
+            <MoneyRow label="Valor sin acuerdo comercial" value={formatCOP(base)} variant="gray" on="dark" width="100%" />
+            <div style={{ height: 16 }} />
+            <MoneyRow label={`Acuerdo comercial (${descuentoPct}%)`} value={`- ${formatCOP(descuento)}`} variant="deep" on="dark" width="100%" />
           </div>
         )}
       </div>
-      <TicketCard
-        width={800}
-        height={408}
-        cardBg="#0E1A17"
-        cardBorder={t.line}
-        leftWidth={600}
-        notchBg={t.bg}
-        accentBg={THEME.dark.accent}
-        left={
-          <>
-            <p style={{ fontSize: 24, letterSpacing: 2, textTransform: "uppercase", color: THEME.dark.accent }}>
-              Total propuesta
-            </p>
-            <p style={{ fontFamily: DISPLAY_FONT, fontSize: 68, fontWeight: 800, lineHeight: 1, letterSpacing: -2, color: THEME.dark.fg }}>
-              {formatCOP(conDescuento)}
-            </p>
-            <p style={{ fontSize: 28, color: THEME.dark.muted }}>Antes de IVA</p>
-          </>
-        }
-        right={
-          <svg width={64} height={64} viewBox="0 0 24 24" fill="none" stroke="#0E1A17" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-            <path d="M12 2 4.5 5v6c0 4.97 3.19 9.44 7.5 10.5 4.31-1.06 7.5-5.53 7.5-10.5V5L12 2Z" />
-            <polyline points="9 12 11 14 15 10" />
-          </svg>
-        }
-      />
+      <Tile variant="mint" on="dark" badge style={{ flex: 1, padding: 56, gap: 16, justifyContent: "center" }}>
+        <p style={{ fontSize: 24, letterSpacing: 2, textTransform: "uppercase", fontWeight: 600, color: "#1B4D2E" }}>Total propuesta</p>
+        <p style={{ fontFamily: DISPLAY_FONT, fontSize: 72, fontWeight: 800, lineHeight: 1, letterSpacing: -2, color: "#0E1A17" }}>
+          {formatCOP(conDescuento)}
+        </p>
+        <p style={{ fontSize: 28, color: "#1B4D2E" }}>Antes de IVA</p>
+        <div style={{ height: 3, background: "#0E1A17", opacity: 0.15, marginTop: 8, marginBottom: 8 }} />
+        <p style={{ fontSize: 28, color: "#1B4D2E" }}>
+          {ivaLabel(tarifarioSummary.ivaRate)}: <strong style={{ color: "#0E1A17" }}>{formatCOP(iva)}</strong>
+        </p>
+        <p style={{ fontSize: 32, fontWeight: 700, color: "#0E1A17" }}>Total con IVA: {formatCOP(conDescuento + iva)}</p>
+      </Tile>
     </Slide1920>
   );
 }
@@ -1006,9 +1002,10 @@ export function PagosSlide({ data, page, total }: { data: DeckData; page: number
   const descuento = base * (proposal.acuerdo_comercial_pct_global / 100);
   const totalPropuesta = base - descuento;
   const hitos = paymentMilestones.length > 0 ? paymentMilestones : [];
+  const variants: TileVariant[] = ["ink", "mint", "gray", "deep"];
 
   return (
-    <Slide1920 theme="light" section="Inversión" page={page} total={total} contentStyle={{ gap: 48 }}>
+    <Slide1920 theme="light" section="Inversión" page={page} total={total} contentStyle={{ gap: 36 }}>
       <div style={{ display: "flex", flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between" }}>
         <h2 style={{ fontFamily: DISPLAY_FONT, fontSize: 68, fontWeight: 800, lineHeight: 1.05, letterSpacing: -1, color: t.fg, margin: 0 }}>
           Modelo de pagos
@@ -1018,12 +1015,12 @@ export function PagosSlide({ data, page, total }: { data: DeckData; page: number
           data-pdf-link={`/proposals/${proposal.id}/propuesta`}
           style={{
             fontFamily: DISPLAY_FONT,
-            fontSize: 22,
+            fontSize: 24,
             fontWeight: 700,
             color: t.accent2,
             border: `2px solid ${t.accent2}`,
             borderRadius: 999,
-            padding: "12px 24px",
+            padding: "12px 28px",
             textDecoration: "none",
           }}
         >
@@ -1033,54 +1030,35 @@ export function PagosSlide({ data, page, total }: { data: DeckData; page: number
       {hitos.length === 0 ? (
         <p style={{ fontSize: 28, color: t.muted }}>Todavía no hay hitos de pago definidos en la Propuesta.</p>
       ) : hitos.length === 1 ? (
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "row",
-            alignItems: "center",
-            gap: 64,
-            background: t.card,
-            border: `1px solid ${t.line}`,
-            borderRadius: 28,
-            padding: 56,
-          }}
-        >
-          <p style={{ fontFamily: DISPLAY_FONT, fontSize: 120, fontWeight: 800, lineHeight: 1, letterSpacing: -3, color: t.accent2 }}>
+        <Tile variant="mint" badge style={{ flexDirection: "row", alignItems: "center", gap: 64, padding: 56 }}>
+          <p style={{ fontFamily: DISPLAY_FONT, fontSize: 120, fontWeight: 800, lineHeight: 1, letterSpacing: -3, color: "#0E1A17" }}>
             {hitos[0].pct}%
           </p>
           <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 12 }}>
-            <p style={{ fontSize: 24, letterSpacing: 2, textTransform: "uppercase", color: t.muted }}>Hito único</p>
-            <p style={{ fontFamily: DISPLAY_FONT, fontSize: 40, fontWeight: 700, lineHeight: 1.15, color: t.fg }}>
+            <p style={{ fontSize: 24, letterSpacing: 2, textTransform: "uppercase", fontWeight: 600, color: "#1B4D2E" }}>Hito único</p>
+            <p style={{ fontFamily: DISPLAY_FONT, fontSize: 40, fontWeight: 700, lineHeight: 1.15, color: "#0E1A17" }}>
               {hitos[0].label}
             </p>
           </div>
-          <p style={{ fontFamily: DISPLAY_FONT, fontSize: 68, fontWeight: 800, color: t.fg }}>{formatCOP(totalPropuesta)}</p>
-        </div>
+          <p style={{ fontFamily: DISPLAY_FONT, fontSize: 68, fontWeight: 800, color: "#0E1A17" }}>{formatCOP(totalPropuesta)}</p>
+        </Tile>
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-          {hitos.map((h) => (
-            <div
-              key={h.id}
-              style={{
-                display: "flex",
-                flexDirection: "row",
-                alignItems: "center",
-                gap: 40,
-                background: t.card,
-                border: `1px solid ${t.line}`,
-                borderRadius: 24,
-                padding: 32,
-              }}
-            >
-              <p style={{ fontFamily: DISPLAY_FONT, fontSize: 68, fontWeight: 800, color: t.accent2, width: 160 }}>
-                {h.pct}%
-              </p>
-              <p style={{ flex: 1, fontSize: 32, fontWeight: 600, color: t.fg }}>{h.label}</p>
-              <p style={{ fontFamily: DISPLAY_FONT, fontSize: 40, fontWeight: 700, color: t.fg }}>
-                {formatCOP(totalPropuesta * (h.pct / 100))}
-              </p>
-            </div>
-          ))}
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          {hitos.map((h, i) => {
+            const v = variants[i % variants.length];
+            const c = tileColors(v);
+            return (
+              <Tile key={h.id} variant={v} style={{ flexDirection: "row", alignItems: "center", gap: 40, padding: "18px 40px", borderRadius: 32 }}>
+                <p style={{ fontFamily: DISPLAY_FONT, fontSize: 56, fontWeight: 800, color: c.accent, width: 160 }}>
+                  {h.pct}%
+                </p>
+                <p style={{ flex: 1, fontSize: 30, fontWeight: 600, color: c.fg }}>{h.label}</p>
+                <p style={{ fontFamily: DISPLAY_FONT, fontSize: 36, fontWeight: 700, color: c.fg }}>
+                  {formatCOP(totalPropuesta * (h.pct / 100))}
+                </p>
+              </Tile>
+            );
+          })}
         </div>
       )}
       <p style={{ fontSize: 28, lineHeight: 1.4, color: t.muted }}>
@@ -1094,41 +1072,34 @@ export function PagosSlide({ data, page, total }: { data: DeckData; page: number
 export function CronogramaSlide({ data, page, total }: { data: DeckData; page: number; total: number }) {
   const t = THEME.light;
   const weeks = Array.from(new Set(data.scheduleItems.map((s) => s.week_number))).sort((a, b) => a - b);
+  const variants: TileVariant[] = ["ink", "mint", "gray", "deep"];
   return (
-    <Slide1920 theme="light" section="Ejecución" page={page} total={total} contentStyle={{ gap: 56 }}>
+    <Slide1920 theme="light" section="Ejecución" page={page} total={total} contentStyle={{ gap: 48 }}>
       <h2 style={{ fontFamily: DISPLAY_FONT, fontSize: 68, fontWeight: 800, lineHeight: 1.05, letterSpacing: -1, color: t.fg }}>
         Cronograma
       </h2>
       {weeks.length === 0 ? (
         <p style={{ fontSize: 28, color: t.muted }}>Todavía no hay cronograma definido en la Propuesta.</p>
       ) : (
-        <div style={{ display: "flex", flexDirection: "row", gap: 20, alignItems: "flex-start" }}>
-          {weeks.map((w) => {
+        <div style={{ display: "flex", flexDirection: "row", gap: 20, alignItems: "stretch" }}>
+          {weeks.map((w, i) => {
             const hitos = data.scheduleItems.filter((s) => s.week_number === w);
+            const v = variants[i % variants.length];
+            const c = tileColors(v);
             return (
-              <div
-                key={w}
-                style={{
-                  flex: 1,
-                  borderTop: `6px solid ${t.accent}`,
-                  paddingTop: 20,
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: 16,
-                }}
-              >
-                <p style={{ fontSize: 24, letterSpacing: 2, textTransform: "uppercase", color: t.muted }}>Semana</p>
-                <p style={{ fontFamily: DISPLAY_FONT, fontSize: 68, fontWeight: 800, lineHeight: 1, color: t.accent2 }}>
+              <Tile key={w} variant={v} badge={i === 0} style={{ flex: 1, padding: 28, gap: 16 }}>
+                <p style={{ fontSize: 24, letterSpacing: 2, textTransform: "uppercase", fontWeight: 600, color: c.muted }}>Semana</p>
+                <p style={{ fontFamily: DISPLAY_FONT, fontSize: 68, fontWeight: 800, lineHeight: 1, color: c.accent }}>
                   {String(w).padStart(2, "0")}
                 </p>
                 <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                   {hitos.map((h) => (
-                    <div key={h.id} style={{ background: t.card, border: `1px solid ${t.line}`, borderRadius: 16, padding: 20 }}>
-                      <p style={{ fontSize: 24, fontWeight: 600, lineHeight: 1.3, color: t.fg }}>{h.hito}</p>
+                    <div key={h.id} style={{ background: v === "ink" || v === "deep" ? "rgba(255,255,255,0.10)" : "rgba(14,26,23,0.08)", borderRadius: 20, padding: 20 }}>
+                      <p style={{ fontSize: 24, fontWeight: 600, lineHeight: 1.3, color: c.fg }}>{h.hito}</p>
                     </div>
                   ))}
                 </div>
-              </div>
+              </Tile>
             );
           })}
         </div>
@@ -1148,7 +1119,7 @@ export function RequerimientosSlide({ data, page, total }: { data: DeckData; pag
       {items.length === 0 ? (
         <p style={{ fontSize: 28, color: t.muted }}>No hay requerimientos operativos definidos en la Propuesta.</p>
       ) : (
-        <div style={{ display: "flex", flexDirection: "column" }}>
+        <Tile variant="gray" style={{ padding: "16px 48px" }}>
           {items.map((r, i) => (
             <div
               key={r.id}
@@ -1157,17 +1128,17 @@ export function RequerimientosSlide({ data, page, total }: { data: DeckData; pag
                 flexDirection: "row",
                 gap: 32,
                 alignItems: "center",
-                padding: "16px 0",
-                borderBottom: `1px solid ${t.line}`,
+                padding: "18px 0",
+                borderBottom: i < items.length - 1 ? `1px solid ${t.line}` : undefined,
               }}
             >
-              <p style={{ fontFamily: DISPLAY_FONT, fontSize: 28, fontWeight: 700, color: t.accent, width: 56 }}>
+              <p style={{ fontFamily: DISPLAY_FONT, fontSize: 32, fontWeight: 800, color: t.accent2, width: 64 }}>
                 {String(i + 1).padStart(2, "0")}
               </p>
               <p style={{ flex: 1, fontSize: 28, lineHeight: 1.35, color: t.fg }}>{r.text}</p>
             </div>
           ))}
-        </div>
+        </Tile>
       )}
     </Slide1920>
   );
@@ -1272,16 +1243,8 @@ export function CierreSlide({
           </>
         )}
       </div>
-      <TicketCard
-        width={640}
-        height={448}
-        cardBg={t.card}
-        cardBorder={t.line}
-        leftWidth={450}
-        notchBg={t.bg}
-        accentBg={t.accent}
-        left={
-          <>
+      <Tile variant="gray" on="dark" badge style={{ width: 640, gap: 14, padding: 48 }}>
+        <>
             {onEditContacto && editing ? (
               <>
                 {field("full_name", "Nombre", 32, DISPLAY_FONT)}
@@ -1299,15 +1262,8 @@ export function CierreSlide({
                 <p style={{ fontSize: 28, color: t.muted }}>{val(owner?.telefono)}</p>
               </>
             )}
-          </>
-        }
-        right={
-          <svg width={64} height={64} viewBox="0 0 24 24" fill="none" stroke="#0E1A17" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-            <path d="m22 2-7 20-4-9-9-4 20-7Z" />
-            <path d="M22 2 11 13" />
-          </svg>
-        }
-      />
+        </>
+      </Tile>
     </Slide1920>
   );
 }
