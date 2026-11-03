@@ -172,6 +172,11 @@ export interface AforoScaleRow {
   staffing_rules: AforoStaffingRule;
 }
 
+/** Días para los que vale cada tramo de la escala de honorarios del productor. */
+export const PRODUCTOR_DIAS_ESCALA = 3;
+
+const formatEscala = (v: number) => `$${Math.round(v).toLocaleString("es-CO")}`;
+
 /** Etiquetas que trae cada rollo de papel térmico. */
 export const ETIQUETAS_POR_ROLLO = 195;
 
@@ -351,13 +356,17 @@ export function computeLogisticsBreakdown(
   const honorariosSalonesInternos = virtual
     ? 0
     : qtyLogisticaSalonesInternos * dias * rates.honorariosLogistico;
-  const honorariosProductor = qtyProductor > 0 ? findTier(honorariosProductorScale, aforoPresencial) : 0;
+  // La escala de honorarios del productor vale para hasta 3 días: se
+  // prorratea con regla de tres según los días del evento.
+  const honorariosProductorEscala = qtyProductor > 0 ? findTier(honorariosProductorScale, aforoPresencial) : 0;
+  const honorariosProductorDia = honorariosProductorEscala / PRODUCTOR_DIAS_ESCALA;
+  const honorariosProductor = honorariosProductorDia * dias;
   const arl = virtual ? 0 : qtyArl * dias * rates.arl;
   const honorariosItems: LogisticsLineItem[] = withOverrides([
     { label: "Logístico", dias, quantity: virtual ? 0 : qtyLogistico, rate: rates.honorariosLogistico, subtotal: honorariosLogistico, basis: `${qtyLogistico} logísticos` },
     { label: "Supervisor", dias: diasPersonal, quantity: virtual ? 0 : qtySupervisor, rate: rates.honorariosSupervisor, subtotal: honorariosSupervisor, basis: `${qtySupervisor} supervisores — días incl. preoperativa` },
     { label: "Logística salones internos", dias, quantity: virtual ? 0 : qtyLogisticaSalonesInternos, rate: rates.honorariosLogistico, subtotal: honorariosSalonesInternos, basis: `${qtyLogisticaSalonesInternos} logísticos de salón` },
-    { label: "Productor (según aforo)", dias: 1, quantity: qtyProductor > 0 ? 1 : 0, rate: honorariosProductor, subtotal: honorariosProductor, basis: qtyProductor > 0 ? `Aforo ${aforoPresencial} → tarifa fija por escala` : "Sin productor asignado (cantidad en 0)" },
+    { label: "Productor (según aforo)", dias, quantity: qtyProductor > 0 ? 1 : 0, rate: honorariosProductorDia, subtotal: honorariosProductor, basis: qtyProductor > 0 ? `Aforo ${aforoPresencial} → escala de ${formatEscala(honorariosProductorEscala)} hasta ${PRODUCTOR_DIAS_ESCALA} días, regla de tres para ${dias} día(s)` : "Sin productor asignado (cantidad en 0)" },
     { label: "ARL", dias, quantity: virtual ? 0 : qtyArl, rate: rates.arl, subtotal: arl, basis: `${qtyArl} personas (logístico + staff apoyo)` },
     ...(staffPre > 0
       ? [
