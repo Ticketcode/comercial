@@ -212,6 +212,7 @@ export function PresentacionViewer({ data: initialData }: { data: DeckData }) {
     client: initialData.client ? { ...initialData.client, contact_name: contactName, contact_cargo: contactCargo } : null,
     proposal: {
       ...initialData.proposal,
+      presentacion_contacto: contacto,
       impactos_registro: impactosRegistro === "" ? null : Number(impactosRegistro),
       impactos_acreditacion: impactosAcreditacion === "" ? null : Number(impactosAcreditacion),
     },

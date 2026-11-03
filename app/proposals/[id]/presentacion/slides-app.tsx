@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { PresentacionContacto } from "@/lib/types";
 import { formatCOP } from "@/lib/pricing/summary";
 import { formatFechaCorta } from "@/lib/fecha-local";
@@ -1186,24 +1187,40 @@ export function CierreSlide({
 }) {
   const t = THEME.dark;
   const { owner, proposal } = data;
-  const field = (key: keyof PresentacionContacto, placeholder: string, fontSize: number, fontFamily?: string) =>
-    onEditContacto ? (
-      <input
-        value={owner?.[key] ?? ""}
-        onChange={(e) => onEditContacto(key, e.target.value)}
-        placeholder={placeholder}
-        style={{
-          width: "100%",
-          fontSize,
-          fontFamily: fontFamily ?? "inherit",
-          color: key === "full_name" ? t.fg : t.muted,
-          background: "transparent",
-          border: `1px solid ${t.line}`,
-          borderRadius: 8,
-          padding: "4px 10px",
-        }}
-      />
-    ) : null;
+  const [editing, setEditing] = useState(false);
+  const textos = {
+    eyebrow: proposal.presentacion_contacto?.eyebrow ?? "Atentamente",
+    titulo: proposal.presentacion_contacto?.titulo ?? "Gracias",
+    mensaje:
+      proposal.presentacion_contacto?.mensaje ??
+      `Hagamos de ${proposal.event_name} un evento sin filas y con datos reales.`,
+  };
+  const inputStyle = (fontSize: number, color: string, fontFamily?: string) =>
+    ({
+      width: "100%",
+      fontSize,
+      fontFamily: fontFamily ?? "inherit",
+      color,
+      background: "transparent",
+      border: `1px solid ${t.line}`,
+      borderRadius: 8,
+      padding: "4px 10px",
+    }) as const;
+  const field = (key: "full_name" | "cargo" | "correo" | "telefono", placeholder: string, fontSize: number, fontFamily?: string) => (
+    <input
+      value={owner?.[key] ?? ""}
+      onChange={(e) => onEditContacto?.(key, e.target.value)}
+      placeholder={placeholder}
+      style={inputStyle(fontSize, key === "full_name" ? t.fg : t.muted, fontFamily)}
+    />
+  );
+  const textField = (key: "eyebrow" | "titulo" | "mensaje", fontSize: number, color: string, fontFamily?: string) => (
+    <input
+      value={textos[key]}
+      onChange={(e) => onEditContacto?.(key, e.target.value)}
+      style={inputStyle(fontSize, color, fontFamily)}
+    />
+  );
   return (
     <Slide1920
       theme="dark"
@@ -1212,14 +1229,48 @@ export function CierreSlide({
       total={total}
       contentStyle={{ flexDirection: "row", alignItems: "center", gap: 96 }}
     >
+      {onEditContacto && (
+        <button
+          type="button"
+          title={editing ? "Terminar de editar" : "Editar texto"}
+          onClick={() => setEditing((v) => !v)}
+          style={{
+            position: "absolute",
+            right: 128,
+            top: 110,
+            width: 56,
+            height: 56,
+            borderRadius: "50%",
+            border: `1px solid ${t.line}`,
+            background: editing ? t.accent : t.card,
+            color: editing ? "#0E1A17" : t.fg,
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <svg width={28} height={28} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+            {editing ? <polyline points="20 6 9 17 4 12" /> : <path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />}
+          </svg>
+        </button>
+      )}
       <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 28 }}>
-        <p style={{ fontSize: 24, letterSpacing: 3, textTransform: "uppercase", color: t.accent }}>Atentamente</p>
-        <h1 style={{ fontFamily: DISPLAY_FONT, fontSize: 120, fontWeight: 800, lineHeight: 1, letterSpacing: -3, color: t.fg }}>
-          Gracias
-        </h1>
-        <p style={{ fontSize: 28, color: t.muted }}>
-          Hagamos de {proposal.event_name} un evento sin filas y con datos reales.
-        </p>
+        {onEditContacto && editing ? (
+          <>
+            {textField("eyebrow", 24, t.accent)}
+            {textField("titulo", 80, t.fg, DISPLAY_FONT)}
+            {textField("mensaje", 28, t.muted)}
+          </>
+        ) : (
+          <>
+            <p style={{ fontSize: 24, letterSpacing: 3, textTransform: "uppercase", color: t.accent }}>{textos.eyebrow}</p>
+            <h1 style={{ fontFamily: DISPLAY_FONT, fontSize: 120, fontWeight: 800, lineHeight: 1, letterSpacing: -3, color: t.fg }}>
+              {textos.titulo}
+            </h1>
+            <p style={{ fontSize: 28, color: t.muted }}>{textos.mensaje}</p>
+          </>
+        )}
       </div>
       <TicketCard
         width={640}
@@ -1231,7 +1282,7 @@ export function CierreSlide({
         accentBg={t.accent}
         left={
           <>
-            {onEditContacto ? (
+            {onEditContacto && editing ? (
               <>
                 {field("full_name", "Nombre", 32, DISPLAY_FONT)}
                 {field("cargo", "Cargo", 24)}

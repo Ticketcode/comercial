@@ -25,6 +25,10 @@ export interface PresentacionContacto {
   cargo: string | null;
   correo: string | null;
   telefono: string | null;
+  /** Textos editables de la lámina de cierre; undefined/null = el texto por defecto. */
+  eyebrow?: string | null;
+  titulo?: string | null;
+  mensaje?: string | null;
 }
 
 export interface Client {
