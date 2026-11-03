@@ -97,11 +97,9 @@ const considerandos = [
 
 const clausulas = [
   h("PRIMERA: OBJETO"),
-  p([
-    "El OBJETO GENERAL del contrato consiste en la prestación de los servicios integrales de la plataforma (TICKETCODE) para la gestión y producción logística que involucra el acompañamiento y el soporte técnico especializado en operación logística de eventos, suministro de equipos, transferencia de conocimiento, habilitación de múltiples funciones de gestión, organización, control, registro, acreditación, entrega de kits, control de acceso, módulo de Inteligencia Artificial para realizar actividades de networking, obtención de información real y segmentada de todo el flujo en tiempo real de los participantes al evento: ",
-    boldTag("evento_nombre"),
-    " (EL EVENTO) cubriendo todos los requerimientos relacionados en la propuesta aprobada por EL CONTRATANTE en la realización y producción del EVENTO. Esta operación es transversal y cubre el ANTES (apoyo y/o acompañamiento en la configuración, parametrización y publicación del EVENTO), DURANTE (suministro de personal/capacitación de personal suministrado por el organizador, suministro de equipos, producción logística de registro, acreditación y control de acceso de EL EVENTO) y DESPUÉS (entrega de informes, suministro de DATA real y segmentada de todo el flujo de asistentes y participantes al EVENTO).",
-  ]),
+  // El objeto general viene del formato (lib/data/contrato-objeto.ts) pero se puede
+  // editar por contrato en el paso Contrato.
+  p([tag("objeto_general")]),
 
   h("SEGUNDA: ACTIVIDADES ESPECÍFICAS DEL CONTRATO"),
   p(

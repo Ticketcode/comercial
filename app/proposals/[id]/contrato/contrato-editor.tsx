@@ -5,6 +5,7 @@ import type { Proposal, ProposalContractFields } from "@/lib/types";
 import { MobileSaveBar, SaveStatus, useUnsavedChanges } from "@/app/components/ui-guard";
 import { callSafe, problemsMessage, saveErrorMessage } from "@/lib/errors";
 import { saveContractFields, type ContractFieldsInput } from "./actions";
+import { OBJETO_GENERAL_POR_REVISAR, objetoGeneralBase } from "@/lib/data/contrato-objeto";
 
 const inputClass =
   "h-9 w-full rounded-field border border-border bg-input-bg px-2 text-sm text-ink outline-none focus:border-accent focus:ring-1 focus:ring-accent";
@@ -31,6 +32,7 @@ function defaults(fields: ProposalContractFields | null): ContractFieldsInput {
     tiempo_servicio_inicio: fields?.tiempo_servicio_inicio ?? "",
     tiempo_servicio_fin: fields?.tiempo_servicio_fin ?? "",
     objeto_particular: fields?.objeto_particular ?? "",
+    objeto_general: fields?.objeto_general ?? null,
   };
 }
 
@@ -199,6 +201,41 @@ export function ContratoEditor({
       <section className="rounded-card bg-surface p-5">
         <h3 className="mb-4 font-display text-sm font-bold text-ink">Objeto y tiempos</h3>
         <div className="space-y-4">
+          <Field label="Objeto general (cláusula primera)">
+            <div className="space-y-2">
+              <textarea
+                rows={8}
+                className="w-full rounded-field border border-border bg-input-bg p-2 text-sm text-ink outline-none focus:border-accent focus:ring-1 focus:ring-accent"
+                spellCheck
+                lang="es"
+                value={form.objeto_general ?? objetoGeneralBase(proposal.event_name, proposal.modality)}
+                onChange={(e) =>
+                  patch(
+                    "objeto_general",
+                    e.target.value === objetoGeneralBase(proposal.event_name, proposal.modality) ? null : e.target.value
+                  )
+                }
+              />
+              <div className="flex items-center gap-3 text-xs text-muted">
+                <span>
+                  {form.objeto_general
+                    ? "Editado para este contrato."
+                    : OBJETO_GENERAL_POR_REVISAR.includes(proposal.modality)
+                      ? "Texto sugerido para esta modalidad: revísalo antes de enviar el contrato."
+                      : "Texto del formato."}
+                </span>
+                {form.objeto_general && (
+                  <button
+                    type="button"
+                    onClick={() => patch("objeto_general", null)}
+                    className="underline"
+                  >
+                    Restaurar el texto del formato
+                  </button>
+                )}
+              </div>
+            </div>
+          </Field>
           <Field label="Objeto particular (alcance específico del evento)">
             <textarea
               rows={4}

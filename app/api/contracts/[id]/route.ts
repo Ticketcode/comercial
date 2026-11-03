@@ -10,6 +10,7 @@ import { applyCommercialDiscount, computeTarifarioSummary, formatCOP } from "@/l
 import { getValidServiceCostItems } from "@/lib/data/service-items";
 import { numeroALetras } from "@/lib/numero-a-letras";
 import { fechaLarga, fechaFirmaLarga } from "@/lib/fecha-es";
+import { OBJETO_PARTICULAR_BASE, objetoGeneralBase } from "@/lib/data/contrato-objeto";
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -108,9 +109,8 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     contratante_ciudad: f.contratante_ciudad || "____",
     contratante_direccion: f.contratante_direccion || "____",
     evento_nombre: proposal.event_name,
-    objeto_particular:
-      f.objeto_particular ||
-      "El alcance detallado del servicio corresponde a lo definido en la propuesta comercial aprobada (componentes básicos, servicios personalizados, logística 360 y acuerdo comercial).",
+    objeto_general: f.objeto_general?.trim() ? f.objeto_general : objetoGeneralBase(proposal.event_name, proposal.modality),
+    objeto_particular: f.objeto_particular || OBJETO_PARTICULAR_BASE,
     tiempo_servicio_inicio_texto: fechaLarga(f.tiempo_servicio_inicio ?? null),
     tiempo_servicio_fin_texto: fechaLarga(f.tiempo_servicio_fin ?? null),
     plazo_inicio_texto: fechaLarga(f.plazo_inicio ?? null),

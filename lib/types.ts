@@ -415,4 +415,6 @@ export interface ProposalContractFields {
   tiempo_servicio_inicio: string | null;
   tiempo_servicio_fin: string | null;
   objeto_particular: string | null;
+  /** Cláusula PRIMERA editada para este contrato; null = el texto del formato. */
+  objeto_general: string | null;
 }
