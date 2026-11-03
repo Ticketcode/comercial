@@ -185,7 +185,16 @@ function buildSlides(data: DeckData, hidden: string[], edit: SlideEditHandlers =
   });
 }
 
-export function PresentacionViewer({ data: initialData }: { data: DeckData }) {
+/** Si se pasa, la Presentación muestra esa versión guardada, solo para leer. */
+export interface VersionVista {
+  number: number;
+  status: "borrador" | "enviada" | "aceptada";
+  isFinal: boolean;
+  createdAt: string;
+}
+
+export function PresentacionViewer({ data: initialData, version }: { data: DeckData; version?: VersionVista }) {
+  const readOnly = !!version;
   const [contactName, setContactName] = useState(initialData.client?.contact_name ?? "");
   const [contactCargo, setContactCargo] = useState(initialData.client?.contact_cargo ?? "");
   const [impactosRegistro, setImpactosRegistro] = useState(
@@ -253,7 +262,7 @@ export function PresentacionViewer({ data: initialData }: { data: DeckData }) {
       const slideEls = printAreaRef.current.querySelectorAll<HTMLElement>("[data-pdf-slide]");
       const pdf = new jsPDF({ unit: "mm", format: SLIDE_PDF_FORMAT, orientation: "landscape" });
       await renderSlidesToPdf(pdf, slideEls, html2canvas);
-      pdf.save(`Presentacion - ${initialData.proposal.event_name}.pdf`);
+      pdf.save(`Presentacion${version ? ` V${version.number}` : ""} - ${initialData.proposal.event_name}.pdf`);
     } finally {
       setIsDownloading(false);
     }
@@ -282,6 +291,30 @@ export function PresentacionViewer({ data: initialData }: { data: DeckData }) {
 
   return (
     <div className={`${exo.variable} ${poppins.variable} space-y-6`}>
+      {readOnly && version && (
+        <section className="no-print flex flex-wrap items-center justify-between gap-3 rounded-xl border border-neutral-200 bg-white p-5">
+          <div>
+            <h3 className="text-sm font-semibold text-neutral-900">
+              Versión {version.number}
+              {version.isFinal ? " · final" : ""}
+              {version.status === "aceptada" ? " · aceptada" : version.status === "enviada" ? " · enviada" : ""}
+            </h3>
+            <p className="mt-1 text-xs text-neutral-500">
+              Guardada el {new Date(version.createdAt).toLocaleString("es-CO")}. Es una foto de ese momento: solo se
+              puede leer y descargar.
+            </p>
+          </div>
+          <div className="flex items-center gap-3">
+            <Link href={`/proposals/${initialData.proposal.id}/versiones`} className="btn btn-secondary btn-sm">
+              Volver a Versiones
+            </Link>
+            <button type="button" onClick={downloadPdf} disabled={isDownloading} className="btn btn-primary btn-sm">
+              {isDownloading ? "Generando PDF..." : "Descargar en PDF"}
+            </button>
+          </div>
+        </section>
+      )}
+      {!readOnly && (
       <section className="no-print rounded-xl border border-neutral-200 bg-white p-5">
         <h3 className="text-sm font-semibold text-neutral-900">Datos pendientes de la presentación</h3>
         <p className="mt-1 text-xs text-neutral-500">
@@ -322,9 +355,10 @@ export function PresentacionViewer({ data: initialData }: { data: DeckData }) {
           {message && <span className="text-xs text-neutral-500">{message}</span>}
         </div>
       </section>
+      )}
 
       <div className="no-print flex flex-col items-center gap-6 rounded-xl border border-neutral-200 bg-neutral-50 p-6">
-        {buildSlides(data, hiddenSlides, { onEditImpactos, onEditContacto, onEditInformes: setInformes }).map((slide) => {
+        {buildSlides(data, hiddenSlides, readOnly ? {} : { onEditImpactos, onEditContacto, onEditInformes: setInformes }).map((slide) => {
           const hideable = HIDEABLE_SLIDE_GROUPS.some((g) => g.key === slide.group);
           return (
             <div
@@ -342,7 +376,7 @@ export function PresentacionViewer({ data: initialData }: { data: DeckData }) {
                   {slide.node}
                 </div>
               </div>
-              {hideable && !slide.hidden && (
+              {!readOnly && hideable && !slide.hidden && (
                 <button
                   type="button"
                   onClick={() => toggleHiddenSlide(slide.group)}
@@ -352,7 +386,7 @@ export function PresentacionViewer({ data: initialData }: { data: DeckData }) {
                   <EyeOffIcon />
                 </button>
               )}
-              {slide.hidden && (
+              {!readOnly && slide.hidden && (
                 <button
                   type="button"
                   onClick={() => toggleHiddenSlide(slide.group)}

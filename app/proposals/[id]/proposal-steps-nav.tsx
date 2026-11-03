@@ -8,6 +8,7 @@ const steps = [
   { key: "propuesta", n: "2", label: "Propuesta" },
   { key: "contrato", n: "3", label: "Contrato" },
   { key: "presentacion", n: "4", label: "Presentación" },
+  { key: "versiones", n: "5", label: "Versiones" },
 ];
 
 export function ProposalStepsNav({ id }: { id: string }) {
