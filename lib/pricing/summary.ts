@@ -1,6 +1,7 @@
 import type { Proposal, ProposalCostItem } from "@/lib/types";
 import {
   computeLogisticsBreakdown,
+  PREACREDITACION_SERVICE_LABEL,
   type LogisticsBreakdown,
   type LogisticsRates,
   type QuantityTier,
@@ -39,6 +40,12 @@ export function computeTarifarioSummary(
   serviceItems: ProposalCostItem[],
   honorariosProductorScale: QuantityTier[]
 ): TarifarioSummary {
+  // Los días de pre-acreditación salen de la cantidad del servicio "Pre
+  // acreditación" cuando está incluido — así todos los pasos (Tarifario,
+  // Propuesta, Presentación, Contrato) calculan lo mismo.
+  const preacreditacion = serviceItems.find(
+    (item) => item.label === PREACREDITACION_SERVICE_LABEL && item.included
+  );
   const logistica = computeLogisticsBreakdown(
     {
       dias: Number(proposal.dias),
@@ -54,6 +61,8 @@ export function computeTarifarioSummary(
       qtyComputadores: Number(proposal.qty_computadores),
       qtyImpresoras: Number(proposal.qty_impresoras),
       qtyRollosLabels: Number(proposal.qty_rollos_labels),
+      preacreditacionDias: preacreditacion ? Number(preacreditacion.quantity) : 0,
+      preacreditacionMedioDia: proposal.preacreditacion_medio_dia,
       extraCamisetasStaff: proposal.extra_camisetas_staff,
       extraLavadoChalecos: proposal.extra_lavado_chalecos,
       extraCompraAgua: proposal.extra_compra_agua,

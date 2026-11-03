@@ -33,6 +33,7 @@ export interface SaveTarifarioPayload {
     qty_computadores: number;
     qty_impresoras: number;
     qty_rollos_labels: number;
+    preacreditacion_medio_dia: boolean;
     extra_camisetas_staff: boolean;
     extra_lavado_chalecos: boolean;
     extra_compra_agua: boolean;

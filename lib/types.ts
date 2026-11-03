@@ -94,6 +94,8 @@ export interface Proposal {
   /** Cantidad de semanas/columnas de día configuradas en el Cronograma — null = se calcula del contenido existente. */
   cronograma_semanas: number | null;
   cronograma_dias: number | null;
+  /** Pre-acreditación de medio día (honorario de logístico de medio día) en vez de día completo. */
+  preacreditacion_medio_dia: boolean;
   /** Grupos de diapositivas ocultas en la Presentación (ej. "informes", "casos"). */
   presentacion_hidden_slides: string[];
   /** Datos del asesor editados en la lámina de Contacto; null = los del perfil. */

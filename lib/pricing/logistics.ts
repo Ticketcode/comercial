@@ -30,6 +30,7 @@ export interface LogisticsRates {
   alquilerPortatil: number; // "Alquiler portatil"
   papelImpresora: number; // "Papel impresora"
   honorariosLogistico: number; // "Honorarios Logístico"
+  honorariosLogisticoMedioDia: number; // "Honorarios Logístico (medio día)"
   honorariosSupervisor: number; // "Honorarios Supervisor"
   arl: number; // "ARL"
   desayunoStaff: number; // "Desayuno (Staff)"
@@ -78,6 +79,7 @@ export function buildLogisticsRates(rows: RateRow[]): LogisticsRates {
     alquilerPortatil: flat("Alquiler portatil"),
     papelImpresora: flat("Papel impresora"),
     honorariosLogistico: flat("Honorarios Logístico"),
+    honorariosLogisticoMedioDia: flat("Honorarios Logístico (medio día)"),
     honorariosSupervisor: flat("Honorarios Supervisor"),
     arl: flat("ARL"),
     desayunoStaff: flat("Desayuno (Staff)"),
@@ -103,6 +105,10 @@ export interface LogisticsInput {
   qtyComputadores: number;
   qtyImpresoras: number;
   qtyRollosLabels: number;
+  /** Días de pre-acreditación (0 = no hay). Salen de la cantidad del servicio "Pre acreditación". */
+  preacreditacionDias?: number;
+  /** true = la pre-acreditación es de medio día (honorario de logístico de medio día). */
+  preacreditacionMedioDia?: boolean;
   extraCamisetasStaff: boolean;
   extraLavadoChalecos: boolean;
   extraCompraAgua: boolean;
@@ -166,6 +172,29 @@ export interface AforoScaleRow {
   staffing_rules: AforoStaffingRule;
 }
 
+/** Etiquetas que trae cada rollo de papel térmico. */
+export const ETIQUETAS_POR_ROLLO = 195;
+
+/**
+ * Rollos de labels para un aforo: aforo ÷ 195 etiquetas por rollo, subiendo
+ * al entero siguiente. Se calcula siempre sobre el aforo total que confirma
+ * el organizador (sin tasa de conversión ni días) para que no falten rollos.
+ */
+export function rollosPorAforo(aforo: number): number {
+  return aforo > 0 ? Math.ceil(aforo / ETIQUETAS_POR_ROLLO) : 0;
+}
+
+/** Nombre del servicio personalizado que habilita el módulo de pre-acreditación (se cobra por día). */
+export const PREACREDITACION_SERVICE_LABEL = "Pre acreditación";
+
+/**
+ * Logísticos de la operación de pre-acreditación: la mitad de los del
+ * evento, subiendo al entero siguiente (7 → 4).
+ */
+export function logisticosPreacreditacion(qtyLogistico: number): number {
+  return Math.ceil(qtyLogistico / 2);
+}
+
 /**
  * Dotación de personal/equipos sugerida según el aforo — de la "Tabla de
  * Cantidades X Aforo" de la hoja "Calculo Logistica". Es el punto de
@@ -179,10 +208,12 @@ export function staffingForAforo(
   const match = sorted.find(
     (s) => aforo >= s.min_assistants && (s.max_assistants === null || aforo <= s.max_assistants)
   );
-  if (match) return match.staffing_rules;
   // Aforo menor al tramo más bajo (ej. eventos muy pequeños) -> usa el
   // tramo mínimo; por encima del techo -> usa el más alto.
-  return sorted[0]?.staffing_rules ?? sorted.at(-1)?.staffing_rules ?? null;
+  const rules = match?.staffing_rules ?? sorted[0]?.staffing_rules ?? sorted.at(-1)?.staffing_rules ?? null;
+  if (!rules) return null;
+  // Los rollos no salen de la tabla sino de aforo ÷ etiquetas por rollo.
+  return { ...rules, rollos_labels: rollosPorAforo(aforo) };
 }
 
 /**
@@ -261,6 +292,8 @@ export function computeLogisticsBreakdown(
     qtyComputadores,
     qtyImpresoras,
     qtyRollosLabels,
+    preacreditacionDias = 0,
+    preacreditacionMedioDia = false,
   } = input;
 
   const virtual = esVirtual(modalidad);
@@ -298,6 +331,16 @@ export function computeLogisticsBreakdown(
   const diasPersonal = dias + visitaPreoperativaDias;
   const ciudadLabel = bogota ? "Bogotá — no aplica" : "fuera de Bogotá";
 
+  // Pre-acreditación: la mitad de los logísticos del evento, durante
+  // `preacreditacionDias` (día completo o medio día). Calcula gente, equipos
+  // y recursos; el módulo de la plataforma se cobra aparte como servicio.
+  const preDias = virtual ? 0 : Math.max(preacreditacionDias, 0);
+  const staffPre = preDias > 0 ? logisticosPreacreditacion(qtyLogistico) : 0;
+  const tarifaLogisticoPre = preacreditacionMedioDia
+    ? rates.honorariosLogisticoMedioDia
+    : rates.honorariosLogistico;
+  const duracionPre = preacreditacionMedioDia ? "medio día" : "día completo";
+
   // 1) Honorarios
   const honorariosLogistico = virtual ? 0 : qtyLogistico * dias * rates.honorariosLogistico;
   const honorariosSupervisor = virtual
@@ -314,6 +357,12 @@ export function computeLogisticsBreakdown(
     { label: "Logística salones internos", dias, quantity: virtual ? 0 : qtyLogisticaSalonesInternos, rate: rates.honorariosLogistico, subtotal: honorariosSalonesInternos, basis: `${qtyLogisticaSalonesInternos} logísticos de salón` },
     { label: "Productor (según aforo)", dias: 1, quantity: qtyProductor > 0 ? 1 : 0, rate: honorariosProductor, subtotal: honorariosProductor, basis: qtyProductor > 0 ? `Aforo ${aforoPresencial} → tarifa fija por escala` : "Sin productor asignado (cantidad en 0)" },
     { label: "ARL", dias, quantity: virtual ? 0 : qtyArl, rate: rates.arl, subtotal: arl, basis: `${qtyArl} personas (logístico + staff apoyo)` },
+    ...(staffPre > 0
+      ? [
+          { label: "Logísticos pre-acreditación", dias: preDias, quantity: staffPre, rate: tarifaLogisticoPre, subtotal: staffPre * preDias * tarifaLogisticoPre, basis: `Mitad de los logísticos (${qtyLogistico} → ${staffPre}) — ${duracionPre}` },
+          { label: "ARL pre-acreditación", dias: preDias, quantity: staffPre, rate: rates.arl, subtotal: staffPre * preDias * rates.arl, basis: `${staffPre} personas × ${preDias} día(s)` },
+        ]
+      : []),
   ]);
   const honorarios = sumSubtotals(honorariosItems);
 
@@ -347,6 +396,12 @@ export function computeLogisticsBreakdown(
     { label: "Refrigerio AM+PM (día antes, staff que viaja)", dias: visitaPreoperativaDias, quantity: virtual ? 0 : qtyStaffViaja * 2, rate: rates.refrigerioLogistica, subtotal: refrigerioDiaAntes, basis: `Día(s) antes — ${qtyStaffViaja} personas × 2 (AM+PM) — aplica en cualquier ciudad` },
     { label: "Refrigerio AM+PM (días evento, todo el equipo)", dias, quantity: virtual ? 0 : qtyArl * 2, rate: rates.refrigerioLogistica, subtotal: refrigerioDiasEvento, basis: `Días de evento — ${qtyArl} personas × 2 (AM+PM)` },
     { label: "Hotel (noches, staff que viaja)", dias: diasEnTierra, quantity: bogota ? 0 : qtyStaffViaja, rate: rates.hospedaje, subtotal: hotel, basis: `Noches en tierra — solo fuera de Bogotá (hoy: ${ciudadLabel})` },
+    ...(staffPre > 0
+      ? [
+          { label: "Almuerzo pre-acreditación", dias: preDias, quantity: staffPre, rate: rates.almuerzoLogistica, subtotal: staffPre * preDias * rates.almuerzoLogistica, basis: `${staffPre} personas × ${preDias} día(s)` },
+          { label: "Refrigerio AM+PM pre-acreditación", dias: preDias, quantity: staffPre * 2, rate: rates.refrigerioLogistica, subtotal: staffPre * 2 * preDias * rates.refrigerioLogistica, basis: `${staffPre} personas × 2 (AM+PM) × ${preDias} día(s)` },
+        ]
+      : []),
   ]);
   const alimentacionHotel = sumSubtotals(alimentacionItems);
 
@@ -391,12 +446,19 @@ export function computeLogisticsBreakdown(
   // 4) Equipos — se alquilan por todos los días del evento, no por un día fijo.
   const computadores = virtual ? 0 : qtyComputadores * rates.alquilerPortatil * dias;
   const impresoras = virtual ? 0 : qtyImpresoras * rates.impresoras * dias;
-  const rollosLabels = virtual ? 0 : qtyRollosLabels * rates.papelImpresora * dias;
+  // Los rollos salen del aforo total (aforo ÷ 195), no de los días: no se multiplican por días.
+  const rollosLabels = virtual ? 0 : qtyRollosLabels * rates.papelImpresora;
 
   const equiposItems: LogisticsLineItem[] = withOverrides([
     { label: "Computadores (alquiler portátil)", dias, quantity: virtual ? 0 : qtyComputadores, rate: rates.alquilerPortatil, subtotal: computadores, basis: `Según escala de aforo (editable) — ${dias} día(s) de evento` },
     { label: "Impresoras", dias, quantity: virtual ? 0 : qtyImpresoras, rate: rates.impresoras, subtotal: impresoras, basis: `Según escala de aforo (editable) — ${dias} día(s) de evento` },
-    { label: "Rollos / Labels (papel impresora)", dias, quantity: virtual ? 0 : qtyRollosLabels, rate: rates.papelImpresora, subtotal: rollosLabels, basis: `Según escala de aforo (editable) — ${dias} día(s) de evento` },
+    { label: "Rollos / Labels (papel impresora)", dias: 1, quantity: virtual ? 0 : qtyRollosLabels, rate: rates.papelImpresora, subtotal: rollosLabels, basis: `Aforo ÷ ${ETIQUETAS_POR_ROLLO} etiquetas por rollo, hacia arriba (editable) — sobre el aforo total, no por día` },
+    ...(staffPre > 0
+      ? [
+          { label: "Computadores pre-acreditación", dias: preDias, quantity: staffPre, rate: rates.alquilerPortatil, subtotal: staffPre * preDias * rates.alquilerPortatil, basis: `Uno por logístico de pre-acreditación × ${preDias} día(s)` },
+          { label: "Impresoras pre-acreditación", dias: preDias, quantity: staffPre, rate: rates.impresoras, subtotal: staffPre * preDias * rates.impresoras, basis: `Una por logístico de pre-acreditación × ${preDias} día(s)` },
+        ]
+      : []),
   ]);
   const equipos = sumSubtotals(equiposItems);
 

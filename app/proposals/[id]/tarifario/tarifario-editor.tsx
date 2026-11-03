@@ -9,7 +9,13 @@ import type {
   LogisticsRates,
   QuantityTier,
 } from "@/lib/pricing/logistics";
-import { staffingForAforo, logisticosPorSalon, totalLogisticosSalones } from "@/lib/pricing/logistics";
+import {
+  PREACREDITACION_SERVICE_LABEL,
+  logisticosPorSalon,
+  logisticosPreacreditacion,
+  staffingForAforo,
+  totalLogisticosSalones,
+} from "@/lib/pricing/logistics";
 import { computeTarifarioSummary, formatCOP } from "@/lib/pricing/summary";
 import { MoneyInput } from "@/app/components/money-input";
 import { MobileSaveBar, SaveStatus, useUnsavedChanges } from "@/app/components/ui-guard";
@@ -43,7 +49,6 @@ const labelClass = "text-xs font-semibold text-muted";
 
 const SALONES_INTERNOS_SERVICE_LABEL =
   "Módulo para obtención de datos en diferentes sitios simultáneos";
-const PREACREDITACION_SERVICE_LABEL = "Pre acreditación";
 
 // Servicios cuya cantidad se calcula sola (de solo lectura) en vez de digitarse a mano.
 const CLOUD_SERVER_LABEL = "Cloud server";
@@ -81,6 +86,7 @@ export function TarifarioEditor({
     qty_computadores: Number(proposal.qty_computadores),
     qty_impresoras: Number(proposal.qty_impresoras),
     qty_rollos_labels: Number(proposal.qty_rollos_labels),
+    preacreditacion_medio_dia: proposal.preacreditacion_medio_dia ?? false,
     extra_camisetas_staff: proposal.extra_camisetas_staff,
     extra_lavado_chalecos: proposal.extra_lavado_chalecos,
     extra_compra_agua: proposal.extra_compra_agua,
@@ -174,15 +180,6 @@ export function TarifarioEditor({
     setSalonesAforos((prev) => prev.map((a, i) => (i === index ? aforo : a)));
   }
 
-  // "Pre acreditación" (servicio #25) define cuántos días operativos extra
-  // se suman para TODO el equipo (honorarios, alimentación, transporte
-  // completos) — sin reemplazar la Visita preoperativa (que sigue siendo
-  // solo el día(s) de viaje del staff, independiente y editable).
-  const preacreditacionItem = serviceItems.find((i) => i.label === PREACREDITACION_SERVICE_LABEL);
-  const preacreditacionDias =
-    preacreditacionItem && serviceRows[preacreditacionItem.id]?.included
-      ? serviceRows[preacreditacionItem.id].quantity
-      : 0;
 
   const qtyLogisticaSalonesInternos = useMemo(
     () => totalLogisticosSalones(salonesAforos),
@@ -209,11 +206,10 @@ export function TarifarioEditor({
     () => ({
       ...proposal,
       ...eventFields,
-      dias: eventFields.dias + preacreditacionDias,
       qty_logistica_salones_internos: qtyLogisticaSalonesInternos,
       logistics_overrides: logisticsOverrides,
     }),
-    [proposal, eventFields, preacreditacionDias, qtyLogisticaSalonesInternos, logisticsOverrides]
+    [proposal, eventFields, qtyLogisticaSalonesInternos, logisticsOverrides]
   );
   const serviceItemsForSummary = useMemo(
     () =>
@@ -547,10 +543,23 @@ export function TarifarioEditor({
                     <td className="px-2 py-2 text-ink">
                       {item.label}
                       {item.label === PREACREDITACION_SERVICE_LABEL && (
-                        <p className="text-[11px] font-normal text-warn-ink">
-                          Cantidad = días operativos extra (todo el equipo) — se suman a los días
-                          del evento en Logística 360, sin reemplazar la visita preoperativa.
-                        </p>
+                        <>
+                          <p className="text-[11px] font-normal text-warn-ink">
+                            Cantidad = días de pre-acreditación. Aquí solo se cobra el módulo de la
+                            plataforma; la gente (la mitad de los logísticos: {logisticosPreacreditacion(eventFields.qty_logistico)}),
+                            los equipos y los insumos se calculan solos en Logística 360.
+                          </p>
+                          <label className="mt-1 flex items-center gap-2 text-[11px] font-normal text-warn-ink">
+                            <input
+                              type="checkbox"
+                              checked={eventFields.preacreditacion_medio_dia}
+                              disabled={!row.included}
+                              onChange={(e) => patchEvent("preacreditacion_medio_dia", e.target.checked)}
+                              className="h-4 w-4 accent-accent"
+                            />
+                            Medio día (honorario de logístico de medio día)
+                          </label>
+                        </>
                       )}
                       {item.label === SALONES_INTERNOS_SERVICE_LABEL && (
                         <p className="text-[11px] font-normal text-warn-ink">
