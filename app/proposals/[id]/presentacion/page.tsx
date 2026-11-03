@@ -6,6 +6,7 @@ import { computeTarifarioSummary } from "@/lib/pricing/summary";
 import { getValidServiceCostItems } from "@/lib/data/service-items";
 import { PresentacionViewer } from "./presentacion-viewer";
 import type { DeckData } from "./deck-shell";
+import { DEFAULT_INFORMES } from "./slides-fixed";
 
 export const dynamic = "force-dynamic";
 
@@ -92,6 +93,7 @@ export default async function PresentacionPage({ params }: { params: Promise<{ i
     paymentMilestones: paymentMilestones ?? [],
     operationalRequirements: operationalRequirements ?? [],
     propuestaFecha: new Date().toISOString().slice(0, 10),
+    informes: (proposal as Proposal).presentacion_informes ?? DEFAULT_INFORMES,
   };
 
   return <PresentacionViewer data={data} />;

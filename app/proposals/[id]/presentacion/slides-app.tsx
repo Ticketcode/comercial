@@ -1,3 +1,4 @@
+import type { PresentacionContacto } from "@/lib/types";
 import { formatCOP } from "@/lib/pricing/summary";
 import { formatFechaCorta } from "@/lib/fecha-local";
 import {
@@ -1171,9 +1172,38 @@ export function RequerimientosSlide({ data, page, total }: { data: DeckData; pag
   );
 }
 
-export function CierreSlide({ data, page, total }: { data: DeckData; page: number; total: number }) {
+export function CierreSlide({
+  data,
+  page,
+  total,
+  onEditContacto,
+}: {
+  data: DeckData;
+  page: number;
+  total: number;
+  /** Si se pasa, los datos de contacto se editan en la propia lámina (no se pasa en el área oculta que exporta el PDF). */
+  onEditContacto?: (field: keyof PresentacionContacto, value: string) => void;
+}) {
   const t = THEME.dark;
   const { owner, proposal } = data;
+  const field = (key: keyof PresentacionContacto, placeholder: string, fontSize: number, fontFamily?: string) =>
+    onEditContacto ? (
+      <input
+        value={owner?.[key] ?? ""}
+        onChange={(e) => onEditContacto(key, e.target.value)}
+        placeholder={placeholder}
+        style={{
+          width: "100%",
+          fontSize,
+          fontFamily: fontFamily ?? "inherit",
+          color: key === "full_name" ? t.fg : t.muted,
+          background: "transparent",
+          border: `1px solid ${t.line}`,
+          borderRadius: 8,
+          padding: "4px 10px",
+        }}
+      />
+    ) : null;
   return (
     <Slide1920
       theme="dark"
@@ -1201,12 +1231,23 @@ export function CierreSlide({ data, page, total }: { data: DeckData; page: numbe
         accentBg={t.accent}
         left={
           <>
-            <p style={{ fontFamily: DISPLAY_FONT, fontSize: 40, fontWeight: 700, lineHeight: 1.1, color: t.fg }}>
-              {val(owner?.full_name)}
-            </p>
-            <p style={{ fontSize: 28, color: t.muted }}>{val(owner?.cargo)}</p>
-            <p style={{ fontSize: 28, color: t.muted }}>{val(owner?.correo)}</p>
-            <p style={{ fontSize: 28, color: t.muted }}>{val(owner?.telefono)}</p>
+            {onEditContacto ? (
+              <>
+                {field("full_name", "Nombre", 32, DISPLAY_FONT)}
+                {field("cargo", "Cargo", 24)}
+                {field("correo", "Correo", 24)}
+                {field("telefono", "Teléfono", 24)}
+              </>
+            ) : (
+              <>
+                <p style={{ fontFamily: DISPLAY_FONT, fontSize: 40, fontWeight: 700, lineHeight: 1.1, color: t.fg }}>
+                  {val(owner?.full_name)}
+                </p>
+                <p style={{ fontSize: 28, color: t.muted }}>{val(owner?.cargo)}</p>
+                <p style={{ fontSize: 28, color: t.muted }}>{val(owner?.correo)}</p>
+                <p style={{ fontSize: 28, color: t.muted }}>{val(owner?.telefono)}</p>
+              </>
+            )}
           </>
         }
         right={

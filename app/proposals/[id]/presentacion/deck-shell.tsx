@@ -322,4 +322,6 @@ export interface DeckData {
   paymentMilestones: ProposalPaymentMilestone[];
   operationalRequirements: ProposalOperationalRequirement[];
   propuestaFecha: string;
+  /** Entregables de la lámina Informes (los de la propuesta o, si no hay, los por defecto). */
+  informes: string[];
 }

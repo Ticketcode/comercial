@@ -20,6 +20,13 @@ export interface Profile {
   created_at: string;
 }
 
+export interface PresentacionContacto {
+  full_name: string | null;
+  cargo: string | null;
+  correo: string | null;
+  telefono: string | null;
+}
+
 export interface Client {
   id: string;
   name: string;
@@ -85,6 +92,10 @@ export interface Proposal {
   cronograma_dias: number | null;
   /** Grupos de diapositivas ocultas en la Presentación (ej. "informes", "casos"). */
   presentacion_hidden_slides: string[];
+  /** Datos del asesor editados en la lámina de Contacto; null = los del perfil. */
+  presentacion_contacto: PresentacionContacto | null;
+  /** Lista editada de la lámina Informes y entregables; null = la lista por defecto. */
+  presentacion_informes: string[] | null;
   created_at: string;
   updated_at: string;
 }

@@ -6,6 +6,7 @@ import { LabeledField } from "@/app/components/labeled-field";
 import { callSafe, saveErrorMessage } from "@/lib/errors";
 import type { DeckData } from "./deck-shell";
 import { saveDatosPresentacion } from "./actions";
+import type { Profile, PresentacionContacto } from "@/lib/types";
 import { exo, poppins } from "@/lib/fonts";
 import {
   CasosSlide,
@@ -75,11 +76,14 @@ export const HIDEABLE_SLIDE_GROUPS: { key: string; label: string }[] = [
   { key: "casos", label: "Casos de éxito" },
 ];
 
-function buildSlides(
-  data: DeckData,
-  hidden: string[],
-  onEditImpactos?: (field: "registro" | "acreditacion", value: number | null) => void
-) {
+interface SlideEditHandlers {
+  onEditImpactos?: (field: "registro" | "acreditacion", value: number | null) => void;
+  onEditContacto?: (field: keyof PresentacionContacto, value: string) => void;
+  onEditInformes?: (items: string[]) => void;
+}
+
+function buildSlides(data: DeckData, hidden: string[], edit: SlideEditHandlers = {}) {
+  const { onEditImpactos, onEditContacto, onEditInformes } = edit;
   type SlideFn = (p: { data: DeckData; page: number; total: number }) => JSX.Element;
   const isHidden = (group: string) => hidden.includes(group);
   const entries: { key: string; group: string; render: SlideFn }[] = [
@@ -131,7 +135,18 @@ function buildSlides(
       group: "comercial",
       render: (p) => <ComercialSlide {...p} onEditImpactos={onEditImpactos} />,
     },
-    { key: "informes", group: "informes", render: (p) => <InformesSlide page={p.page} total={p.total} /> },
+    {
+      key: "informes",
+      group: "informes",
+      render: (p) => (
+        <InformesSlide
+          items={onEditInformes ? data.informes : data.informes.filter((i) => i.trim() !== "")}
+          page={p.page}
+          total={p.total}
+          onEditInformes={onEditInformes}
+        />
+      ),
+    },
     ...(hasAcuerdoComercial(data)
       ? [{ key: "acuerdo", group: "acuerdo", render: (p: Parameters<SlideFn>[0]) => <AcuerdoSlide {...p} /> }]
       : []),
@@ -151,7 +166,7 @@ function buildSlides(
     { key: "cronograma", group: "cronograma", render: (p) => <CronogramaSlide {...p} /> },
     { key: "requerimientos", group: "requerimientos", render: (p) => <RequerimientosSlide {...p} /> },
     { key: "casos", group: "casos", render: (p) => <CasosSlide page={p.page} total={p.total} /> },
-    { key: "cierre", group: "cierre", render: (p) => <CierreSlide {...p} /> },
+    { key: "cierre", group: "cierre", render: (p) => <CierreSlide {...p} onEditContacto={onEditContacto} /> },
   ];
   // La numeración de página (dibujada dentro de cada lámina) solo cuenta las
   // visibles — una oculta conserva el número de la última visible, ya que no
@@ -180,6 +195,8 @@ export function PresentacionViewer({ data: initialData }: { data: DeckData }) {
     initialData.proposal.impactos_acreditacion != null ? String(initialData.proposal.impactos_acreditacion) : ""
   );
   const [hiddenSlides, setHiddenSlides] = useState<string[]>(initialData.proposal.presentacion_hidden_slides ?? []);
+  const [contacto, setContacto] = useState<PresentacionContacto | null>(initialData.proposal.presentacion_contacto);
+  const [informes, setInformes] = useState<string[]>(initialData.informes);
   const [isPending, startTransition] = useTransition();
   const [isDownloading, setIsDownloading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -190,6 +207,8 @@ export function PresentacionViewer({ data: initialData }: { data: DeckData }) {
   // docs/propuesta-deck/spec.json → known_issues).
   const data: DeckData = {
     ...initialData,
+    owner: contacto ? ({ ...initialData.owner, ...contacto } as Profile) : initialData.owner,
+    informes,
     client: initialData.client ? { ...initialData.client, contact_name: contactName, contact_cargo: contactCargo } : null,
     proposal: {
       ...initialData.proposal,
@@ -213,6 +232,8 @@ export function PresentacionViewer({ data: initialData }: { data: DeckData }) {
           impactosRegistro: impactosRegistro === "" ? null : Number(impactosRegistro),
           impactosAcreditacion: impactosAcreditacion === "" ? null : Number(impactosAcreditacion),
           hiddenSlides,
+          contacto,
+          informes: informes.filter((i) => i.trim() !== ""),
         })
       );
       setMessage(result.error ? saveErrorMessage(result.error) : "Guardado.");
@@ -240,6 +261,18 @@ export function PresentacionViewer({ data: initialData }: { data: DeckData }) {
   function onEditImpactos(field: "registro" | "acreditacion", value: number | null) {
     if (field === "registro") setImpactosRegistro(value === null ? "" : String(value));
     else setImpactosAcreditacion(value === null ? "" : String(value));
+  }
+
+  function onEditContacto(field: keyof PresentacionContacto, value: string) {
+    const owner = initialData.owner;
+    setContacto((prev) => ({
+      full_name: owner?.full_name ?? null,
+      cargo: owner?.cargo ?? null,
+      correo: owner?.correo ?? null,
+      telefono: owner?.telefono ?? null,
+      ...prev,
+      [field]: value,
+    }));
   }
 
   function toggleHiddenSlide(group: string) {
@@ -290,7 +323,7 @@ export function PresentacionViewer({ data: initialData }: { data: DeckData }) {
       </section>
 
       <div className="no-print flex flex-col items-center gap-6 rounded-xl border border-neutral-200 bg-neutral-50 p-6">
-        {buildSlides(data, hiddenSlides, onEditImpactos).map((slide) => {
+        {buildSlides(data, hiddenSlides, { onEditImpactos, onEditContacto, onEditInformes: setInformes }).map((slide) => {
           const hideable = HIDEABLE_SLIDE_GROUPS.some((g) => g.key === slide.group);
           return (
             <div

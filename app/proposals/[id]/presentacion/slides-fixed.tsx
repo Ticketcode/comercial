@@ -262,9 +262,31 @@ const INFORME_SEGUIMIENTO = [
   "Transferencia de conocimiento",
 ];
 
-export function InformesSlide({ page, total }: { page: number; total: number }) {
+export const DEFAULT_INFORMES = [...INFORME_GENERAL, ...INFORME_SEGUIMIENTO];
+
+export function InformesSlide({
+  items,
+  page,
+  total,
+  onEditInformes,
+}: {
+  items: string[];
+  page: number;
+  total: number;
+  /** Si se pasa, la lista se edita en la propia lámina (no se pasa en el área oculta que exporta el PDF). */
+  onEditInformes?: (items: string[]) => void;
+}) {
   const t = THEME.light;
-  const items = [...INFORME_GENERAL, ...INFORME_SEGUIMIENTO];
+  const actionStyle = {
+    fontSize: 22,
+    fontFamily: "inherit",
+    color: t.fg,
+    background: "transparent",
+    border: `1px solid ${t.line}`,
+    borderRadius: 8,
+    padding: "6px 16px",
+    cursor: "pointer",
+  } as const;
   return (
     <Slide1920 theme="light" section="La propuesta" page={page} total={total} contentStyle={{ gap: 32 }}>
       <h2 style={{ fontFamily: DISPLAY_FONT, fontSize: 68, fontWeight: 800, lineHeight: 1.05, letterSpacing: -1, color: t.fg }}>
@@ -286,13 +308,52 @@ export function InformesSlide({ page, total }: { page: number; total: number }) 
           padding: 40,
         }}
       >
-        {items.map((i) => (
-          <div key={i} style={{ display: "flex", flexDirection: "row", gap: 16, alignItems: "flex-start", width: "calc(50% - 24px)" }}>
+        {items.map((text, idx) => (
+          <div key={onEditInformes ? idx : text} style={{ display: "flex", flexDirection: "row", gap: 16, alignItems: "flex-start", width: "calc(50% - 24px)" }}>
             <CheckBadge size={30} iconSize={18} bg={t.accent} />
-            <p style={{ flex: 1, fontSize: 26, lineHeight: 1.3, color: t.fg, margin: 0 }}>{i}</p>
+            {onEditInformes ? (
+              <>
+                <input
+                  value={text}
+                  onChange={(e) => onEditInformes(items.map((v, j) => (j === idx ? e.target.value : v)))}
+                  placeholder="Entregable"
+                  style={{
+                    flex: 1,
+                    minWidth: 0,
+                    fontSize: 24,
+                    fontFamily: "inherit",
+                    color: t.fg,
+                    background: "transparent",
+                    border: `1px solid ${t.line}`,
+                    borderRadius: 8,
+                    padding: "4px 10px",
+                  }}
+                />
+                <button
+                  type="button"
+                  title="Quitar"
+                  onClick={() => onEditInformes(items.filter((_, j) => j !== idx))}
+                  style={{ ...actionStyle, padding: "4px 12px" }}
+                >
+                  ×
+                </button>
+              </>
+            ) : (
+              <p style={{ flex: 1, fontSize: 26, lineHeight: 1.3, color: t.fg, margin: 0 }}>{text}</p>
+            )}
           </div>
         ))}
       </div>
+      {onEditInformes && (
+        <div style={{ display: "flex", flexDirection: "row", gap: 16 }}>
+          <button type="button" onClick={() => onEditInformes([...items, ""])} style={actionStyle}>
+            + Agregar entregable
+          </button>
+          <button type="button" onClick={() => onEditInformes(DEFAULT_INFORMES)} style={actionStyle}>
+            Restaurar lista original
+          </button>
+        </div>
+      )}
     </Slide1920>
   );
 }
