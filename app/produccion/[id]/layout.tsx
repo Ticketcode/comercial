@@ -41,14 +41,14 @@ export default async function ProduccionEventLayout({
           </p>
         </div>
         <Link
-          href={`/proposals/${id}/tarifario`}
+          href={`/proposals/${id}/diagnostico`}
           className="no-print flex min-h-11 items-center rounded-pill border-[1.5px] border-accent px-5 text-sm font-bold text-accent"
         >
-          Editar datos del Tarifario →
+          Editar datos del Diagnóstico →
         </Link>
       </div>
       <p className="mt-2 text-xs text-muted">
-        Días, aforo, ciudad y personal se editan en el Tarifario — de ahí salen los cálculos de
+        Días, aforo, ciudad y personal se editan en el Diagnóstico — de ahí salen los cálculos de
         Viáticos.
       </p>
 

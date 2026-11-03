@@ -15,7 +15,7 @@ export function SeedPresupuestoButton({ proposalId }: { proposalId: string }) {
       <p className="text-sm text-neutral-600">
         Todavía no hay presupuesto para este evento. Carga la plantilla base (Proveedores,
         Honorarios, Alimentación y Hotel, Transporte, Varios) para empezar — ya trae prellenados
-        los valores que se pueden calcular del Tarifario, y puedes agregar, quitar o editar
+        los valores que se pueden calcular del Diagnóstico, y puedes agregar, quitar o editar
         líneas libremente después.
       </p>
       <button

@@ -80,6 +80,6 @@ export async function saveTarifario(payload: SaveTarifarioPayload) {
   const failed = results.find((r) => r.error);
   if (failed?.error) return { error: failed.error.message };
 
-  revalidatePath(`/proposals/${payload.proposalId}/tarifario`);
+  revalidatePath(`/proposals/${payload.proposalId}/diagnostico`);
   return { error: null };
 }

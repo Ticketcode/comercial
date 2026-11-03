@@ -19,7 +19,7 @@ export interface Atomo {
   /** Campos de `proposals` que cambian (tipo "campos"). */
   campos?: Record<string, ValorCampo>;
   /** Servicio personalizado por su nombre de catálogo (tipo "servicio"). */
-  servicio?: { label: string; incluir: boolean };
+  servicio?: { label: string; incluir: boolean; cantidad?: number };
   /** Lámina de la presentación (tipo "lamina"). */
   lamina?: { key: string; ocultar: boolean };
 }
@@ -226,7 +226,10 @@ export function validarAtomo(atomo: Atomo, estado: EstadoPropuesta): string | nu
   }
   if (atomo.tipo === "servicio") {
     const s = estado.servicios.find((x) => x.label === atomo.servicio?.label);
-    return s ? null : "Servicio no disponible en esta propuesta";
+    if (!s) return "Servicio no disponible en esta propuesta";
+    const c = atomo.servicio?.cantidad;
+    if (c !== undefined && !(Number.isInteger(c) && c >= 0 && c <= 100000)) return "Cantidad fuera de rango";
+    return null;
   }
   if (atomo.tipo === "lamina") {
     return HIDEABLE_SLIDE_GROUPS.some((g) => g.key === atomo.lamina?.key) ? null : "Lámina desconocida";
@@ -258,7 +261,13 @@ export function aplicarEnMemoria(estado: EstadoPropuesta, atomo: Atomo): EstadoP
   }
   if (atomo.tipo === "servicio" && atomo.servicio) {
     const { label, incluir } = atomo.servicio;
-    return { ...estado, servicios: estado.servicios.map((s) => (s.label === label ? { ...s, included: incluir } : s)) };
+    const { cantidad } = atomo.servicio;
+    return {
+      ...estado,
+      servicios: estado.servicios.map((s) =>
+        s.label === label ? { ...s, included: incluir, ...(cantidad !== undefined ? { quantity: cantidad } : {}) } : s
+      ),
+    };
   }
   if (atomo.tipo === "lamina" && atomo.lamina) {
     const { key, ocultar } = atomo.lamina;
@@ -280,7 +289,11 @@ export function valoresAntes(estado: EstadoPropuesta, atomo: Atomo): Atomo {
   }
   if (atomo.tipo === "servicio" && atomo.servicio) {
     const s = estado.servicios.find((x) => x.label === atomo.servicio!.label);
-    return { ...atomo, id: nuevoId(), servicio: { label: atomo.servicio.label, incluir: !!s?.included } };
+    return {
+      ...atomo,
+      id: nuevoId(),
+      servicio: { label: atomo.servicio.label, incluir: !!s?.included, ...(atomo.servicio.cantidad !== undefined ? { cantidad: Number(s?.quantity ?? 0) } : {}) },
+    };
   }
   if (atomo.tipo === "lamina" && atomo.lamina) {
     return { ...atomo, id: nuevoId(), lamina: { key: atomo.lamina.key, ocultar: estado.ocultas.includes(atomo.lamina.key) } };
@@ -298,7 +311,10 @@ export function etiquetaAtomo(estado: EstadoPropuesta, atomo: Atomo): string {
       .join(" · ");
   }
   if (atomo.tipo === "servicio" && atomo.servicio) {
-    return `${atomo.servicio.incluir ? "Agregar" : "Quitar"} servicio: ${atomo.servicio.label}`;
+    const s = estado.servicios.find((x) => x.label === atomo.servicio!.label);
+    const c = atomo.servicio.cantidad;
+    if (s?.included && atomo.servicio.incluir && c !== undefined) return `${atomo.servicio.label}: cantidad ${Number(s.quantity)} → ${c}`;
+    return `${atomo.servicio.incluir ? "Agregar" : "Quitar"} servicio: ${atomo.servicio.label}${c !== undefined && atomo.servicio.incluir ? ` × ${c}` : ""}`;
   }
   if (atomo.tipo === "lamina" && atomo.lamina) {
     const g = HIDEABLE_SLIDE_GROUPS.find((x) => x.key === atomo.lamina!.key);

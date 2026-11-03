@@ -94,5 +94,5 @@ export async function createOperationalEvent(
     await supabase.from("proposal_cost_items").insert(costItemRows);
   }
 
-  redirect(`/proposals/${proposal.id}/tarifario`);
+  redirect(`/proposals/${proposal.id}/diagnostico`);
 }

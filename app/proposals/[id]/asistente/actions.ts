@@ -2,17 +2,12 @@
 
 import { revalidatePath } from "next/cache";
 import Anthropic from "@anthropic-ai/sdk";
-import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
-import type { Proposal, ProposalCostItem } from "@/lib/types";
-import { buildLogisticsRates } from "@/lib/pricing/logistics";
-import { computeTarifarioSummary } from "@/lib/pricing/summary";
-import { getValidServiceCostItems } from "@/lib/data/service-items";
 import { HIDEABLE_SLIDE_GROUPS } from "@/lib/data/laminas";
+import { cargarEstado, aplicarAtomos } from "@/lib/ai/estado";
 import {
   aplicarEnMemoria,
   etiquetaAtomo,
-  validarAtomo,
   validarCambios,
   valoresAntes,
   type Atomo,
@@ -57,28 +52,6 @@ function excedeTope(userId: string): boolean {
   recientes.push(ahora);
   llamadas.set(userId, recientes);
   return false;
-}
-
-async function cargarEstado(supabase: SupabaseClient, proposalId: string) {
-  const [{ data: proposal }, { data: costItems }, { data: rateRows }, { data: escalaProductor }, { data: aforoScales }] =
-    await Promise.all([
-      supabase.from("proposals").select("*").eq("id", proposalId).single(),
-      supabase.from("proposal_cost_items").select("*").eq("proposal_id", proposalId).order("sort_order"),
-      supabase.from("logistics_rate_items").select("name, city, default_unit_cost"),
-      supabase.from("price_scale_items").select("tier_min, tier_max, unit_value").eq("scale_group", "honorarios_productor").order("sort_order"),
-      supabase.from("aforo_scales").select("min_assistants, max_assistants, staffing_rules"),
-    ]);
-  if (!proposal) return null;
-  const { items } = await getValidServiceCostItems(supabase, (costItems ?? []) as ProposalCostItem[], proposal.modality);
-  const estado: EstadoPropuesta = {
-    proposal: proposal as Proposal,
-    servicios: items,
-    ocultas: (proposal as Proposal).presentacion_hidden_slides ?? [],
-  };
-  const tasas = buildLogisticsRates(rateRows ?? []);
-  const total = (e: EstadoPropuesta) =>
-    computeTarifarioSummary(e.proposal, tasas, e.servicios, escalaProductor ?? []).valorPropuestaFinal;
-  return { estado, total, aforoScales: aforoScales ?? [] };
 }
 
 function resumenParaClaude(e: EstadoPropuesta) {
@@ -229,30 +202,12 @@ export async function aplicarCambios(
 
   const base = await cargarEstado(supabase, proposalId);
   if (!base) return { error: "No se encontró la propuesta." };
-  let estado = base.estado;
+  const estado = base.estado;
 
-  for (const atomo of atomos) {
-    const problema = validarAtomo(atomo, estado);
-    if (problema) return { error: problema };
+  const r = await aplicarAtomos(supabase, proposalId, estado, atomos);
+  if (r.error) return { error: r.error };
 
-    if (atomo.tipo === "campos") {
-      const { error } = await supabase.from("proposals").update(atomo.campos!).eq("id", proposalId);
-      if (error) return { error: error.message };
-    } else if (atomo.tipo === "servicio") {
-      const fila = estado.servicios.find((s) => s.label === atomo.servicio!.label)!;
-      const cambios: Record<string, unknown> = { included: atomo.servicio!.incluir };
-      if (atomo.servicio!.incluir && !(Number(fila.quantity) > 0)) cambios.quantity = 1;
-      const { error } = await supabase.from("proposal_cost_items").update(cambios).eq("id", fila.id);
-      if (error) return { error: error.message };
-    } else if (atomo.tipo === "lamina") {
-      const sig = aplicarEnMemoria(estado, atomo).ocultas;
-      const { error } = await supabase.from("proposals").update({ presentacion_hidden_slides: sig }).eq("id", proposalId);
-      if (error) return { error: error.message };
-    }
-    estado = aplicarEnMemoria(estado, atomo);
-  }
-
-  for (const sub of ["tarifario", "propuesta", "presentacion", "versiones", "contrato"]) {
+  for (const sub of ["diagnostico", "propuesta", "presentacion", "versiones", "contrato"]) {
     revalidatePath(`/proposals/${proposalId}/${sub}`);
   }
   return { error: null };

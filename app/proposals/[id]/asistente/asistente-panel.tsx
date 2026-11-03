@@ -19,7 +19,7 @@ interface Mensaje {
 }
 
 const PASOS: Record<string, string> = {
-  tarifario: "Tarifario",
+  diagnostico: "Diagnóstico",
   propuesta: "Propuesta",
   contrato: "Contrato",
   presentacion: "Presentación",
@@ -27,7 +27,7 @@ const PASOS: Record<string, string> = {
 };
 
 const SUGERENCIAS: Record<string, string[]> = {
-  tarifario: ["Es híbrido con 1.200 personas", "El productor no va", "Pre-acreditación de medio día"],
+  diagnostico: ["Es híbrido con 1.200 personas", "El productor no va", "Pre-acreditación de medio día"],
   propuesta: ["Quieren recordatorios por correo", "Quita el servicio de chat", "Sube el descuento al 15%"],
   presentacion: ["Oculta la lámina de casos de éxito", "Muestra la lámina de acuerdo comercial"],
   versiones: ["¿Qué cambió frente a la versión anterior?"],
@@ -38,7 +38,7 @@ const uid = () => Math.random().toString(36).slice(2, 9);
 
 export function AsistentePanel({ proposalId }: { proposalId: string }) {
   const pathname = usePathname() ?? "";
-  const paso = Object.keys(PASOS).find((k) => pathname.includes(`/${k}`)) ?? "tarifario";
+  const paso = Object.keys(PASOS).find((k) => pathname.includes(`/${k}`)) ?? "diagnostico";
 
   const [abierto, setAbierto] = useState(false);
   const [mensajes, setMensajes] = useState<Mensaje[]>([]);
@@ -81,7 +81,7 @@ export function AsistentePanel({ proposalId }: { proposalId: string }) {
     finRef.current?.scrollIntoView({ block: "end" });
   }, [mensajes, pidiendo, abierto]);
 
-  // Los editores (Tarifario, Propuesta) guardan lo que se ve en pantalla en su propio estado; tras aplicar
+  // Los editores (Diagnóstico, Propuesta) guardan lo que se ve en pantalla en su propio estado; tras aplicar
   // un cambio se recarga la página para que muestren lo nuevo, y la conversación se conserva en la sesión.
   const clave = `asistente:${proposalId}`;
   const recargar = useCallback(() => {

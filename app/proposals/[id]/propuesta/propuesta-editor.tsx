@@ -570,8 +570,8 @@ export function PropuestaEditor({
                 readOnly: true,
                 onEditSave: (name, description) => editServicioText(s.id, name, description),
               }))}
-              emptyLabel="No se seleccionó ningún servicio personalizado en el Tarifario."
-              footnote="Se eligen en el paso 1 (Tarifario)."
+              emptyLabel="No se seleccionó ningún servicio personalizado en el Diagnóstico."
+              footnote="Se eligen en el paso 1 (Diagnóstico)."
             />
           </div>
         </Slide>

@@ -12,7 +12,7 @@ const modalityLabel: Record<string, string> = {
 };
 
 const COLUMNS: { status: ProposalStatus; label: string; dot: string }[] = [
-  { status: "tarifario", label: "Tarifario", dot: "#E39A0B" },
+  { status: "tarifario", label: "Diagnóstico", dot: "#E39A0B" },
   { status: "propuesta", label: "Propuesta", dot: "#7C5CFC" },
   { status: "contrato", label: "Contrato", dot: "var(--accent)" },
   { status: "cerrada", label: "Cerrada", dot: "#7C829E" },
@@ -106,7 +106,7 @@ export default async function ProposalsPage() {
                     items.map((p) => (
                       <Link
                         key={p.id}
-                        href={`/proposals/${p.id}/tarifario`}
+                        href={`/proposals/${p.id}/diagnostico`}
                         className="block rounded-[14px] border-[1.5px] border-transparent bg-surface p-[18px] no-underline transition-colors hover:border-accent"
                       >
                         <div className="font-display text-[17px] font-bold leading-tight text-ink">

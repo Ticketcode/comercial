@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const steps = [
-  { key: "tarifario", n: "1", label: "Tarifario" },
+  { key: "diagnostico", n: "1", label: "Diagnóstico" },
   { key: "propuesta", n: "2", label: "Propuesta" },
   { key: "contrato", n: "3", label: "Contrato" },
   { key: "presentacion", n: "4", label: "Presentación" },

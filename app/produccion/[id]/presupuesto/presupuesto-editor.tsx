@@ -74,9 +74,9 @@ export function PresupuestoEditor({ proposalId, proposal, initialItems }: Props)
 
   async function handlePullTarifario() {
     const ok = await confirm({
-      title: "¿Traer los valores del Tarifario?",
+      title: "¿Traer los valores del Diagnóstico?",
       message:
-        "Se reemplazan los valores de \"Proyectado inicial\" de los ítems que coinciden con el Tarifario (Honorarios, Alimentación, Transporte y Equipos). Si algún ítem no tiene ajustes, también se actualiza su \"Presupuesto ajustado\"." +
+        "Se reemplazan los valores de \"Proyectado inicial\" de los ítems que coinciden con el Diagnóstico (Honorarios, Alimentación, Transporte y Equipos). Si algún ítem no tiene ajustes, también se actualiza su \"Presupuesto ajustado\"." +
         (dirty ? "\n\nTienes cambios sin guardar en esta pantalla y se perderán." : ""),
       confirmLabel: "Traer valores",
       danger: dirty,
@@ -260,7 +260,7 @@ export function PresupuestoEditor({ proposalId, proposal, initialItems }: Props)
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <p className="text-xs text-neutral-500">
             Trae los valores de Honorarios, Alimentación, Transporte y Equipos que ya se calcularon
-            en el Tarifario — el resto de los ítems se completan a mano. Todo queda editable.
+            en el Diagnóstico — el resto de los ítems se completan a mano. Todo queda editable.
           </p>
           <button
             type="button"
@@ -268,7 +268,7 @@ export function PresupuestoEditor({ proposalId, proposal, initialItems }: Props)
             disabled={isPulling}
             className="btn btn-secondary btn-sm shrink-0"
           >
-            {isPulling ? "Trayendo..." : "Traer valores del Tarifario"}
+            {isPulling ? "Trayendo..." : "Traer valores del Diagnóstico"}
           </button>
         </div>
         <div className="grid grid-cols-2 gap-4 text-sm sm:grid-cols-4">

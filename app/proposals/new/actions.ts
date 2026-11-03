@@ -127,5 +127,5 @@ export async function createProposal(
     }
   }
 
-  redirect(`/proposals/${proposal.id}/tarifario`);
+  redirect(`/proposals/${proposal.id}/diagnostico`);
 }

@@ -311,7 +311,7 @@ export function ContratoEditor({
       </div>
       <p className="text-xs text-muted">
         Guarda primero los datos para que el contrato descargado los incluya — el valor y la forma de
-        pago se toman automáticamente del Tarifario y la Propuesta.
+        pago se toman automáticamente del Diagnóstico y la Propuesta.
       </p>
     </div>
   );

@@ -41,8 +41,8 @@ export function NewEventForm() {
     <div className="rounded-card bg-surface p-5">
       <p className="mb-1 text-sm font-bold text-ink">Agregar evento operativo</p>
       <p className="mb-3 text-xs text-muted">
-        Para eventos que ya operan y no pasaron por el flujo comercial (Tarifario/Propuesta/
-        Contrato) — entra directo a Producción sin llenar el Tarifario.
+        Para eventos que ya operan y no pasaron por el flujo comercial (Diagnóstico/Propuesta/
+        Contrato) — entra directo a Producción sin llenar el Diagnóstico.
       </p>
       <form action={formAction} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <input name="event_name" aria-label="Nombre del evento" placeholder="Nombre del evento" required className={inputClass} />

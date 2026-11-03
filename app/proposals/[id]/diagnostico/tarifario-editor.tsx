@@ -17,6 +17,7 @@ import {
   totalLogisticosSalones,
 } from "@/lib/pricing/logistics";
 import { computeTarifarioSummary, formatCOP } from "@/lib/pricing/summary";
+import { SALONES_INTERNOS_SERVICE_LABEL, computedServiceQuantity as computedQty } from "@/lib/pricing/service-quantity";
 import { MoneyInput } from "@/app/components/money-input";
 import { MobileSaveBar, SaveStatus, useUnsavedChanges } from "@/app/components/ui-guard";
 import { callSafe, problemsMessage, saveErrorMessage } from "@/lib/errors";
@@ -46,19 +47,6 @@ const inputClass =
   "h-9 w-full rounded-field border border-border bg-input-bg px-2 text-sm text-ink outline-none focus:border-accent focus:ring-1 focus:ring-accent";
 const cellInput = inputClass;
 const labelClass = "text-xs font-semibold text-muted";
-
-const SALONES_INTERNOS_SERVICE_LABEL =
-  "Módulo para obtención de datos en diferentes sitios simultáneos";
-
-// Servicios cuya cantidad se calcula sola (de solo lectura) en vez de digitarse a mano.
-const CLOUD_SERVER_LABEL = "Cloud server";
-const CLOUD_SERVER_VIRTUAL_LABEL = "Cloud server virtual";
-const AFORO_TOTAL_SERVICE_LABELS = new Set([
-  "Envío de correos electrónicos de confirmación personalizados",
-  "Envío de correos de recordación (hasta 2 envíos)",
-  "Envío de correos electrónicos de agradecimiento",
-  "Envío de certificados de asistencia",
-]);
 
 export function TarifarioEditor({
   proposal,
@@ -189,17 +177,7 @@ export function TarifarioEditor({
   // Cantidad calculada (no digitada) para los servicios que dependen de aforo/días/tasa —
   // devuelve null si el servicio no es uno de estos (se usa la cantidad digitada normal).
   function computedServiceQuantity(label: string): number | null {
-    const tasa = eventFields.tasa_conversion_pct;
-    if (label === CLOUD_SERVER_LABEL) {
-      return Math.round(eventFields.aforo * eventFields.dias * tasa);
-    }
-    if (label === CLOUD_SERVER_VIRTUAL_LABEL) {
-      return Math.round(eventFields.aforo_virtual * eventFields.dias * tasa);
-    }
-    if (AFORO_TOTAL_SERVICE_LABELS.has(label)) {
-      return Math.round(eventFields.aforo + eventFields.aforo_virtual);
-    }
-    return null;
+    return computedQty(label, eventFields);
   }
 
   const proposalForSummary: Proposal = useMemo(
@@ -650,7 +628,7 @@ export function TarifarioEditor({
         </section>
       </div>
 
-      <MobileSaveBar dirty={dirty} isPending={isPending} message={message} onSave={handleSave} label="Guardar tarifario" />
+      <MobileSaveBar dirty={dirty} isPending={isPending} message={message} onSave={handleSave} label="Guardar diagnóstico" />
       <div className="lg:col-span-1">
         <div className="space-y-2 rounded-card bg-surface p-6 lg:sticky lg:top-6">
           <h3 className="mb-2 font-display text-lg font-bold text-ink">Resumen</h3>
@@ -723,7 +701,7 @@ export function TarifarioEditor({
             disabled={isPending}
             className="mt-3 min-h-12 w-full rounded-pill bg-strong text-sm font-bold text-strong-ink disabled:opacity-50"
           >
-            {isPending ? "Guardando..." : "Guardar tarifario"}
+            {isPending ? "Guardando..." : "Guardar diagnóstico"}
           </button>
           <SaveStatus dirty={dirty} isPending={isPending} message={message} />
           {message === "Guardado." && !dirty && (
