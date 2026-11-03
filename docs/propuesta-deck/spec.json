@@ -266,6 +266,15 @@
     "Faltan campos en la app: contacto del cliente (nombre y cargo), datos del asesor comercial, impactos de marca por evento.",
     "La explicación del módulo de códigos de descuento y las actividades de logística se cortan en la app; guardar el texto completo y no usar cajas con scroll al exportar."
   ],
+  "packaging": {
+    "descripcion": "La lámina 'Lo que incluye tu evento' y las tablas de Componentes básicos, Logística 360 y Servicios personalizados se reemplazaron por láminas de paquetes: columna izquierda con píldora, título e intro del grupo; a la derecha tarjetas 2x2 con nombre comercial, promesa de valor y viñetas de lo incluido.",
+    "grupos": ["Plataforma base", "Logística 360", "Streaming", "Mundo virtual", "Servicios personalizados"],
+    "fuente_de_reglas": "lib/data/paquetes.ts (nombres, promesas y a qué paquete va cada ítem según su nombre en el catálogo; lo que no calza cae en 'Otros ...').",
+    "capacidad": "4 casillas por lámina; un paquete con más de 4 ítems ocupa 2 columnas; más de 12 ítems se resume con '+ N más'.",
+    "ocultar": "Plataforma base/Streaming/Mundo virtual usan la clave 'componentes'; Logística 360 'logistica'; Servicios personalizados 'servicios'.",
+    "pendiente": "Los nombres y promesas están en código; deben aprobarse por el área comercial y luego pasar a una tabla del catálogo."
+  },
+  "perfil": "Lámina Perfil: tarjeta tinta con modalidad, nombre del evento y 'Lugar · Ciudad'; a la derecha Fechas (menta, con días), Aforo según modalidad y Ciudad, sin tarjetas huérfanas.",
   "instructions_for_claude_code": [
     "Leer reference/slides/*.html antes de tocar la generación de la propuesta.",
     "Generar la presentación desde los datos guardados de la propuesta, sin textos escritos a mano en el código.",

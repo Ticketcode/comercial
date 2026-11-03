@@ -20,26 +20,20 @@ import {
   AcuerdoSlide,
   CierreSlide,
   ComercialSlide,
-  ComponentesSlide,
   CoverSlide,
   CronogramaSlide,
   FinalSlide,
-  IncluyeSlide,
   InversionSlide,
-  LogisticaSlide,
   PagosSlide,
+  PaqueteSlide,
   PerfilSlide,
   PresencialSlide,
   RequerimientosSlide,
-  ServiciosSlide,
-  chunkComponentesItems,
-  chunkLogisticaItems,
-  chunkServiciosItems,
-  getCheckedComponentesItems,
-  getCheckedLogisticaItems,
-  getCheckedServiciosItems,
+  claveOcultarGrupo,
+  getPaquetesDeck,
   hasAcuerdoComercial,
 } from "./slides-app";
+import { repartirPaquetes } from "@/lib/data/paquetes";
 
 const PREVIEW_SCALE = 760 / 1920;
 
@@ -60,8 +54,7 @@ export const HIDEABLE_SLIDE_GROUPS: { key: string; label: string }[] = [
   { key: "cifras", label: "Cifras" },
   { key: "organizador", label: "Organizador" },
   { key: "presencial", label: "Presencial/Virtual" },
-  { key: "incluye", label: "Lo que incluye tu evento" },
-  { key: "componentes", label: "Componentes básicos" },
+  { key: "componentes", label: "Plataforma base (y streaming / mundo virtual)" },
   { key: "logistica", label: "Logística 360" },
   { key: "servicios", label: "Servicios personalizados" },
   { key: "comercial", label: "Comercialización" },
@@ -93,43 +86,22 @@ function buildSlides(data: DeckData, hidden: string[], edit: SlideEditHandlers =
     { key: "organizador", group: "organizador", render: (p) => <OrganizadorSlide page={p.page} total={p.total} /> },
     { key: "presencial", group: "presencial", render: (p) => <PresencialSlide {...p} /> },
     { key: "perfil", group: "perfil", render: (p) => <PerfilSlide {...p} /> },
-    { key: "incluye", group: "incluye", render: (p) => <IncluyeSlide {...p} /> },
-    ...chunkComponentesItems(getCheckedComponentesItems(data)).map((chunk, i, all) => ({
-      key: `componentes-${i}`,
-      group: "componentes",
-      render: (p: Parameters<SlideFn>[0]) => (
-        <ComponentesSlide
-          items={chunk}
-          chunkLabel={all.length > 1 ? `${i + 1}/${all.length}` : undefined}
-          page={p.page}
-          total={p.total}
-        />
-      ),
-    })),
-    ...chunkLogisticaItems(getCheckedLogisticaItems(data)).map((chunk, i, all) => ({
-      key: `logistica-${i}`,
-      group: "logistica",
-      render: (p: Parameters<SlideFn>[0]) => (
-        <LogisticaSlide
-          items={chunk}
-          chunkLabel={all.length > 1 ? `${i + 1}/${all.length}` : undefined}
-          page={p.page}
-          total={p.total}
-        />
-      ),
-    })),
-    ...chunkServiciosItems(getCheckedServiciosItems(data)).map((chunk, i, all) => ({
-      key: `servicios-${i}`,
-      group: "servicios",
-      render: (p: Parameters<SlideFn>[0]) => (
-        <ServiciosSlide
-          items={chunk}
-          chunkLabel={all.length > 1 ? `${i + 1}/${all.length}` : undefined}
-          page={p.page}
-          total={p.total}
-        />
-      ),
-    })),
+    ...getPaquetesDeck(data).flatMap(({ grupo, paquetes }) => {
+      const laminas = repartirPaquetes(paquetes);
+      return laminas.map((chunk, i) => ({
+        key: `paquetes-${grupo}-${i}`,
+        group: claveOcultarGrupo(grupo),
+        render: (p: Parameters<SlideFn>[0]) => (
+          <PaqueteSlide
+            grupo={grupo}
+            paquetes={chunk}
+            parte={laminas.length > 1 ? `${i + 1}/${laminas.length}` : undefined}
+            page={p.page}
+            total={p.total}
+          />
+        ),
+      }));
+    }),
     {
       key: "comercial",
       group: "comercial",

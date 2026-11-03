@@ -414,6 +414,8 @@ export function CheckBadge({ size = 36, iconSize = 22, bg }: { size?: number; ic
 }
 
 export interface IncludedService {
+  /** Nombre original del catálogo (name puede ser el que editó el comercial). */
+  baseName?: string;
   name: string;
   description: string | null;
 }

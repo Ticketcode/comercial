@@ -3,6 +3,16 @@ import type { PresentacionContacto } from "@/lib/types";
 import { formatCOP } from "@/lib/pricing/summary";
 import { formatFechaCorta } from "@/lib/fecha-local";
 import {
+  GRUPO_INFO,
+  agruparEnPaquetes,
+  esPaqueteAncho,
+  itemsVisibles,
+  type GrupoPaquetes,
+  type ItemParaPaquete,
+  type Paquete,
+  type PaquetesDeGrupo,
+} from "@/lib/data/paquetes";
+import {
   CheckBadge,
   DISPLAY_FONT,
   POR_DEFINIR,
@@ -210,35 +220,52 @@ export function PresencialSlide({ data, page, total }: { data: DeckData; page: n
 
 export function PerfilSlide({ data, page, total }: { data: DeckData; page: number; total: number }) {
   const { proposal } = data;
+  const t = tileColors("ink");
   const fechas =
     proposal.event_start_date
       ? `${formatFechaCorta(proposal.event_start_date)}${proposal.event_end_date ? ` a ${formatFechaCorta(proposal.event_end_date)}` : ""}`
       : POR_DEFINIR;
+  const dias = proposal.dias ? `${proposal.dias} ${proposal.dias === 1 ? "día" : "días"}` : null;
+  const lugarCiudad = [proposal.lugar, proposal.city].filter(Boolean).join(" · ") || POR_DEFINIR;
+  const esHibrido = proposal.modality === "hibrido";
+  const esVirtual = proposal.modality === "virtual" || proposal.modality === "mundo_virtual";
+  const span2 = { gridColumn: "span 2", display: "flex" } as const;
   return (
-    <Slide1920 theme="light" section="El evento" page={page} total={total} contentStyle={{ gap: 56 }}>
-      <h2 style={{ fontFamily: DISPLAY_FONT, fontSize: 68, fontWeight: 800, lineHeight: 1.05, letterSpacing: -1, color: THEME.light.fg }}>
-        Perfil del evento
-      </h2>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 24 }}>
-        <div style={{ gridColumn: "span 2", display: "flex" }}>
-          <Stat label="Nombre" value={proposal.event_name} highlight variant="ink" />
+    <Slide1920 theme="light" section="El evento" page={page} total={total} contentStyle={{ flexDirection: "row", gap: 32 }}>
+      <Tile variant="ink" style={{ width: 800, padding: 56, justifyContent: "space-between" }}>
+        <Pill>{modalityLabel[proposal.modality] ?? proposal.modality}</Pill>
+        <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+          <h2 style={{ fontFamily: DISPLAY_FONT, fontSize: 84, fontWeight: 800, lineHeight: 1.02, letterSpacing: -2, color: t.fg }}>
+            {proposal.event_name}
+          </h2>
+          <p style={{ fontSize: 30, lineHeight: 1.3, color: t.muted }}>{lugarCiudad}</p>
         </div>
-        <Stat label="Modalidad" value={modalityLabel[proposal.modality] ?? proposal.modality} highlight variant="mint" />
-        {proposal.modality === "hibrido" ? (
+      </Tile>
+      <div style={{ flex: 1, display: "grid", gridTemplateColumns: "1fr 1fr", gridAutoRows: "1fr", gap: 24 }}>
+        <div style={span2}>
+          <Tile variant="mint" style={{ flex: 1, gap: 12, justifyContent: "center" }}>
+            <p style={{ fontSize: 24, letterSpacing: 2, textTransform: "uppercase", fontWeight: 600, color: "#0E1A17" }}>Fechas</p>
+            <p style={{ fontFamily: DISPLAY_FONT, fontSize: 52, fontWeight: 800, lineHeight: 1.1, color: "#0E1A17" }}>{fechas}</p>
+            {dias && <p style={{ fontSize: 28, color: "#1B4D2E" }}>{dias}</p>}
+          </Tile>
+        </div>
+        {esHibrido ? (
           <>
             <Stat label="Aforo presencial" value={val(proposal.aforo)} highlight={!!proposal.aforo} />
             <Stat label="Aforo virtual" value={val(proposal.aforo_virtual)} highlight={!!proposal.aforo_virtual} />
           </>
-        ) : proposal.modality === "virtual" || proposal.modality === "mundo_virtual" ? (
+        ) : esVirtual ? (
           <Stat label="Aforo virtual" value={val(proposal.aforo_virtual)} highlight={!!proposal.aforo_virtual} />
         ) : (
           <Stat label="Aforo" value={val(proposal.aforo)} highlight={!!proposal.aforo} />
         )}
-        <div style={{ gridColumn: "span 2", display: "flex" }}>
-          <Stat label="Lugar" value={val(proposal.lugar)} highlight={!!proposal.lugar} variant="deep" />
-        </div>
-        <Stat label="Ciudad" value={val(proposal.city)} highlight={!!proposal.city} />
-        <Stat label="Fechas" value={fechas} highlight={fechas !== POR_DEFINIR} />
+        {esHibrido ? (
+          <div style={span2}>
+            <Stat label="Ciudad" value={val(proposal.city)} highlight={!!proposal.city} variant="deep" />
+          </div>
+        ) : (
+          <Stat label="Ciudad" value={val(proposal.city)} highlight={!!proposal.city} variant="deep" />
+        )}
       </div>
     </Slide1920>
   );
@@ -350,6 +377,98 @@ export function IncluyeSlide({ data, page, total }: { data: DeckData; page: numb
           emptyLabel="Esta propuesta no incluye servicios personalizados adicionales."
           showDescription={false}
         />
+      </div>
+    </Slide1920>
+  );
+}
+
+/** Todo lo marcado en la propuesta (componentes, logística y servicios) agrupado en paquetes. */
+export function getPaquetesDeck(data: DeckData): PaquetesDeGrupo[] {
+  const { catalogItems, catalogSelections } = data;
+  const selectedMap = Object.fromEntries(catalogSelections.map((s) => [s.catalog_item_id, s]));
+  const items: ItemParaPaquete[] = [];
+  for (const c of catalogItems) {
+    if (!selectedMap[c.id]?.included) continue;
+    const familia = c.category === "componente_basico" ? "componente" : c.category === "logistica_360" ? "logistica" : null;
+    if (!familia) continue;
+    items.push({ familia, baseName: c.name, name: selectedMap[c.id]?.custom_name || c.name });
+  }
+  for (const s of data.includedServices) {
+    items.push({ familia: "servicio", baseName: s.baseName ?? s.name, name: s.name });
+  }
+  return agruparEnPaquetes(items);
+}
+
+/** Clave de "ocultar lámina" que corresponde a cada grupo de paquetes. */
+export function claveOcultarGrupo(grupo: GrupoPaquetes): string {
+  if (grupo === "Logística 360") return "logistica";
+  if (grupo === "Servicios personalizados") return "servicios";
+  return "componentes";
+}
+
+const PAQUETE_VARIANTES: TileVariant[] = ["ink", "mint", "gray", "deep"];
+
+export function PaqueteSlide({
+  grupo,
+  paquetes,
+  parte,
+  page,
+  total,
+}: {
+  grupo: GrupoPaquetes;
+  paquetes: Paquete[];
+  /** "1/2" cuando el grupo ocupa varias láminas. */
+  parte?: string;
+  page: number;
+  total: number;
+}) {
+  const t = THEME.light;
+  const info = GRUPO_INFO[grupo];
+  return (
+    <Slide1920 theme="light" section="La propuesta" page={page} total={total} contentStyle={{ flexDirection: "row", gap: 64 }}>
+      <div style={{ width: 520, display: "flex", flexDirection: "column", gap: 32, justifyContent: "center" }}>
+        <Pill>{parte ? `${grupo} (${parte})` : grupo}</Pill>
+        <h2 style={{ fontFamily: DISPLAY_FONT, fontSize: 68, fontWeight: 800, lineHeight: 1.05, letterSpacing: -1, color: t.fg }}>
+          {info.titulo}
+        </h2>
+        <p style={{ fontSize: 28, lineHeight: 1.4, color: t.muted }}>{info.intro}</p>
+      </div>
+      <div style={{ flex: 1, display: "grid", gridTemplateColumns: "1fr 1fr", gridAutoRows: "1fr", gap: 24, minHeight: 0 }}>
+        {paquetes.map((p, i) => {
+          const variant = PAQUETE_VARIANTES[i % PAQUETE_VARIANTES.length];
+          const c = tileColors(variant);
+          const ancho = esPaqueteAncho(p);
+          const { visibles, ocultos } = itemsVisibles(p);
+          const checkBg = variant === "mint" ? "#EAF3F0" : "#3CD65C";
+          return (
+            <Tile
+              key={p.nombre}
+              variant={variant}
+              style={{ padding: 32, gap: 12, overflow: "hidden", ...(ancho ? { gridColumn: "span 2" } : {}) }}
+            >
+              <h3 style={{ fontFamily: DISPLAY_FONT, fontSize: 36, fontWeight: 700, lineHeight: 1.1, color: c.accent }}>{p.nombre}</h3>
+              <p style={{ fontSize: 24, lineHeight: 1.3, color: c.muted }}>{p.promesa}</p>
+              <div
+                style={{
+                  display: ancho ? "grid" : "flex",
+                  ...(ancho ? { gridTemplateColumns: "1fr 1fr", columnGap: 24 } : { flexDirection: "column" as const }),
+                  rowGap: 8,
+                  marginTop: 4,
+                }}
+              >
+                {visibles.map((it) => (
+                  <div key={it} style={{ display: "flex", flexDirection: "row", gap: 12, alignItems: "flex-start" }}>
+                    <CheckBadge size={26} iconSize={16} bg={checkBg} />
+                    <p style={{ flex: 1, fontSize: 24, lineHeight: 1.25, fontWeight: 600, color: c.fg, margin: 0 }}>{it}</p>
+                  </div>
+                ))}
+                {ocultos > 0 && (
+                  <p style={{ fontSize: 24, fontWeight: 600, color: c.accent, margin: 0 }}>+ {ocultos} más</p>
+                )}
+              </div>
+            </Tile>
+          );
+        })}
       </div>
     </Slide1920>
   );

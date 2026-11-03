@@ -70,6 +70,7 @@ export async function loadDeckData(supabase: SupabaseClient, id: string): Promis
   const includedServices = allCostItems
     .filter((i) => i.included)
     .map((i) => ({
+      baseName: i.label,
       name: i.custom_name || i.label,
       description: i.custom_description || serviceCatalogItems?.find((c) => c.name === i.label)?.description || null,
     }));
