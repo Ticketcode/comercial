@@ -21,7 +21,8 @@ interface Mensaje {
 const PASOS: Record<string, string> = {
   diagnostico: "Diagnóstico",
   propuesta: "Propuesta",
-  contrato: "Contrato",
+  acuerdo: "Acuerdo comercial",
+  contrato: "Envío y contrato",
   presentacion: "Presentación",
   versiones: "Versiones",
 };
@@ -29,6 +30,7 @@ const PASOS: Record<string, string> = {
 const SUGERENCIAS: Record<string, string[]> = {
   diagnostico: ["Es híbrido con 1.200 personas", "El productor no va", "Pre-acreditación de medio día"],
   propuesta: ["Quieren recordatorios por correo", "Quita el servicio de chat", "Sube el descuento al 15%"],
+  acuerdo: ["Sube el descuento al 20%", "Propón un acuerdo con patrocinio"],
   presentacion: ["Oculta la lámina de casos de éxito", "Muestra la lámina de acuerdo comercial"],
   versiones: ["¿Qué cambió frente a la versión anterior?"],
   contrato: ["¿Qué cambia si el aforo sube a 2.000?"],

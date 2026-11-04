@@ -6,9 +6,10 @@ import { usePathname } from "next/navigation";
 const steps = [
   { key: "diagnostico", n: "1", label: "Diagnóstico" },
   { key: "propuesta", n: "2", label: "Propuesta" },
-  { key: "contrato", n: "3", label: "Contrato" },
+  { key: "acuerdo", n: "3", label: "Acuerdo comercial" },
   { key: "presentacion", n: "4", label: "Presentación" },
   { key: "versiones", n: "5", label: "Versiones" },
+  { key: "contrato", n: "6", label: "Envío y contrato" },
 ];
 
 export function ProposalStepsNav({ id }: { id: string }) {
