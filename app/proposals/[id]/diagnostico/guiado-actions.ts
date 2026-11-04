@@ -222,3 +222,23 @@ export async function resolverServicioPropuesto(
   revalidatePath(`/proposals/${proposalId}/diagnostico`);
   return { error: null };
 }
+
+/** Cambia la cantidad de un servicio ya incluido (solo los que no se calculan solos ni dependen de una pregunta). */
+export async function cambiarCantidadServicio(proposalId: string, label: string, cantidad: number): Promise<{ error: string | null }> {
+  const supabase = await createClient();
+  const { data: auth } = await supabase.auth.getUser();
+  if (!auth.user) return { error: "Tu sesión expiró. Vuelve a entrar." };
+  const n = Math.round(Number(cantidad));
+  if (!Number.isFinite(n) || n < 1 || n > 100000) return { error: "La cantidad debe estar entre 1 y 100.000." };
+  const base = await cargarEstado(supabase, proposalId);
+  if (!base) return { error: "No se encontró la propuesta." };
+  const fila = base.estado.servicios.find((s) => s.label === label);
+  if (!fila || !fila.included) return { error: "Ese servicio no está incluido." };
+  const atomo: Atomo = { id: "gcant", tipo: "servicio", servicio: { label, incluir: true, cantidad: n } };
+  const r = await aplicarAtomos(supabase, proposalId, base.estado, [atomo]);
+  if (r.error) return { error: r.error };
+  for (const sub of ["diagnostico", "propuesta", "presentacion", "versiones", "contrato"]) {
+    revalidatePath(`/proposals/${proposalId}/${sub}`);
+  }
+  return { error: null };
+}

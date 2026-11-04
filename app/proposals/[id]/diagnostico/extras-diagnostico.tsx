@@ -101,6 +101,7 @@ export function ServiciosPropuestos({ proposalId, servicios }: { proposalId: str
 
 export interface LineaLogistica {
   label: string;
+  basis: string;
   dias: number;
   cantidad: number;
   tarifa: number;
@@ -118,7 +119,7 @@ export interface DetalleLogistica {
   total: number;
 }
 
-/** Desglose de la Logística 360 por rubros, para ver de dónde sale cada peso. */
+/** Desglose de la Logística 360 por rubros: una tarjeta por rubro con rubro, días, cantidad, unitario y subtotal. */
 export function LogisticaDetalle({ d }: { d: DetalleLogistica }) {
   const [abiertos, setAbiertos] = useState<Set<string>>(new Set());
   const todosAbiertos = abiertos.size === d.rubros.length;
@@ -129,53 +130,74 @@ export function LogisticaDetalle({ d }: { d: DetalleLogistica }) {
       else sig.add(t);
       return sig;
     });
+  const th = "py-2 text-xs font-semibold text-muted";
 
   return (
-    <section aria-label="Logística 360: costos" className={card}>
+    <section aria-label="Logística 360: costos" className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="font-display text-xl font-extrabold text-ink">Logística 360: costos</h2>
-        <button type="button" className="text-sm font-semibold text-muted underline" onClick={() => setAbiertos(todosAbiertos ? new Set() : new Set(d.rubros.map((r) => r.titulo)))}>
+        <button
+          type="button"
+          className="min-h-10 rounded-pill border border-border bg-surface px-4 text-sm font-semibold text-ink hover:bg-surface2"
+          onClick={() => setAbiertos(todosAbiertos ? new Set() : new Set(d.rubros.map((r) => r.titulo)))}
+        >
           {todosAbiertos ? "Cerrar todos" : "Abrir todos"}
         </button>
       </div>
-      <ul className="mt-3 divide-y divide-border">
-        {d.rubros.map((r, i) => {
-          const abierto = abiertos.has(r.titulo);
-          return (
-            <li key={r.titulo} className="py-2">
-              <button type="button" onClick={() => alternar(r.titulo)} aria-expanded={abierto} className="flex w-full items-center justify-between gap-4 py-1 text-left">
-                <span className="text-sm font-semibold text-ink">
-                  {i + 1}. {r.titulo}
+
+      {d.rubros.map((r, i) => {
+        const abierto = abiertos.has(r.titulo);
+        return (
+          <div key={r.titulo} className="rounded-2xl border border-border bg-surface2 px-4 py-3">
+            <button type="button" onClick={() => alternar(r.titulo)} aria-expanded={abierto} className="flex w-full items-center justify-between gap-4 py-1 text-left">
+              <span className="font-display text-lg font-bold text-ink">
+                {i + 1}. {r.titulo}
+              </span>
+              <span className="flex items-center gap-3 font-display text-lg font-bold text-ink">
+                {formatCOP(r.total)}
+                <span aria-hidden className="text-sm text-muted">
+                  {abierto ? "▴" : "▾"}
                 </span>
-                <span className="flex items-center gap-3 text-sm text-ink">
-                  {formatCOP(r.total)}
-                  <span aria-hidden className="text-muted">
-                    {abierto ? "▾" : "▸"}
-                  </span>
-                </span>
-              </button>
-              {abierto && (
-                <ul className="mt-2 space-y-1.5 pl-4">
-                  {r.lineas.length === 0 && <li className="text-xs text-muted">Sin líneas en este rubro.</li>}
-                  {r.lineas.map((l) => (
-                    <li key={l.label} className="flex flex-wrap items-baseline justify-between gap-3 text-xs">
-                      <span className="text-muted">
-                        {l.label}
-                        <span className="ml-2">
-                          ({l.dias > 1 ? `${l.dias} días × ` : ""}
-                          {l.cantidad} × {formatCOP(l.tarifa)})
-                        </span>
-                      </span>
-                      <span className="font-semibold text-ink">{formatCOP(l.subtotal)}</span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </li>
-          );
-        })}
-      </ul>
-      <dl className="mt-3 space-y-1.5 border-t border-border pt-3 text-sm">
+              </span>
+            </button>
+            {abierto && (
+              <div className="mt-2 overflow-x-auto">
+                {r.lineas.length === 0 ? (
+                  <p className="py-2 text-sm text-muted">Sin líneas en este rubro.</p>
+                ) : (
+                  <table className="w-full min-w-[32rem] text-sm">
+                    <thead className="border-b border-border text-left">
+                      <tr>
+                        <th className={th}>Rubro</th>
+                        <th className={`${th} text-right`}>Días</th>
+                        <th className={`${th} text-right`}>Cant.</th>
+                        <th className={`${th} text-right`}>Unitario</th>
+                        <th className={`${th} text-right`}>Subtotal</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border">
+                      {r.lineas.map((l) => (
+                        <tr key={l.label} className="align-top">
+                          <td className="py-2.5 pr-3">
+                            <p className="text-ink">{l.label}</p>
+                            {l.basis && <p className="text-xs text-muted">{l.basis}</p>}
+                          </td>
+                          <td className="py-2.5 text-right text-ink">{l.dias}</td>
+                          <td className="py-2.5 text-right text-ink">{l.cantidad.toLocaleString("es-CO")}</td>
+                          <td className="py-2.5 text-right text-ink">{formatCOP(l.tarifa)}</td>
+                          <td className="py-2.5 text-right text-ink">{formatCOP(l.subtotal)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            )}
+          </div>
+        );
+      })}
+
+      <dl className={`${card} space-y-1.5 text-sm`}>
         <div className="flex justify-between gap-4">
           <dt className="text-muted">Sub total costo logística</dt>
           <dd className="font-semibold text-ink">{formatCOP(d.subtotal)}</dd>
@@ -184,9 +206,9 @@ export function LogisticaDetalle({ d }: { d: DetalleLogistica }) {
           <dt className="text-muted">Imprevistos (10%)</dt>
           <dd className="font-semibold text-ink">{formatCOP(d.imprevistos)}</dd>
         </div>
-        <div className="flex justify-between gap-4">
+        <div className="flex justify-between gap-4 border-t border-border pt-2">
           <dt className="font-semibold text-ink">Total costo + imprevistos</dt>
-          <dd className="font-semibold text-ink">{formatCOP(d.total)}</dd>
+          <dd className="font-display text-lg font-extrabold text-ink">{formatCOP(d.total)}</dd>
         </div>
       </dl>
     </section>

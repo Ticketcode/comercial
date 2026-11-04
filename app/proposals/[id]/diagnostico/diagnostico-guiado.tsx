@@ -3,7 +3,8 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { LogisticaDetalle, NotasDiagnostico, ServiciosPropuestos, type DetalleLogistica } from "./extras-diagnostico";
-import { ResumenPrecioCard, ServiciosPersonalizados, type ResumenPrecio, type ServicioDiag } from "./resumen-y-servicios";
+import { ResumenPrecioCard, type ResumenPrecio } from "./resumen-y-servicios";
+import { ServiciosPersonalizados, type ServicioDiag } from "./servicios-diagnostico";
 import { PedirCambioButton } from "../asistente/asistente-panel";
 import { confirmarPregunta, responderPregunta, type EstadoPregunta, type Respuesta } from "./guiado-actions";
 
@@ -409,9 +410,9 @@ export function DiagnosticoGuiado({ datos }: { datos: DatosGuiado }) {
         </p>
       )}
 
+      <LogisticaDetalle d={datos.logistica} />
       <ServiciosPropuestos proposalId={datos.proposalId} servicios={datos.serviciosPorConfirmar} />
       <ServiciosPersonalizados proposalId={datos.proposalId} servicios={datos.servicios} />
-      <LogisticaDetalle d={datos.logistica} />
 
     </section>
     <ResumenPrecioCard r={datos.resumen} pendientes={Q.length - confirmadas} evento={datos.eventName} />

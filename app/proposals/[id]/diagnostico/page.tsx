@@ -8,6 +8,7 @@ import { getValidServiceCostItems } from "@/lib/data/service-items";
 import { TarifarioEditor } from "./tarifario-editor";
 import { DiagnosticoGuiado, type DatosGuiado } from "./diagnostico-guiado";
 import { VistaDiagnostico } from "./vista-diagnostico";
+import { notaServicio } from "./nota-servicio";
 import type { EstadoPregunta } from "./guiado-actions";
 
 // Evita que Next cachee las consultas a Supabase entre requests — sin esto,
@@ -104,6 +105,7 @@ export default async function TarifarioPage({
         total: total as number,
         lineas: (lineas as typeof summary.logistica.lineItems.honorarios).map((l) => ({
           label: l.label,
+          basis: l.basis,
           dias: l.dias,
           cantidad: l.quantity,
           tarifa: l.rate,
@@ -132,6 +134,7 @@ export default async function TarifarioPage({
       incluido: !!i.included,
       precio: Number(i.unit_cost),
       cantidad: computedServiceQuantity(i.label, p) ?? Number(i.quantity),
+      ...notaServicio(i.label, p),
     })),
   };
 
