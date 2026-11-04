@@ -77,6 +77,21 @@ export function AsistentePanel({ proposalId }: { proposalId: string }) {
   useEffect(() => {
     if (abierto) inputRef.current?.focus();
   }, [abierto]);
+
+  // En pantallas anchas el panel empuja el contenido en vez de taparlo; en pantallas chicas se superpone.
+  useEffect(() => {
+    const ancho = "28rem"; // = max-w-md del panel
+    function ajustar() {
+      document.body.style.paddingRight = abierto && window.innerWidth >= 1024 ? ancho : "";
+    }
+    document.body.style.transition = "padding-right 150ms ease";
+    ajustar();
+    window.addEventListener("resize", ajustar);
+    return () => {
+      window.removeEventListener("resize", ajustar);
+      document.body.style.paddingRight = "";
+    };
+  }, [abierto]);
   useEffect(() => {
     finRef.current?.scrollIntoView({ block: "end" });
   }, [mensajes, pidiendo, abierto]);
@@ -160,6 +175,8 @@ export function AsistentePanel({ proposalId }: { proposalId: string }) {
         return;
       }
       const tarjetas: TarjetaUI[] = r.tarjetas.map((c) => ({ ...c, estado: "pendiente" }));
+      const huboConfirmadas = (r.confirmadas?.length ?? 0) > 0;
+      let recargado = false;
       setMensajes((prev) => [
         ...prev,
         {
@@ -179,10 +196,13 @@ export function AsistentePanel({ proposalId }: { proposalId: string }) {
           else {
             marcar(libres.map((c) => c.id), "aplicada");
             setDeshacer(libres.map((c) => c.deshacer).reverse());
+            recargado = true;
             recargar();
           }
         }
       }
+      // Preguntas que quedaron contestadas sin cambios: se recarga para que el Diagnóstico las muestre.
+      if (huboConfirmadas && !recargado) recargar();
     });
   }
 

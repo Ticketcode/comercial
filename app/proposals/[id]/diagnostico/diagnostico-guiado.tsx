@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { formatCOP } from "@/lib/pricing/summary";
 import { PedirCambioButton } from "../asistente/asistente-panel";
-import { responderPregunta, type EstadoPregunta, type Respuesta } from "./guiado-actions";
+import { confirmarPregunta, responderPregunta, type EstadoPregunta, type Respuesta } from "./guiado-actions";
 
 export interface DatosGuiado {
   proposalId: string;
@@ -346,6 +346,22 @@ export function DiagnosticoGuiado({ datos }: { datos: DatosGuiado }) {
                   <span className={`rounded-pill px-3 py-1 text-xs font-semibold ${e === "pendiente" ? "bg-warn-bg text-warn-ink" : "bg-highlight text-highlight-ink"}`}>
                     {etiquetaEstado(e)}
                   </span>
+                  {!abiertaEsta && e === "ia" && (
+                    <button
+                      type="button"
+                      disabled={pendiente}
+                      className="min-h-9 rounded-pill bg-accent px-4 text-xs font-bold text-accent-ink disabled:opacity-50"
+                      onClick={() =>
+                        start(async () => {
+                          const res = await confirmarPregunta(datos.proposalId, q.id);
+                          if (res.error) setError(res.error);
+                          else router.refresh();
+                        })
+                      }
+                    >
+                      Confirmar
+                    </button>
+                  )}
                   {!abiertaEsta && (
                     <button type="button" className="text-xs font-semibold text-muted underline" onClick={() => setAbierta(q.id)}>
                       {e === "pendiente" ? "Responder" : "Cambiar"}

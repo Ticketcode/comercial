@@ -84,3 +84,21 @@ export async function aplicarAtomos(
   }
   return { error: null, estado };
 }
+
+/**
+ * Marca preguntas del Diagnóstico guiado ("ia" = las contestó Claude y falta confirmar).
+ * Si la columna aún no existe (migración 0044) no frena nada.
+ */
+export async function marcarPreguntas(
+  supabase: SupabaseClient,
+  proposalId: string,
+  estado: EstadoPropuesta,
+  ids: string[],
+  valor: "ia" | "ok" | "na" = "ia"
+) {
+  if (ids.length === 0) return;
+  const previo = ((estado.proposal as unknown as { diagnostico_estado?: Record<string, string> }).diagnostico_estado ?? {}) as Record<string, string>;
+  const sig = { ...previo };
+  for (const id of ids) sig[id] = valor;
+  await supabase.from("proposals").update({ diagnostico_estado: sig }).eq("id", proposalId);
+}

@@ -30,6 +30,9 @@ export interface CambiosCrudos {
   aforoVirtual?: unknown;
   dias?: unknown;
   ciudad?: unknown;
+  lugar?: unknown;
+  fechaInicio?: unknown;
+  fechaFin?: unknown;
   productor?: unknown;
   supervisores?: unknown;
   logisticos?: unknown;
@@ -63,6 +66,12 @@ const norm = (s: string) =>
     .replace(/[̀-ͯ]/g, "")
     .trim();
 
+function esFecha(x: string): boolean {
+  if (!/^d{4}-d{2}-d{2}$/.test(x)) return false;
+  const d = new Date(`${x}T12:00:00Z`);
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === x && d.getUTCFullYear() >= 2024 && d.getUTCFullYear() <= 2100;
+}
+
 const usaPresencial = (m: Modality) => m === "presencial" || m === "hibrido";
 const usaVirtual = (m: Modality) => m === "virtual" || m === "hibrido" || m === "mundo_virtual";
 
@@ -71,6 +80,9 @@ export const ETIQUETA_CAMPO: Record<string, string> = {
   aforo_virtual: "Aforo virtual",
   dias: "Días",
   city: "Ciudad",
+  lugar: "Lugar",
+  event_start_date: "Fecha de inicio",
+  event_end_date: "Fecha de fin",
   qty_productor: "Productores",
   qty_supervisor: "Supervisores",
   qty_logistico: "Logísticos",
@@ -146,6 +158,11 @@ export function validarCambios(
   const dias = num(crudos.dias, 1, 30);
   if (dias !== null) campo("dias", dias);
   if (typeof crudos.ciudad === "string" && crudos.ciudad.trim()) campo("city", crudos.ciudad.trim().slice(0, 80));
+
+  if (typeof crudos.lugar === "string" && crudos.lugar.trim()) campo("lugar", crudos.lugar.trim().slice(0, 160));
+  for (const [raw, clave] of [[crudos.fechaInicio, "event_start_date"], [crudos.fechaFin, "event_end_date"]] as const) {
+    if (typeof raw === "string" && esFecha(raw)) campo(clave, raw);
+  }
 
   const equipo: [unknown, string, number][] = [
     [crudos.productor, "qty_productor", 10],
@@ -243,6 +260,9 @@ const REGLAS_CAMPO: Record<string, { valida: (v: ValorCampo) => boolean; presenc
   aforo_virtual: { valida: esNum(1, 100000) },
   dias: { valida: esNum(1, 30) },
   city: { valida: (v) => typeof v === "string" && v.length > 0 && v.length <= 80 },
+  lugar: { valida: (v) => typeof v === "string" && v.length > 0 && v.length <= 160 },
+  event_start_date: { valida: (v) => typeof v === "string" && esFecha(v) },
+  event_end_date: { valida: (v) => typeof v === "string" && esFecha(v) },
   qty_productor: { valida: esNum(0, 10), presencial: true },
   qty_supervisor: { valida: esNum(0, 20), presencial: true },
   qty_logistico: { valida: esNum(0, 100), presencial: true },
@@ -321,4 +341,44 @@ export function etiquetaAtomo(estado: EstadoPropuesta, atomo: Atomo): string {
     return `${atomo.lamina.ocultar ? "Ocultar" : "Mostrar"} lámina: ${g?.label ?? atomo.lamina.key}`;
   }
   return "Cambio";
+}
+
+/** Preguntas del Diagnóstico guiado a las que corresponde cada pregunta. */
+export const PREGUNTAS_DIAGNOSTICO = [
+  "aforo", "aforoVirtual", "dias", "ciudad", "productor", "supervisores", "logisticos", "puntos", "pre", "cred", "extrasCred",
+] as const;
+export type PreguntaDiagnostico = (typeof PREGUNTAS_DIAGNOSTICO)[number];
+
+const CAMPO_A_PREGUNTA: Record<string, PreguntaDiagnostico> = {
+  aforo: "aforo",
+  aforo_virtual: "aforoVirtual",
+  dias: "dias",
+  city: "ciudad",
+  qty_productor: "productor",
+  qty_supervisor: "supervisores",
+  qty_logistico: "logisticos",
+  preacreditacion_medio_dia: "pre",
+};
+const SERVICIO_A_PREGUNTA: [string, PreguntaDiagnostico][] = [
+  ["pre acreditacion", "pre"],
+  ["venta de boleteria en sitio", "puntos"],
+  ["manillas", "cred"],
+  ["escarapelas fisicas", "cred"],
+  ["branding", "extrasCred"],
+  ["labels de seguridad", "extrasCred"],
+];
+
+/** A qué preguntas del diagnóstico responde un cambio (para marcarlas como contestadas por Claude). */
+export function preguntasDeAtomo(atomo: Atomo): PreguntaDiagnostico[] {
+  const out = new Set<PreguntaDiagnostico>();
+  if (atomo.tipo === "campos") {
+    for (const k of Object.keys(atomo.campos ?? {})) {
+      const q = CAMPO_A_PREGUNTA[k];
+      if (q) out.add(q);
+    }
+  } else if (atomo.tipo === "servicio" && atomo.servicio) {
+    const n = norm(atomo.servicio.label);
+    for (const [frase, q] of SERVICIO_A_PREGUNTA) if (n.includes(frase)) out.add(q);
+  }
+  return Array.from(out);
 }

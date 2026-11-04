@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { cargarEstado, aplicarAtomos } from "@/lib/ai/estado";
+import { cargarEstado, aplicarAtomos, marcarPreguntas } from "@/lib/ai/estado";
 import { validarCambios, type Atomo, type EstadoPropuesta } from "@/lib/ai/cambios";
 
 export type EstadoPregunta = "ia" | "ok" | "na";
@@ -94,5 +94,17 @@ export async function responderPregunta(
   for (const sub of ["diagnostico", "propuesta", "presentacion", "versiones", "contrato"]) {
     revalidatePath(`/proposals/${proposalId}/${sub}`);
   }
+  return { error: null };
+}
+
+/** El asesor da por buena una respuesta que había dejado Claude ("Claude · confirma"). */
+export async function confirmarPregunta(proposalId: string, id: string): Promise<{ error: string | null }> {
+  const supabase = await createClient();
+  const { data: auth } = await supabase.auth.getUser();
+  if (!auth.user) return { error: "Tu sesión expiró. Vuelve a entrar." };
+  const base = await cargarEstado(supabase, proposalId);
+  if (!base) return { error: "No se encontró la propuesta." };
+  await marcarPreguntas(supabase, proposalId, base.estado, [id], "ok");
+  revalidatePath(`/proposals/${proposalId}/diagnostico`);
   return { error: null };
 }
