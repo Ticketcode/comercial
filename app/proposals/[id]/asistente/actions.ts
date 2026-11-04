@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import Anthropic from "@anthropic-ai/sdk";
 import { createClient } from "@/lib/supabase/server";
 import { HIDEABLE_SLIDE_GROUPS } from "@/lib/data/laminas";
+import { mensajeErrorClaude } from "@/lib/ai/errores";
 import { cargarEstado, aplicarAtomos } from "@/lib/ai/estado";
 import {
   aplicarEnMemoria,
@@ -155,7 +156,6 @@ export async function pedirCambios(
     const r = await anthropic.messages.create({
       model: MODELO,
       max_tokens: MAX_TOKENS,
-      temperature: 0.2,
       system: promptSistema(estado, contexto.paso.slice(0, 60), contexto.sobre ? contexto.sobre.slice(0, 120) : null),
       messages: mensajes,
     });
@@ -163,8 +163,8 @@ export async function pedirCambios(
       .filter((b): b is Anthropic.TextBlock => b.type === "text")
       .map((b) => b.text)
       .join("\n");
-  } catch {
-    return { ...vacio, error: "No se pudo consultar a Claude. Intenta de nuevo." };
+  } catch (e) {
+    return { ...vacio, error: mensajeErrorClaude(e) };
   }
 
   const json = extraerJson(salida);
