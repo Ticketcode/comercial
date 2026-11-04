@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { formatCOP } from "@/lib/pricing/summary";
+import { ResumenPrecioCard, ServiciosPersonalizados, type ResumenPrecio, type ServicioDiag } from "./resumen-y-servicios";
 import { PedirCambioButton } from "../asistente/asistente-panel";
 import { confirmarPregunta, responderPregunta, type EstadoPregunta, type Respuesta } from "./guiado-actions";
 
@@ -27,7 +27,8 @@ export interface DatosGuiado {
   /** Lo que propone la tabla de aforo, como pista. */
   tabla: { logistico: number; supervisor: number; productor: number } | null;
   estado: Record<string, EstadoPregunta>;
-  valorAntesIva: number;
+  resumen: ResumenPrecio;
+  servicios: ServicioDiag[];
 }
 
 type Id = "preDias" | "aforo" | "aforoVirtual" | "dias" | "ciudad" | "productor" | "supervisores" | "logisticos" | "puntos" | "pre" | "cred" | "extrasCred";
@@ -312,7 +313,8 @@ export function DiagnosticoGuiado({ datos }: { datos: DatosGuiado }) {
     e === "ok" ? "Confirmado" : e === "na" ? "No aplica" : e === "ia" ? "Claude · confirma" : "Pendiente";
 
   return (
-    <section aria-label="Diagnóstico guiado" className="space-y-4">
+    <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
+    <section aria-label="Diagnóstico guiado" className="min-w-0 space-y-4">
       <div className="rounded-2xl bg-surface2 px-5 py-4">
         <p className="font-display text-lg font-extrabold text-ink">Armemos el diagnóstico de {datos.eventName}</p>
         <p className="mt-1 text-sm text-muted">
@@ -386,10 +388,10 @@ export function DiagnosticoGuiado({ datos }: { datos: DatosGuiado }) {
         </p>
       )}
 
-      <div className="rounded-2xl bg-ink px-5 py-4 text-surface">
-        <p className="text-xs font-semibold uppercase tracking-wide opacity-70">Valor antes de IVA</p>
-        <p className="font-display text-3xl font-extrabold">{formatCOP(datos.valorAntesIva)}</p>
-      </div>
+      <ServiciosPersonalizados proposalId={datos.proposalId} servicios={datos.servicios} />
+
     </section>
+    <ResumenPrecioCard r={datos.resumen} pendientes={Q.length - confirmadas} evento={datos.eventName} />
+    </div>
   );
 }

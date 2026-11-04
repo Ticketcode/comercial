@@ -86,7 +86,25 @@ export default async function TarifarioPage({
     labels: !!incluido("labels de seguridad"),
     tabla: tabla ? { logistico: tabla.logistico, supervisor: tabla.supervisor, productor: tabla.productor } : null,
     estado: ((proposal as { diagnostico_estado?: Record<string, EstadoPregunta> }).diagnostico_estado ?? {}) as Record<string, EstadoPregunta>,
-    valorAntesIva: summary.valorPropuestaFinal,
+    resumen: {
+      logistica: summary.logistica.totalCostoLogisticaConImprevistos,
+      servicios: summary.subtotalServicios,
+      totalCosto: summary.totalCosto,
+      rentabilidadPct: Number(p.rentabilidad_pct),
+      rentabilidad: summary.rentabilidad,
+      comisionesPct: Number(p.comision_director_pct) + Number(p.comision_asesor_pct),
+      comisiones: summary.costoDirectorComercial + summary.costoAsesorComercial,
+      valorFinal: summary.valorPropuestaFinal,
+      iva: summary.iva,
+      ivaRate: summary.ivaRate,
+      total: summary.valorPropuestaFinal + summary.iva,
+    },
+    servicios: serviceItems.map((i) => ({
+      label: i.label,
+      incluido: !!i.included,
+      precio: Number(i.unit_cost),
+      cantidad: computedServiceQuantity(i.label, p) ?? Number(i.quantity),
+    })),
   };
 
   return (

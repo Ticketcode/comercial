@@ -108,3 +108,21 @@ export async function confirmarPregunta(proposalId: string, id: string): Promise
   revalidatePath(`/proposals/${proposalId}/diagnostico`);
   return { error: null };
 }
+
+/** Marca o desmarca un servicio personalizado del catálogo (misma validación que el resto de cambios). */
+export async function alternarServicio(proposalId: string, label: string, incluir: boolean): Promise<{ error: string | null }> {
+  const supabase = await createClient();
+  const { data: auth } = await supabase.auth.getUser();
+  if (!auth.user) return { error: "Tu sesión expiró. Vuelve a entrar." };
+  const base = await cargarEstado(supabase, proposalId);
+  if (!base) return { error: "No se encontró la propuesta." };
+  const fila = base.estado.servicios.find((s) => s.label === label);
+  if (!fila) return { error: "Ese servicio no está disponible para esta propuesta." };
+  const atomo: Atomo = { id: "gsv", tipo: "servicio", servicio: { label, incluir } };
+  const r = await aplicarAtomos(supabase, proposalId, base.estado, [atomo]);
+  if (r.error) return { error: r.error };
+  for (const sub of ["diagnostico", "propuesta", "presentacion", "versiones", "contrato"]) {
+    revalidatePath(`/proposals/${proposalId}/${sub}`);
+  }
+  return { error: null };
+}
