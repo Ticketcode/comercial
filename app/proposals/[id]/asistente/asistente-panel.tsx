@@ -28,7 +28,7 @@ const PASOS: Record<string, string> = {
 };
 
 const SUGERENCIAS: Record<string, string[]> = {
-  diagnostico: ["Es híbrido con 1.200 personas", "El productor no va", "Pre-acreditación de medio día"],
+  diagnostico: ["Es híbrido con 1.200 personas", "El evento no tiene logística", "No vende boletas", "Hay 3 salones: 2.000, 500 y 500", "Pre-acreditación de medio día"],
   propuesta: ["Quieren recordatorios por correo", "Quita el servicio de chat", "Sube el descuento al 15%"],
   acuerdo: ["Sube el descuento al 20%", "Propón un acuerdo con patrocinio"],
   presentacion: ["Oculta la lámina de casos de éxito", "Muestra la lámina de acuerdo comercial"],
@@ -214,9 +214,9 @@ export function AsistentePanel({ proposalId }: { proposalId: string }) {
         type="button"
         onClick={() => setAbierto(true)}
         className="no-print fixed bottom-5 right-5 z-40 flex min-h-11 items-center gap-2 rounded-pill bg-accent px-5 text-sm font-bold text-accent-ink shadow-lg"
-        aria-label="Abrir el asistente de Claude (Ctrl+K)"
+        aria-label="Abrir el asistente de NOVA (Ctrl+K)"
       >
-        Claude
+        NOVA
         {pendientes > 0 && (
           <span className="flex h-6 min-w-6 items-center justify-center rounded-full bg-accent-ink px-1.5 text-xs text-accent">
             {pendientes}
@@ -227,12 +227,12 @@ export function AsistentePanel({ proposalId }: { proposalId: string }) {
       {abierto && (
         <aside
           role="dialog"
-          aria-label="Asistente de Claude"
+          aria-label="Asistente de NOVA"
           className="no-print fixed inset-y-0 right-0 z-50 flex w-full max-w-md flex-col border-l border-border bg-surface shadow-2xl"
         >
           <header className="flex items-start justify-between gap-3 border-b border-border px-4 py-3">
             <div>
-              <p className="font-display text-lg font-extrabold text-ink">Claude</p>
+              <p className="font-display text-lg font-extrabold text-ink">NOVA</p>
               <p className="text-xs text-muted">Paso: {PASOS[paso]} · propone, tú decides</p>
             </div>
             <button type="button" onClick={() => setAbierto(false)} className="min-h-11 rounded-pill px-4 text-sm font-semibold text-muted hover:bg-surface2">
@@ -340,8 +340,8 @@ export function AsistentePanel({ proposalId }: { proposalId: string }) {
                 value={borrador}
                 onChange={(e) => setBorrador(e.target.value)}
                 maxLength={1500}
-                placeholder="Escríbele a Claude…"
-                aria-label="Mensaje para Claude"
+                placeholder="Escríbele a NOVA…"
+                aria-label="Mensaje para NOVA"
                 autoComplete="off"
                 className="min-h-11 min-w-0 flex-1 rounded-pill border border-border bg-input-bg px-4 text-sm text-ink"
               />

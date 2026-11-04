@@ -19,7 +19,7 @@ type DatosCantidad = Pick<Proposal, "aforo" | "aforo_virtual" | "dias" | "tasa_c
 /**
  * Cantidad calculada (no digitada) para los servicios que dependen de
  * aforo/días/tasa. Devuelve null si el servicio no es uno de estos (se usa la
- * cantidad digitada). Es la misma regla del Diagnóstico y de lo que Claude propone.
+ * cantidad digitada). Es la misma regla del Diagnóstico y de lo que NOVA propone.
  */
 export function computedServiceQuantity(label: string, p: DatosCantidad): number | null {
   const aforo = Number(p.aforo ?? 0);

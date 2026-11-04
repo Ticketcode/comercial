@@ -39,15 +39,8 @@ const SOLO_VIRTUAL = [
   "cloud server virtual",
 ];
 
-/** Servicios que se definen con una pregunta del Diagnóstico y no se eligen a mano en la lista. */
-const CONTROLADOS_POR_PREGUNTA = [
-  "pre acreditacion",
-  "escarapelas fisicas",
-  "manillas",
-  "modulo de branding",
-  "labels de seguridad",
-  "venta de boleteria en sitio",
-];
+/** Servicios que se definen en un cuadro del Diagnóstico (pre-acreditación) y no se eligen a mano en la lista. */
+const CONTROLADOS_POR_PREGUNTA = ["pre acreditacion"];
 
 export type Alcance = "ambas" | "presencial" | "virtual";
 
@@ -56,6 +49,34 @@ export function alcanceServicio(label: string): Alcance {
   if (SOLO_VIRTUAL.some((x) => n.includes(x))) return "virtual";
   if (SOLO_PRESENCIAL.some((x) => n.includes(x))) return "presencial";
   return "ambas";
+}
+
+/** Servicios que solo existen si el evento lleva logística 360. */
+const NECESITAN_LOGISTICA = [
+  "pre acreditacion",
+  "escarapelas fisicas",
+  "manillas",
+  "venta de boleteria en sitio",
+  "sitios simultaneos",
+  "control suministro",
+  "pre-impresion de escarapelas",
+  "modulo de branding",
+  "labels de seguridad",
+];
+
+/** Servicios que solo tienen sentido si el evento vende boletas. */
+const NECESITAN_BOLETERIA = ["pasarela de pagos", "transferencia de tarifa", "venta de boleteria en sitio"];
+
+export const necesitaLogistica = (label: string) => NECESITAN_LOGISTICA.some((x) => norm(label).includes(x));
+export const necesitaBoleteria = (label: string) => NECESITAN_BOLETERIA.some((x) => norm(label).includes(x));
+
+type DatosServicio = { modality: Modality; con_logistica?: boolean; vende_boletas?: boolean };
+
+/** ¿Se puede ofrecer este servicio en esta propuesta? Mira modalidad y si vende boletas (sin logística de Ticketcode el evento igual los necesita, solo no se cobran). */
+export function servicioDisponible(label: string, p: DatosServicio): boolean {
+  if (!servicioAplica(label, p.modality)) return false;
+  if (p.vende_boletas === false && necesitaBoleteria(label)) return false;
+  return true;
 }
 
 /** ¿Se puede ofrecer este servicio en esta modalidad? */

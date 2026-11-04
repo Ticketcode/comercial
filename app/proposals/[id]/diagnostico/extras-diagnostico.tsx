@@ -7,7 +7,7 @@ import { extraerDiagnostico, resolverServicioPropuesto } from "./guiado-actions"
 
 const card = "rounded-2xl border border-border bg-surface p-5";
 
-/** Notas de la reunión: Claude llena lo que entienda y pide confirmarlo abajo. */
+/** Notas de la reunión: NOVA llena lo que entienda y pide confirmarlo abajo. */
 export function NotasDiagnostico({ proposalId }: { proposalId: string }) {
   const router = useRouter();
   const [notas, setNotas] = useState("");
@@ -30,7 +30,7 @@ export function NotasDiagnostico({ proposalId }: { proposalId: string }) {
   return (
     <section aria-label="Notas del diagnóstico" className={card}>
       <h2 className="font-display text-xl font-extrabold text-ink">Notas del diagnóstico</h2>
-      <p className="mt-1 text-sm text-muted">Pega las notas de la reunión. Claude llena lo que entienda y te pide confirmarlo abajo.</p>
+      <p className="mt-1 text-sm text-muted">Pega las notas de la reunión. NOVA llena lo que entienda y te pide confirmarlo abajo.</p>
       <textarea
         value={notas}
         onChange={(e) => setNotas(e.target.value)}
@@ -44,7 +44,7 @@ export function NotasDiagnostico({ proposalId }: { proposalId: string }) {
       />
       <div className="mt-3 flex flex-wrap items-center gap-3">
         <button type="button" onClick={extraer} disabled={pensando || !notas.trim()} className="min-h-11 rounded-pill bg-accent px-5 text-sm font-bold text-accent-ink disabled:opacity-50">
-          {pensando ? "Leyendo las notas…" : "Extraer con Claude"}
+          {pensando ? "Leyendo las notas…" : "Extraer con NOVA"}
         </button>
         {msg && (
           <p role={msg.tipo === "error" ? "alert" : "status"} className={`text-sm font-semibold ${msg.tipo === "error" ? "text-danger" : "text-ink"}`}>
@@ -56,7 +56,7 @@ export function NotasDiagnostico({ proposalId }: { proposalId: string }) {
   );
 }
 
-/** Servicios que Claude sacó de las notas: no se agregan hasta que el asesor los acepta. */
+/** Servicios que NOVA sacó de las notas: no se agregan hasta que el asesor los acepta. */
 export function ServiciosPropuestos({ proposalId, servicios }: { proposalId: string; servicios: string[] }) {
   const router = useRouter();
   const [pendiente, start] = useTransition();
@@ -73,8 +73,8 @@ export function ServiciosPropuestos({ proposalId, servicios }: { proposalId: str
   }
 
   return (
-    <section aria-label="Servicios propuestos por Claude" className="rounded-2xl border border-accent bg-surface p-5">
-      <h2 className="font-display text-lg font-extrabold text-ink">Claude propone estos servicios: ¿los confirmas?</h2>
+    <section aria-label="Servicios propuestos por NOVA" className="rounded-2xl border border-accent bg-surface p-5">
+      <h2 className="font-display text-lg font-extrabold text-ink">NOVA propone estos servicios: ¿los confirmas?</h2>
       <ul className="mt-3 divide-y divide-border">
         {servicios.map((s) => (
           <li key={s} className="flex flex-wrap items-center justify-between gap-3 py-2.5">

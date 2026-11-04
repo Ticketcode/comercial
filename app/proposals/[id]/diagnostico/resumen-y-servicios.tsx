@@ -32,7 +32,7 @@ export function ResumenPrecioCard({ r, pendientes, evento }: { r: ResumenPrecio;
       </div>
       {pendientes > 0 && (
         <p className="rounded-xl bg-warn-bg px-3 py-2 text-xs text-warn-ink">
-          Valor provisional: {pendientes} {pendientes === 1 ? "pregunta sin confirmar" : "preguntas sin confirmar"}. Usa valores de partida.
+          Valor provisional: {pendientes === 1 ? "falta 1 dato" : `faltan ${pendientes} datos`} del diagnóstico.
         </p>
       )}
       <dl className="space-y-2 border-t border-border pt-3">

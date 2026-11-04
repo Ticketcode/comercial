@@ -4,16 +4,16 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { cargarEstado, aplicarAtomos, marcarPreguntas } from "@/lib/ai/estado";
 import { consultarCambios, excedeTope } from "@/lib/ai/consulta";
-import { validarCambios, preguntasDeAtomo, PREGUNTAS_DIAGNOSTICO, type Atomo, type EstadoPropuesta } from "@/lib/ai/cambios";
+import { validarCambios, preguntasDeAtomo, PREGUNTAS_DIAGNOSTICO, type Atomo, type CambiosCrudos, type EstadoPropuesta } from "@/lib/ai/cambios";
 
 export type EstadoPregunta = "ia" | "ok" | "na";
 
 export type Respuesta =
-  | { id: "aforo" | "aforoVirtual" | "dias" | "productor" | "supervisores" | "logisticos" | "puntos"; valor: number }
-  | { id: "ciudad"; valor: string }
+  | { id: "evento"; aforo?: number; aforoVirtual?: number; dias: number; ciudad?: string }
+  | { id: "equipo"; productor: number; supervisores: number; logisticos: number }
+  | { id: "puntos"; valor: number }
   | { id: "pre"; modo: "no" | "completo" | "medio"; dias: number }
-  | { id: "cred"; valor: "ninguna" | "manillas" | "escarapelas" | "ambas" }
-  | { id: "extrasCred"; branding: boolean; labels: boolean };
+  | { id: "cred"; valor: "ninguna" | "manillas" | "escarapelas" | "ambas" };
 
 const norm = (s: string) =>
   s
@@ -36,17 +36,16 @@ function servicio(e: EstadoPropuesta, frase: string, incluir: boolean, cantidad?
 /** Convierte la respuesta a una pregunta del diagnóstico en cambios concretos (todos se validan antes de escribir). */
 function atomosDeRespuesta(r: Respuesta, e: EstadoPropuesta, aforoScales: Parameters<typeof validarCambios>[2]["aforoScales"]): Atomo[] {
   const ctx = { aforoScales };
-  const simple = (clave: string, v: number) => validarCambios({ [clave]: v }, e, ctx).atomos;
   switch (r.id) {
-    case "aforo":
-    case "aforoVirtual":
-    case "dias":
-    case "productor":
-    case "supervisores":
-    case "logisticos":
-      return simple(r.id, r.valor);
-    case "ciudad":
-      return validarCambios({ ciudad: r.valor }, e, ctx).atomos;
+    case "evento":
+      // Aforo (recalcula la dotación), aforo virtual, días y ciudad se validan juntos con las mismas reglas del chat.
+      return validarCambios(
+        { ...(r.aforo !== undefined ? { aforo: r.aforo } : {}), ...(r.aforoVirtual !== undefined ? { aforoVirtual: r.aforoVirtual } : {}), dias: r.dias, ...(r.ciudad ? { ciudad: r.ciudad } : {}) },
+        e,
+        ctx
+      ).atomos;
+    case "equipo":
+      return validarCambios({ productor: r.productor, supervisores: r.supervisores, logisticos: r.logisticos }, e, ctx).atomos;
     case "puntos":
       return servicio(e, "venta de boleteria en sitio", r.valor > 0, r.valor);
     case "pre": {
@@ -61,8 +60,6 @@ function atomosDeRespuesta(r: Respuesta, e: EstadoPropuesta, aforoScales: Parame
         ...servicio(e, "escarapelas fisicas", r.valor === "escarapelas" || r.valor === "ambas", n),
       ];
     }
-    case "extrasCred":
-      return [...servicio(e, "branding", r.branding, 1), ...servicio(e, "labels de seguridad", r.labels, 1)];
   }
 }
 
@@ -87,10 +84,10 @@ export async function responderPregunta(
 
   // Estado de la pregunta. Si la columna aún no existe (migración 0044 pendiente) no se frena el flujo.
   const previo = ((base.estado.proposal as unknown as { diagnostico_estado?: Record<string, string> }).diagnostico_estado ?? {}) as Record<string, string>;
-  await supabase
-    .from("proposals")
-    .update({ diagnostico_estado: { ...previo, [respuesta.id]: noAplica ? "na" : "ok" } })
-    .eq("id", proposalId);
+  const nuevoEstado: Record<string, string> = { ...previo, [respuesta.id]: noAplica ? "na" : "ok" };
+  // Si cambió el aforo, la dotación se recalculó: el equipo vuelve a quedar por revisar.
+  if (respuesta.id === "evento" && respuesta.aforo !== undefined && Number(base.estado.proposal.aforo ?? 0) !== respuesta.aforo) delete nuevoEstado.equipo;
+  await supabase.from("proposals").update({ diagnostico_estado: nuevoEstado }).eq("id", proposalId);
 
   for (const sub of ["diagnostico", "propuesta", "presentacion", "versiones", "contrato"]) {
     revalidatePath(`/proposals/${proposalId}/${sub}`);
@@ -98,7 +95,7 @@ export async function responderPregunta(
   return { error: null };
 }
 
-/** El asesor da por buena una respuesta que había dejado Claude ("Claude · confirma"). */
+/** El asesor da por buena una respuesta que había dejado NOVA ("NOVA · confirma"). */
 export async function confirmarPregunta(proposalId: string, id: string): Promise<{ error: string | null }> {
   const supabase = await createClient();
   const { data: auth } = await supabase.auth.getUser();
@@ -119,7 +116,10 @@ export async function alternarServicio(proposalId: string, label: string, inclui
   if (!base) return { error: "No se encontró la propuesta." };
   const fila = base.estado.servicios.find((s) => s.label === label);
   if (!fila) return { error: "Ese servicio no está disponible para esta propuesta." };
-  const atomo: Atomo = { id: "gsv", tipo: "servicio", servicio: { label, incluir } };
+  // Manillas y escarapelas físicas: una por asistente.
+  const porAsistente = incluir && /manillas|escarapelas fisicas/.test(norm(label));
+  const cantidad = porAsistente ? Math.max(1, Math.round(Number(base.estado.proposal.aforo ?? 0))) : undefined;
+  const atomo: Atomo = { id: "gsv", tipo: "servicio", servicio: { label, incluir, ...(cantidad !== undefined ? { cantidad } : {}) } };
   const r = await aplicarAtomos(supabase, proposalId, base.estado, [atomo]);
   if (r.error) return { error: r.error };
   for (const sub of ["diagnostico", "propuesta", "presentacion", "versiones", "contrato"]) {
@@ -136,8 +136,8 @@ async function leerDiagnostico(supabase: Awaited<ReturnType<typeof createClient>
 }
 
 /**
- * Notas de la reunión → Claude llena lo que entienda. Los datos del evento y las respuestas quedan aplicados
- * como "Claude · confirma"; los servicios que sugiere NO se agregan: quedan por confirmar.
+ * Notas de la reunión → NOVA llena lo que entienda. Los datos del evento y las respuestas quedan aplicados
+ * como "NOVA · confirma"; los servicios que sugiere NO se agregan: quedan por confirmar.
  */
 export async function extraerDiagnostico(
   proposalId: string,
@@ -162,11 +162,12 @@ export async function extraerDiagnostico(
     paso: "Diagnóstico (extracción desde notas)",
     sobre: null,
   });
-  if (!json) return { error: error ?? "No se pudo consultar a Claude.", resumen: "" };
+  if (!json) return { error: error ?? "No se pudo consultar a NOVA.", resumen: "" };
 
   const { atomos } = validarCambios(json.cambios, base.estado, { aforoScales: base.aforoScales });
-  const aAplicar = atomos.filter((a) => a.tipo === "campos");
-  const sugeridos = atomos.filter((a) => a.tipo === "servicio" && a.servicio?.incluir);
+  // Todo lo que NOVA entiende de las notas se aplica directo; si algo no es correcto, se corrige con el chat o en los cuadros.
+  const aAplicar = atomos;
+  const sugeridos: Atomo[] = [];
 
   let estado = base.estado;
   if (aAplicar.length > 0) {
@@ -203,7 +204,7 @@ export async function extraerDiagnostico(
   };
 }
 
-/** El asesor acepta o descarta un servicio que propuso Claude desde las notas. */
+/** El asesor acepta o descarta un servicio que propuso NOVA desde las notas. */
 export async function resolverServicioPropuesto(
   proposalId: string,
   label: string,
@@ -241,4 +242,27 @@ export async function cambiarCantidadServicio(proposalId: string, label: string,
     revalidatePath(`/proposals/${proposalId}/${sub}`);
   }
   return { error: null };
+}
+
+/**
+ * El asesor edita un dato en los cuadros del Diagnóstico (o lo cambia NOVA): se valida con las mismas reglas
+ * y se guarda al instante. Aquí no hay confirmaciones: lo que se ve en pantalla es lo que queda.
+ */
+export async function guardarDatos(proposalId: string, crudos: CambiosCrudos): Promise<{ error: string | null; avisos: string[] }> {
+  const supabase = await createClient();
+  const { data: auth } = await supabase.auth.getUser();
+  if (!auth.user) return { error: "Tu sesión expiró. Vuelve a entrar.", avisos: [] };
+  const base = await cargarEstado(supabase, proposalId);
+  if (!base) return { error: "No se encontró la propuesta.", avisos: [] };
+
+  const { atomos, bloqueados } = validarCambios(crudos, base.estado, { aforoScales: base.aforoScales });
+  const avisos = bloqueados.map((b) => `${b.etiqueta}: ${b.motivo}`);
+  if (atomos.length === 0) return { error: avisos.length > 0 ? avisos.join(". ") : null, avisos };
+
+  const r = await aplicarAtomos(supabase, proposalId, base.estado, atomos);
+  if (r.error) return { error: r.error, avisos };
+  for (const sub of ["diagnostico", "propuesta", "presentacion", "versiones", "contrato"]) {
+    revalidatePath(`/proposals/${proposalId}/${sub}`);
+  }
+  return { error: null, avisos };
 }

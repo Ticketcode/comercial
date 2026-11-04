@@ -40,7 +40,7 @@ function SubmitButton() {
 export function NewProposalForm() {
   const [state, formAction] = useFormState(createProposal, initialState);
   const [valores, setValores] = useState(CAMPOS_INICIALES);
-  // Campos que llenó Claude y el asesor aún no ha tocado.
+  // Campos que llenó NOVA y el asesor aún no ha tocado.
   const [porClaude, setPorClaude] = useState<Set<Campo>>(new Set());
   const [notas, setNotas] = useState("");
   const [mensaje, setMensaje] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
@@ -80,22 +80,22 @@ export function NewProposalForm() {
       setPorClaude(nuevos);
       setMensaje({
         tipo: "ok",
-        texto: `Completé ${nuevos.size} ${nuevos.size === 1 ? "campo" : "campos"}. Revísalos abajo: los marcados como «Claude» están por confirmar.`,
+        texto: `Completé ${nuevos.size} ${nuevos.size === 1 ? "campo" : "campos"}. Quedaron resaltados en verde; corrige lo que haga falta.`,
       });
     });
   }
 
   const marca = (c: Campo) =>
-    porClaude.has(c) ? <span className="ml-2 rounded-full bg-green-100 px-2 py-0.5 text-xs font-semibold text-green-800">Claude · confirma</span> : null;
+    porClaude.has(c) ? <span className="ml-2 rounded-full bg-green-100 px-2 py-0.5 text-xs font-semibold text-green-800">Lo llenó NOVA</span> : null;
   const ring = (c: Campo) => (porClaude.has(c) ? " border-green-500 bg-green-50" : "");
 
   return (
     <form action={formAction} className="space-y-8">
       <section className="space-y-3 rounded-xl border border-neutral-200 bg-neutral-50 p-4">
         <div>
-          <h2 className="text-sm font-semibold text-neutral-900">Cuéntale a Claude del evento</h2>
+          <h2 className="text-sm font-semibold text-neutral-900">Cuéntale a NOVA del evento</h2>
           <p className="text-sm text-neutral-500">
-            Escribe o pega las notas de la reunión. Claude llena los datos que encuentre y tú los confirmas; no se guarda nada hasta que
+            Escribe o pega las notas de la reunión. NOVA llena los datos que encuentre y tú los confirmas; no se guarda nada hasta que
             crees la propuesta. Si prefieres, llena los campos a mano.
           </p>
         </div>
@@ -112,7 +112,7 @@ export function NewProposalForm() {
         />
         <div className="flex flex-wrap items-center gap-3">
           <button type="button" onClick={completarConClaude} disabled={pensando || !notas.trim()} className="btn btn-primary">
-            {pensando ? "Leyendo las notas…" : "Completar con Claude"}
+            {pensando ? "Leyendo las notas…" : "Completar con NOVA"}
           </button>
           {mensaje && (
             <p role={mensaje.tipo === "error" ? "alert" : "status"} className={`text-sm ${mensaje.tipo === "error" ? "text-red-600" : "text-green-700"}`}>

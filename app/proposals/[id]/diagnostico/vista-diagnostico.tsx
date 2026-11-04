@@ -3,7 +3,17 @@
 import { useState, type ReactNode } from "react";
 
 /** Diagnóstico guiado por defecto; la tabla completa (modo avanzado) se abre a pedido. */
-export function VistaDiagnostico({ guiado, avanzado }: { guiado: ReactNode; avanzado: ReactNode }) {
+export function VistaDiagnostico({
+  guiado,
+  avanzado,
+  etiquetaGuiado = "Guiado con NOVA",
+  etiquetaAvanzado = "Modo avanzado (tabla completa)",
+}: {
+  guiado: ReactNode;
+  avanzado: ReactNode;
+  etiquetaGuiado?: string;
+  etiquetaAvanzado?: string;
+}) {
   const [verAvanzado, setVerAvanzado] = useState(false);
   return (
     <div className="space-y-6">
@@ -15,7 +25,7 @@ export function VistaDiagnostico({ guiado, avanzado }: { guiado: ReactNode; avan
           onClick={() => setVerAvanzado(false)}
           className={`min-h-10 rounded-pill px-5 text-sm font-semibold ${!verAvanzado ? "bg-accent text-accent-ink" : "bg-surface text-muted"}`}
         >
-          Guiado con Claude
+          {etiquetaGuiado}
         </button>
         <button
           type="button"
@@ -24,7 +34,7 @@ export function VistaDiagnostico({ guiado, avanzado }: { guiado: ReactNode; avan
           onClick={() => setVerAvanzado(true)}
           className={`min-h-10 rounded-pill px-5 text-sm font-semibold ${verAvanzado ? "bg-accent text-accent-ink" : "bg-surface text-muted"}`}
         >
-          Modo avanzado (tabla completa)
+          {etiquetaAvanzado}
         </button>
       </div>
       {verAvanzado ? avanzado : guiado}

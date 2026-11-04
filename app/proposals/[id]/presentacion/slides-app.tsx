@@ -6,6 +6,7 @@ import {
   GRUPO_INFO,
   agruparEnPaquetes,
   esPaqueteAncho,
+  itemCatalogoAplica,
   itemsVisibles,
   type GrupoPaquetes,
   type ItemParaPaquete,
@@ -388,7 +389,7 @@ export function getPaquetesDeck(data: DeckData): PaquetesDeGrupo[] {
   const selectedMap = Object.fromEntries(catalogSelections.map((s) => [s.catalog_item_id, s]));
   const items: ItemParaPaquete[] = [];
   for (const c of catalogItems) {
-    if (!selectedMap[c.id]?.included) continue;
+    if (!selectedMap[c.id]?.included || !itemCatalogoAplica(c, data.proposal)) continue;
     const familia = c.category === "componente_basico" ? "componente" : c.category === "logistica_360" ? "logistica" : null;
     if (!familia) continue;
     items.push({ familia, baseName: c.name, name: selectedMap[c.id]?.custom_name || c.name });

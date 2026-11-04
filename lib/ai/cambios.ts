@@ -1,7 +1,7 @@
 /**
- * Cambios que Claude puede proponer sobre una propuesta.
+ * Cambios que NOVA puede proponer sobre una propuesta.
  *
- * Claude NUNCA escribe en la base: devuelve JSON, y este módulo lo valida
+ * NOVA NUNCA escribe en la base: devuelve JSON, y este módulo lo valida
  * (lista cerrada de campos, rangos, reglas por modalidad), lo parte en
  * cambios sueltos ("átomos") y calcula cuánto mueve el precio. Solo cuando
  * el comercial acepta una tarjeta, el servidor aplica ese átomo — después de
@@ -9,25 +9,38 @@
  */
 import type { Proposal, ProposalCostItem, Modality } from "@/lib/types";
 import { staffingForAforo, totalLogisticosSalones, type AforoScaleRow } from "@/lib/pricing/logistics";
-import { SALONES_INTERNOS_SERVICE_LABEL } from "@/lib/pricing/service-quantity";
+import { SALONES_INTERNOS_SERVICE_LABEL, computedServiceQuantity } from "@/lib/pricing/service-quantity";
 import { HIDEABLE_SLIDE_GROUPS } from "@/lib/data/laminas";
-import { servicioAplica } from "@/lib/data/servicios-alcance";
+import { necesitaBoleteria, servicioDisponible } from "@/lib/data/servicios-alcance";
 
 export type ValorCampo = number | string | boolean | number[] | null;
 
 export interface Atomo {
   id: string;
-  tipo: "campos" | "servicio" | "lamina";
+  tipo: "campos" | "servicio" | "lamina" | "textoServicio";
   /** Campos de `proposals` que cambian (tipo "campos"). */
   campos?: Record<string, ValorCampo>;
   /** Servicio personalizado por su nombre de catálogo (tipo "servicio"). */
   servicio?: { label: string; incluir: boolean; cantidad?: number };
   /** Lámina de la presentación (tipo "lamina"). */
   lamina?: { key: string; ocultar: boolean };
+  /** Título y alcance con los que se muestra un servicio en la propuesta (tipo "textoServicio"). null = vuelve al texto del catálogo. */
+  texto?: { label: string; titulo?: string | null; descripcion?: string | null };
 }
 
-/** Lo que Claude puede pedir. Todo es opcional; lo que no esté aquí se ignora. */
+/** Lo que NOVA puede pedir. Todo es opcional; lo que no esté aquí se ignora. */
 export interface CambiosCrudos {
+  nombre?: unknown;
+  modalidad?: unknown;
+  vendeBoletas?: unknown;
+  conLogistica?: unknown;
+  preacreditacion?: unknown;
+  computadores?: unknown;
+  impresoras?: unknown;
+  visitaPreoperativaDias?: unknown;
+  extras?: unknown;
+  serviciosCantidad?: unknown;
+  textosServicios?: unknown;
   aforo?: unknown;
   aforoVirtual?: unknown;
   dias?: unknown;
@@ -79,6 +92,16 @@ const usaPresencial = (m: Modality) => m === "presencial" || m === "hibrido";
 const usaVirtual = (m: Modality) => m === "virtual" || m === "hibrido" || m === "mundo_virtual";
 
 export const ETIQUETA_CAMPO: Record<string, string> = {
+  event_name: "Nombre del evento",
+  visita_preoperativa_dias: "Días de visita preoperativa",
+  extra_camisetas_staff: "Camisetas para el staff",
+  extra_lavado_chalecos: "Lavado de chalecos",
+  extra_compra_agua: "Compra de agua",
+  extra_compra_bloqueador_solar: "Compra de bloqueador solar",
+  extra_actividad_cierre: "Actividad de cierre",
+  modality: "Modalidad",
+  vende_boletas: "Vende boletas",
+  con_logistica: "Con logística",
   aforo: "Aforo presencial",
   aforo_virtual: "Aforo virtual",
   dias: "Días",
@@ -99,8 +122,11 @@ export const ETIQUETA_CAMPO: Record<string, string> = {
   acuerdo_comercial_pct_global: "Descuento por acuerdo",
 };
 
+const MODALIDAD_ETIQUETA: Record<string, string> = { presencial: "Presencial", virtual: "Virtual", hibrido: "Híbrido", mundo_virtual: "Mundo virtual" };
+
 export function formatearValor(campo: string, v: ValorCampo | undefined): string {
   if (v === undefined || v === null || v === "") return "—";
+  if (campo === "modality") return MODALIDAD_ETIQUETA[String(v)] ?? String(v);
   if (Array.isArray(v)) return v.length ? v.map((x) => Number(x).toLocaleString("es-CO")).join(", ") : "ninguno";
   if (typeof v === "boolean") return v ? "Sí" : "No";
   if (campo === "rentabilidad_pct") return `${Math.round(Number(v) * 100)}%`;
@@ -121,7 +147,7 @@ export interface ResultadoValidacion {
   bloqueados: AtomoBloqueado[];
 }
 
-/** Valida lo que pidió Claude y lo parte en cambios sueltos. */
+/** Valida lo que pidió NOVA y lo parte en cambios sueltos. */
 export function validarCambios(
   crudos: CambiosCrudos | null | undefined,
   estado: EstadoPropuesta,
@@ -131,13 +157,72 @@ export function validarCambios(
   const bloqueados: AtomoBloqueado[] = [];
   if (!crudos || typeof crudos !== "object") return { atomos, bloqueados };
   const { proposal } = estado;
-  const m = proposal.modality;
+  const MODOS: Modality[] = ["presencial", "virtual", "hibrido", "mundo_virtual"];
+  const modoNuevo = MODOS.includes(crudos.modalidad as Modality) ? (crudos.modalidad as Modality) : null;
+  // Lo demás se valida con la modalidad y los datos que quedarán después de este mismo cambio.
+  const m = modoNuevo ?? proposal.modality;
+  const conLogistica = typeof crudos.conLogistica === "boolean" ? crudos.conLogistica : proposal.con_logistica !== false;
+  const vendeBoletas = typeof crudos.vendeBoletas === "boolean" ? crudos.vendeBoletas : proposal.vende_boletas !== false;
+  const datosServicio = { modality: m, con_logistica: conLogistica, vende_boletas: vendeBoletas };
+  const aforoNuevo = num(crudos.aforo, 1, 100000);
+  const aforoParaTabla = aforoNuevo ?? Number(proposal.aforo ?? 0);
 
   const campo = (clave: string, valor: ValorCampo) => atomos.push({ id: nuevoId(), tipo: "campos", campos: { [clave]: valor } });
   const bloquear = (clave: string, motivo: string) => bloqueados.push({ etiqueta: ETIQUETA_CAMPO[clave] ?? clave, motivo });
 
+  /** Dotación que propone la tabla de aforo (la misma del botón "Recalcular según aforo"). */
+  const dotacion = (aforoBase: number): Record<string, ValorCampo> => {
+    const dot = aforoBase > 0 ? staffingForAforo(aforoBase, ctx.aforoScales) : null;
+    return dot
+      ? {
+          qty_logistico: dot.logistico,
+          qty_supervisor: dot.supervisor,
+          qty_productor: dot.productor,
+          qty_computadores: dot.computadores,
+          qty_impresoras: dot.impresoras,
+          qty_rollos_labels: dot.rollos_labels,
+        }
+      : {};
+  };
+  const aplicarDotacion = () => {
+    const d = dotacion(aforoParaTabla);
+    if (Object.keys(d).length > 0) atomos.push({ id: nuevoId(), tipo: "campos", campos: d });
+  };
+  const quitarServicios = (predicado: (label: string) => boolean) => {
+    for (const s of estado.servicios) {
+      if (s.included && predicado(s.label)) atomos.push({ id: nuevoId(), tipo: "servicio", servicio: { label: s.label, incluir: false } });
+    }
+  };
+
+  // Datos que definen qué lleva la propuesta: van primero para que lo demás use la modalidad y la logística nuevas.
+  if (modoNuevo && modoNuevo !== proposal.modality) {
+    campo("modality", modoNuevo);
+    // Al pasar a un evento con operación en sitio, la IA calcula el equipo con la tabla de aforo.
+    if (usaPresencial(modoNuevo) && !usaPresencial(proposal.modality) && conLogistica && aforoNuevo === null) aplicarDotacion();
+  }
+  if (typeof crudos.nombre === "string" && crudos.nombre.trim()) campo("event_name", crudos.nombre.trim().slice(0, 160));
+  if (typeof crudos.vendeBoletas === "boolean") {
+    campo("vende_boletas", crudos.vendeBoletas);
+    if (!crudos.vendeBoletas) quitarServicios(necesitaBoleteria);
+  }
+  if (typeof crudos.conLogistica === "boolean") {
+    if (usaPresencial(m)) {
+      campo("con_logistica", crudos.conLogistica);
+      if (crudos.conLogistica) {
+        if (aforoNuevo === null) aplicarDotacion();
+      } else {
+        // Sin logística de Ticketcode el evento igual necesita esos servicios (se muestran con cantidades, sin costo);
+        // lo único que se cobra es la capacitación al staff del organizador.
+        const cap = estado.servicios.find((s) => norm(s.label).includes("capacitacion al staff"));
+        if (cap && !cap.included) atomos.push({ id: nuevoId(), tipo: "servicio", servicio: { label: cap.label, incluir: true, cantidad: 1 } });
+      }
+    } else {
+      bloquear("con_logistica", "No aplica a una modalidad sin evento presencial");
+    }
+  }
+
   // Aforo: en una modalidad solo virtual, el aforo que se pide es el virtual.
-  const aforo = num(crudos.aforo, 1, 100000);
+  const aforo = aforoNuevo;
   if (aforo !== null) {
     if (usaPresencial(m)) {
       const campos: Record<string, ValorCampo> = { aforo };
@@ -182,12 +267,14 @@ export function validarCambios(
         tipo: "campos",
         campos: { salones_internos_aforos: aforos, qty_logistica_salones_internos: totalLogisticosSalones(aforos) },
       });
+      // Módulo de datos por salón: sin logística de Ticketcode queda en la propuesta con su cantidad, sin costo.
       const mod = estado.servicios.find((s) => s.label === SALONES_INTERNOS_SERVICE_LABEL);
-      if (mod && (aforos.length > 0 || mod.included)) {
+      const incluirModulo = aforos.length > 0;
+      if (mod && (incluirModulo || mod.included)) {
         atomos.push({
           id: nuevoId(),
           tipo: "servicio",
-          servicio: { label: mod.label, incluir: aforos.length > 0, ...(aforos.length > 0 ? { cantidad: aforos.length } : {}) },
+          servicio: { label: mod.label, incluir: incluirModulo, ...(incluirModulo ? { cantidad: aforos.length } : {}) },
         });
       }
     } else {
@@ -199,6 +286,8 @@ export function validarCambios(
     [crudos.productor, "qty_productor", 10],
     [crudos.supervisores, "qty_supervisor", 20],
     [crudos.logisticos, "qty_logistico", 100],
+    [crudos.computadores, "qty_computadores", 200],
+    [crudos.impresoras, "qty_impresoras", 200],
   ];
   for (const [raw, clave, max] of equipo) {
     const v = num(raw, 0, max);
@@ -209,6 +298,21 @@ export function validarCambios(
   if (typeof crudos.preacreditacionMedioDia === "boolean") {
     if (usaPresencial(m)) campo("preacreditacion_medio_dia", crudos.preacreditacionMedioDia);
     else bloquear("preacreditacion_medio_dia", "No aplica a una modalidad sin evento presencial");
+  }
+  // Pre-acreditación: no, día completo o medio día, y cuántos días (el módulo se cobra por día).
+  if (crudos.preacreditacion && typeof crudos.preacreditacion === "object") {
+    const pre = crudos.preacreditacion as { modo?: unknown; dias?: unknown };
+    const diasPre = num(pre.dias, 1, 10) ?? 1;
+    if (!usaPresencial(m)) {
+      bloquear("preacreditacion_medio_dia", "No aplica a una modalidad sin evento presencial");
+    } else if (pre.modo === "no") {
+      campo("preacreditacion_medio_dia", false);
+      quitarServicios((l) => norm(l).includes("pre acreditacion"));
+    } else if (pre.modo === "completo" || pre.modo === "medio") {
+      campo("preacreditacion_medio_dia", pre.modo === "medio");
+      const modulo = estado.servicios.find((x) => norm(x.label).includes("pre acreditacion"));
+      if (modulo) atomos.push({ id: nuevoId(), tipo: "servicio", servicio: { label: modulo.label, incluir: true, cantidad: diasPre } });
+    }
   }
 
   const rent = num(crudos.rentabilidadPct, 0, 100);
@@ -229,12 +333,66 @@ export function validarCambios(
   for (const nombre of lista(crudos.serviciosAgregar)) {
     const s = buscarServicio(nombre);
     if (!s) bloqueados.push({ etiqueta: String(nombre).slice(0, 80), motivo: "No está en el catálogo de esta modalidad" });
-    else if (!servicioAplica(s.label, m)) bloqueados.push({ etiqueta: s.label, motivo: "No aplica a esta modalidad" });
+    else if (!servicioDisponible(s.label, datosServicio)) bloqueados.push({ etiqueta: s.label, motivo: "No aplica a este evento (modalidad, logística o venta de boletas)" });
     else if (!s.included) atomos.push({ id: nuevoId(), tipo: "servicio", servicio: { label: s.label, incluir: true } });
   }
   for (const nombre of lista(crudos.serviciosQuitar)) {
     const s = buscarServicio(nombre);
     if (s?.included) atomos.push({ id: nuevoId(), tipo: "servicio", servicio: { label: s.label, incluir: false } });
+  }
+
+  // Visita preoperativa y extras de logística (camisetas, chalecos, agua, bloqueador, actividad de cierre).
+  const visita = num(crudos.visitaPreoperativaDias, 0, 10);
+  if (visita !== null) {
+    if (usaPresencial(m)) campo("visita_preoperativa_dias", visita);
+    else bloquear("visita_preoperativa_dias", "No aplica a una modalidad sin evento presencial");
+  }
+  if (crudos.extras && typeof crudos.extras === "object") {
+    const ex = crudos.extras as Record<string, unknown>;
+    const claves: [string, string][] = [
+      ["camisetas", "extra_camisetas_staff"],
+      ["chalecos", "extra_lavado_chalecos"],
+      ["agua", "extra_compra_agua"],
+      ["bloqueador", "extra_compra_bloqueador_solar"],
+      ["cierre", "extra_actividad_cierre"],
+    ];
+    for (const [k, columna] of claves) {
+      if (typeof ex[k] !== "boolean") continue;
+      if (usaPresencial(m)) campo(columna, ex[k] as boolean);
+      else bloquear(columna, "No aplica a una modalidad sin evento presencial");
+    }
+  }
+
+  // Cantidad de un servicio (los que se calculan solos con el aforo, o con la pre-acreditación o los salones, no se tocan aquí).
+  for (const it of lista(crudos.serviciosCantidad)) {
+    const o = it as { nombre?: unknown; cantidad?: unknown };
+    const s = buscarServicio(o?.nombre);
+    const c = num(o?.cantidad, 1, 100000);
+    if (!s || c === null) continue;
+    if (!servicioDisponible(s.label, datosServicio)) {
+      bloqueados.push({ etiqueta: s.label, motivo: "No aplica a este evento" });
+    } else if (computedServiceQuantity(s.label, proposal) !== null) {
+      bloqueados.push({ etiqueta: s.label, motivo: "Su cantidad se calcula sola con el aforo y los días" });
+    } else if (norm(s.label).includes("pre acreditacion") || s.label === SALONES_INTERNOS_SERVICE_LABEL) {
+      bloqueados.push({ etiqueta: s.label, motivo: "Su cantidad sale de los días de pre-acreditación o de los salones internos" });
+    } else {
+      atomos.push({ id: nuevoId(), tipo: "servicio", servicio: { label: s.label, incluir: true, cantidad: c } });
+    }
+  }
+
+  // Título y alcance (descripción) con los que aparece cada servicio en la propuesta y la presentación.
+  for (const it of lista(crudos.textosServicios)) {
+    const o = it as { nombre?: unknown; titulo?: unknown; descripcion?: unknown };
+    const s = buscarServicio(o?.nombre);
+    if (!s) continue;
+    const titulo = typeof o.titulo === "string" ? o.titulo.trim().slice(0, 120) : undefined;
+    const descripcion = typeof o.descripcion === "string" ? o.descripcion.trim().slice(0, 800) : undefined;
+    if (titulo === undefined && descripcion === undefined) continue;
+    atomos.push({
+      id: nuevoId(),
+      tipo: "textoServicio",
+      texto: { label: s.label, ...(titulo !== undefined ? { titulo: titulo || null } : {}), ...(descripcion !== undefined ? { descripcion: descripcion || null } : {}) },
+    });
   }
 
   // Láminas de la presentación.
@@ -276,10 +434,16 @@ export function validarAtomo(atomo: Atomo, estado: EstadoPropuesta): string | nu
   if (atomo.tipo === "servicio") {
     const s = estado.servicios.find((x) => x.label === atomo.servicio?.label);
     if (!s) return "Servicio no disponible en esta propuesta";
-    if (atomo.servicio?.incluir && !s.included && !servicioAplica(s.label, m)) return "Ese servicio no aplica a esta modalidad";
+    if (atomo.servicio?.incluir && !s.included && !servicioDisponible(s.label, estado.proposal)) return "Ese servicio no aplica a este evento";
     const c = atomo.servicio?.cantidad;
     if (c !== undefined && !(Number.isInteger(c) && c >= 0 && c <= 100000)) return "Cantidad fuera de rango";
     return null;
+  }
+  if (atomo.tipo === "textoServicio") {
+    const t = atomo.texto;
+    if (!t || !estado.servicios.some((x) => x.label === t.label)) return "Servicio no disponible en esta propuesta";
+    if ((t.titulo ?? "").length > 120 || (t.descripcion ?? "").length > 800) return "Texto demasiado largo";
+    return t.titulo === undefined && t.descripcion === undefined ? "Cambio vacío" : null;
   }
   if (atomo.tipo === "lamina") {
     return HIDEABLE_SLIDE_GROUPS.some((g) => g.key === atomo.lamina?.key) ? null : "Lámina desconocida";
@@ -289,6 +453,16 @@ export function validarAtomo(atomo: Atomo, estado: EstadoPropuesta): string | nu
 
 const esNum = (min: number, max: number) => (v: ValorCampo) => typeof v === "number" && Number.isFinite(v) && v >= min && v <= max;
 const REGLAS_CAMPO: Record<string, { valida: (v: ValorCampo) => boolean; presencial?: boolean }> = {
+  event_name: { valida: (v) => typeof v === "string" && v.length > 0 && v.length <= 160 },
+  visita_preoperativa_dias: { valida: esNum(0, 10), presencial: true },
+  extra_camisetas_staff: { valida: (v) => typeof v === "boolean", presencial: true },
+  extra_lavado_chalecos: { valida: (v) => typeof v === "boolean", presencial: true },
+  extra_compra_agua: { valida: (v) => typeof v === "boolean", presencial: true },
+  extra_compra_bloqueador_solar: { valida: (v) => typeof v === "boolean", presencial: true },
+  extra_actividad_cierre: { valida: (v) => typeof v === "boolean", presencial: true },
+  modality: { valida: (v) => v === "presencial" || v === "virtual" || v === "hibrido" || v === "mundo_virtual" },
+  vende_boletas: { valida: (v) => typeof v === "boolean" },
+  con_logistica: { valida: (v) => typeof v === "boolean", presencial: true },
   salones_internos_aforos: {
     valida: (v) => Array.isArray(v) && v.length <= 20 && v.every((x) => Number.isInteger(x) && x >= 1 && x <= 100000),
     presencial: true,
@@ -327,6 +501,17 @@ export function aplicarEnMemoria(estado: EstadoPropuesta, atomo: Atomo): EstadoP
       ),
     };
   }
+  if (atomo.tipo === "textoServicio" && atomo.texto) {
+    const t = atomo.texto;
+    return {
+      ...estado,
+      servicios: estado.servicios.map((s) =>
+        s.label === t.label
+          ? { ...s, ...(t.titulo !== undefined ? { custom_name: t.titulo } : {}), ...(t.descripcion !== undefined ? { custom_description: t.descripcion } : {}) }
+          : s
+      ),
+    };
+  }
   if (atomo.tipo === "lamina" && atomo.lamina) {
     const { key, ocultar } = atomo.lamina;
     const sin = estado.ocultas.filter((k) => k !== key);
@@ -341,7 +526,15 @@ export function valoresAntes(estado: EstadoPropuesta, atomo: Atomo): Atomo {
     const antes: Record<string, ValorCampo> = {};
     for (const k of Object.keys(atomo.campos ?? {})) {
       const v = (estado.proposal as unknown as Record<string, ValorCampo | null>)[k];
-      antes[k] = v ?? (k === "salones_internos_aforos" ? [] : ["city", "lugar", "event_start_date", "event_end_date"].includes(k) ? null : 0);
+      antes[k] =
+        v ??
+        (k === "salones_internos_aforos"
+          ? []
+          : ["city", "lugar", "event_start_date", "event_end_date"].includes(k)
+            ? null
+            : k === "con_logistica" || k === "vende_boletas"
+              ? true
+              : 0);
     }
     return { ...atomo, id: nuevoId(), campos: antes };
   }
@@ -351,6 +544,18 @@ export function valoresAntes(estado: EstadoPropuesta, atomo: Atomo): Atomo {
       ...atomo,
       id: nuevoId(),
       servicio: { label: atomo.servicio.label, incluir: !!s?.included, ...(atomo.servicio.cantidad !== undefined ? { cantidad: Number(s?.quantity ?? 0) } : {}) },
+    };
+  }
+  if (atomo.tipo === "textoServicio" && atomo.texto) {
+    const s = estado.servicios.find((x) => x.label === atomo.texto!.label);
+    return {
+      ...atomo,
+      id: nuevoId(),
+      texto: {
+        label: atomo.texto.label,
+        ...(atomo.texto.titulo !== undefined ? { titulo: s?.custom_name ?? null } : {}),
+        ...(atomo.texto.descripcion !== undefined ? { descripcion: s?.custom_description ?? null } : {}),
+      },
     };
   }
   if (atomo.tipo === "lamina" && atomo.lamina) {
@@ -374,6 +579,16 @@ export function etiquetaAtomo(estado: EstadoPropuesta, atomo: Atomo): string {
     if (s?.included && atomo.servicio.incluir && c !== undefined) return `${atomo.servicio.label}: cantidad ${Number(s.quantity)} → ${c}`;
     return `${atomo.servicio.incluir ? "Agregar" : "Quitar"} servicio: ${atomo.servicio.label}${c !== undefined && atomo.servicio.incluir ? ` × ${c}` : ""}`;
   }
+  if (atomo.tipo === "textoServicio" && atomo.texto) {
+    const t = atomo.texto;
+    const s = estado.servicios.find((x) => x.label === t.label);
+    const partes = [
+      t.titulo !== undefined ? `título «${t.titulo ?? s?.label ?? ""}»` : null,
+      t.descripcion !== undefined ? "alcance actualizado" : null,
+    ].filter(Boolean);
+    const igual = (t.titulo === undefined || (t.titulo ?? "") === (s?.custom_name ?? "")) && (t.descripcion === undefined || (t.descripcion ?? "") === (s?.custom_description ?? ""));
+    return igual ? "" : `Texto de «${s?.label ?? t.label}»: ${partes.join(" y ")}`;
+  }
   if (atomo.tipo === "lamina" && atomo.lamina) {
     const g = HIDEABLE_SLIDE_GROUPS.find((x) => x.key === atomo.lamina!.key);
     return `${atomo.lamina.ocultar ? "Ocultar" : "Mostrar"} lámina: ${g?.label ?? atomo.lamina.key}`;
@@ -382,19 +597,17 @@ export function etiquetaAtomo(estado: EstadoPropuesta, atomo: Atomo): string {
 }
 
 /** Preguntas del Diagnóstico guiado a las que corresponde cada pregunta. */
-export const PREGUNTAS_DIAGNOSTICO = [
-  "aforo", "aforoVirtual", "dias", "ciudad", "productor", "supervisores", "logisticos", "puntos", "pre", "cred", "extrasCred",
-] as const;
+export const PREGUNTAS_DIAGNOSTICO = ["evento", "equipo", "puntos", "pre", "cred"] as const;
 export type PreguntaDiagnostico = (typeof PREGUNTAS_DIAGNOSTICO)[number];
 
 const CAMPO_A_PREGUNTA: Record<string, PreguntaDiagnostico> = {
-  aforo: "aforo",
-  aforo_virtual: "aforoVirtual",
-  dias: "dias",
-  city: "ciudad",
-  qty_productor: "productor",
-  qty_supervisor: "supervisores",
-  qty_logistico: "logisticos",
+  aforo: "evento",
+  aforo_virtual: "evento",
+  dias: "evento",
+  city: "evento",
+  qty_productor: "equipo",
+  qty_supervisor: "equipo",
+  qty_logistico: "equipo",
   preacreditacion_medio_dia: "pre",
 };
 const SERVICIO_A_PREGUNTA: [string, PreguntaDiagnostico][] = [
@@ -402,11 +615,9 @@ const SERVICIO_A_PREGUNTA: [string, PreguntaDiagnostico][] = [
   ["venta de boleteria en sitio", "puntos"],
   ["manillas", "cred"],
   ["escarapelas fisicas", "cred"],
-  ["branding", "extrasCred"],
-  ["labels de seguridad", "extrasCred"],
 ];
 
-/** A qué preguntas del diagnóstico responde un cambio (para marcarlas como contestadas por Claude). */
+/** A qué preguntas del diagnóstico responde un cambio (para marcarlas como contestadas por NOVA). */
 export function preguntasDeAtomo(atomo: Atomo): PreguntaDiagnostico[] {
   const out = new Set<PreguntaDiagnostico>();
   if (atomo.tipo === "campos") {

@@ -5,12 +5,13 @@ import { buildLogisticsRates, staffingForAforo } from "@/lib/pricing/logistics";
 import { computeTarifarioSummary } from "@/lib/pricing/summary";
 import { computedServiceQuantity } from "@/lib/pricing/service-quantity";
 import { getValidServiceCostItems } from "@/lib/data/service-items";
+import { armarResumen, conCantidadesCalculadas } from "@/lib/data/resumen-precio";
+import { faltantesDiagnostico } from "@/lib/data/faltantes";
+import { controladoPorPregunta, necesitaLogistica, servicioDisponible } from "@/lib/data/servicios-alcance";
 import { TarifarioEditor } from "./tarifario-editor";
 import { DiagnosticoGuiado, type DatosGuiado } from "./diagnostico-guiado";
 import { VistaDiagnostico } from "./vista-diagnostico";
 import { notaServicio } from "./nota-servicio";
-import { controladoPorPregunta, servicioAplica } from "@/lib/data/servicios-alcance";
-import type { EstadoPregunta } from "./guiado-actions";
 
 // Evita que Next cachee las consultas a Supabase entre requests — sin esto,
 // un cambio en el Catálogo de precios podía no reflejarse aquí hasta que
@@ -58,42 +59,35 @@ export default async function TarifarioPage({
   );
 
   const p = proposal as Proposal;
-  const incluido = (frase: string) =>
-    serviceItems.find((i) => i.included && i.label.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").includes(frase));
-  const pre = incluido("pre acreditacion");
-  const summary = computeTarifarioSummary(
-    p,
-    logisticsRates,
-    serviceItems.map((i) => ({ ...i, quantity: computedServiceQuantity(i.label, p) ?? i.quantity })),
-    honorariosProductorScale ?? []
+  const pre = serviceItems.find(
+    (i) => i.included && i.label.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").includes("pre acreditacion")
   );
+  const summary = computeTarifarioSummary(p, logisticsRates, conCantidadesCalculadas(serviceItems, p), honorariosProductorScale ?? []);
   const tabla = staffingForAforo(Number(p.aforo ?? 0), aforoScales ?? []);
-  const diagEstado = ((proposal as { diagnostico_estado?: Record<string, unknown> }).diagnostico_estado ?? {}) as Record<string, unknown>;
+  const preDias = pre ? Number(pre.quantity) : 0;
+
   const datos: DatosGuiado = {
     proposalId: id,
     eventName: p.event_name,
     modality: p.modality,
+    dias: Number(p.dias),
+    vendeBoletas: p.vende_boletas !== false,
+    conLogistica: p.con_logistica !== false,
+    city: p.city ?? "",
     aforo: Number(p.aforo ?? 0),
     aforoVirtual: Number(p.aforo_virtual ?? 0),
-    dias: Number(p.dias),
-    city: p.city ?? "",
+    salones: (p.salones_internos_aforos ?? []).map(Number),
+    preModo: preDias > 0 ? (p.preacreditacion_medio_dia ? "medio" : "completo") : "no",
+    preDias,
     productor: Number(p.qty_productor),
     supervisores: Number(p.qty_supervisor),
     logisticos: Number(p.qty_logistico),
-    preMedioDia: p.preacreditacion_medio_dia,
-    preDias: pre ? Number(pre.quantity) : 0,
-    puntos: Number(incluido("venta de boleteria en sitio")?.quantity ?? 0),
-    manillas: !!incluido("manillas"),
-    escarapelas: !!incluido("escarapelas fisicas"),
-    branding: !!incluido("branding"),
-    labels: !!incluido("labels de seguridad"),
-    tabla: tabla ? { logistico: tabla.logistico, supervisor: tabla.supervisor, productor: tabla.productor } : null,
-    estado: Object.fromEntries(
-      Object.entries(diagEstado).filter(([k, v]) => !k.startsWith("_") && typeof v === "string")
-    ) as Record<string, EstadoPregunta>,
-    serviciosPorConfirmar: (Array.isArray(diagEstado._servicios) ? (diagEstado._servicios as string[]) : []).filter(
-      (l) => !!serviceItems.find((i) => i.label === l && !i.included)
-    ),
+    computadores: Number(p.qty_computadores),
+    impresoras: Number(p.qty_impresoras),
+    tabla: tabla
+      ? { logistico: tabla.logistico, supervisor: tabla.supervisor, productor: tabla.productor, computadores: tabla.computadores, impresoras: tabla.impresoras }
+      : null,
+    faltantes: faltantesDiagnostico(p),
     logistica: {
       rubros: [
         ["Honorarios", summary.logistica.lineItems.honorarios, summary.logistica.honorarios],
@@ -117,29 +111,18 @@ export default async function TarifarioPage({
       imprevistos: summary.logistica.totalCostoLogisticaConImprevistos - summary.logistica.subTotalCostoLogistica,
       total: summary.logistica.totalCostoLogisticaConImprevistos,
     },
-    resumen: {
-      logistica: summary.logistica.totalCostoLogisticaConImprevistos,
-      servicios: summary.subtotalServicios,
-      totalCosto: summary.totalCosto,
-      rentabilidadPct: Number(p.rentabilidad_pct),
-      rentabilidad: summary.rentabilidad,
-      comisionesPct: Number(p.comision_director_pct) + Number(p.comision_asesor_pct),
-      comisiones: summary.costoDirectorComercial + summary.costoAsesorComercial,
-      valorFinal: summary.valorPropuestaFinal,
-      iva: summary.iva,
-      ivaRate: summary.ivaRate,
-      total: summary.valorPropuestaFinal + summary.iva,
-    },
+    resumen: armarResumen(summary, p),
     servicios: serviceItems
-      // Lo ya incluido se muestra siempre (cuesta); lo disponible, solo si aplica a la modalidad y no se define por pregunta.
-      .filter((i) => i.included || (servicioAplica(i.label, p.modality) && !controladoPorPregunta(i.label)))
+      // Lo ya incluido se muestra siempre (cuesta); lo disponible, solo si aplica a este evento y no se define con la pre-acreditación.
+      .filter((i) => i.included || (servicioDisponible(i.label, p) && !controladoPorPregunta(i.label)))
       .map((i) => ({
-      label: i.label,
-      incluido: !!i.included,
-      precio: Number(i.unit_cost),
-      cantidad: computedServiceQuantity(i.label, p) ?? Number(i.quantity),
-      ...notaServicio(i.label, p),
-    })),
+        label: i.label,
+        incluido: !!i.included,
+        precio: Number(i.unit_cost),
+        cantidad: computedServiceQuantity(i.label, p) ?? Number(i.quantity),
+        ...notaServicio(i.label, p),
+        sinCosto: p.con_logistica === false && necesitaLogistica(i.label),
+      })),
   };
 
   return (

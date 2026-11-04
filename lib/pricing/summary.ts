@@ -1,4 +1,5 @@
 import type { Proposal, ProposalCostItem } from "@/lib/types";
+import { necesitaLogistica } from "@/lib/data/servicios-alcance";
 import {
   computeLogisticsBreakdown,
   PREACREDITACION_SERVICE_LABEL,
@@ -63,6 +64,7 @@ export function computeTarifarioSummary(
       qtyRollosLabels: Number(proposal.qty_rollos_labels),
       preacreditacionDias: preacreditacion ? Number(preacreditacion.quantity) : 0,
       preacreditacionMedioDia: proposal.preacreditacion_medio_dia,
+      sinLogistica: proposal.con_logistica === false,
       extraCamisetasStaff: proposal.extra_camisetas_staff,
       extraLavadoChalecos: proposal.extra_lavado_chalecos,
       extraCompraAgua: proposal.extra_compra_agua,
@@ -74,9 +76,12 @@ export function computeTarifarioSummary(
     honorariosProductorScale
   );
 
+  // Sin logística de Ticketcode, los servicios de logística (pre-acreditación, credenciales, etc.) siguen en la propuesta
+  // con sus cantidades para que el organizador sepa qué debe poner, pero no se cobran. La capacitación al staff sí.
+  const sinCobro = (label: string) => proposal.con_logistica === false && necesitaLogistica(label);
   const subtotalServicios = serviceItems
     .filter((item) => item.included)
-    .reduce((sum, item) => sum + item.quantity * item.unit_cost, 0);
+    .reduce((sum, item) => sum + (sinCobro(item.label) ? 0 : item.quantity * item.unit_cost), 0);
 
   const totalCosto = logistica.totalCostoLogisticaConImprevistos + subtotalServicios;
   const rentabilidad = totalCosto * Number(proposal.rentabilidad_pct);

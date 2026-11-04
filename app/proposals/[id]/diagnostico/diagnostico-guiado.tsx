@@ -2,420 +2,361 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { LogisticaDetalle, NotasDiagnostico, ServiciosPropuestos, type DetalleLogistica } from "./extras-diagnostico";
+import { totalLogisticosSalones } from "@/lib/pricing/logistics";
+import type { CambiosCrudos } from "@/lib/ai/cambios";
+import { LogisticaDetalle, NotasDiagnostico, type DetalleLogistica } from "./extras-diagnostico";
 import { ResumenPrecioCard, type ResumenPrecio } from "./resumen-y-servicios";
 import { ServiciosPersonalizados, type ServicioDiag } from "./servicios-diagnostico";
 import { PedirCambioButton } from "../asistente/asistente-panel";
-import { confirmarPregunta, responderPregunta, type EstadoPregunta, type Respuesta } from "./guiado-actions";
+import { guardarDatos } from "./guiado-actions";
+
+type Modalidad = "presencial" | "virtual" | "hibrido" | "mundo_virtual";
 
 export interface DatosGuiado {
   proposalId: string;
   eventName: string;
-  modality: "presencial" | "virtual" | "hibrido" | "mundo_virtual";
+  modality: Modalidad;
+  dias: number;
+  vendeBoletas: boolean;
+  conLogistica: boolean;
+  city: string;
   aforo: number;
   aforoVirtual: number;
-  dias: number;
-  city: string;
+  salones: number[];
+  preModo: "no" | "completo" | "medio";
+  preDias: number;
   productor: number;
   supervisores: number;
   logisticos: number;
-  preMedioDia: boolean;
-  preDias: number; // 0 = sin pre-acreditación
-  puntos: number;
-  manillas: boolean;
-  escarapelas: boolean;
-  branding: boolean;
-  labels: boolean;
+  computadores: number;
+  impresoras: number;
   /** Lo que propone la tabla de aforo, como pista. */
-  tabla: { logistico: number; supervisor: number; productor: number } | null;
-  estado: Record<string, EstadoPregunta>;
+  tabla: { logistico: number; supervisor: number; productor: number; computadores: number; impresoras: number } | null;
+  /** Datos que faltan para que el valor sea completo (aforo, ciudad…). */
+  faltantes: string[];
   resumen: ResumenPrecio;
-  serviciosPorConfirmar: string[];
   logistica: DetalleLogistica;
   servicios: ServicioDiag[];
 }
 
-type Id = "preDias" | "aforo" | "aforoVirtual" | "dias" | "ciudad" | "productor" | "supervisores" | "logisticos" | "puntos" | "pre" | "cred" | "extrasCred";
+const chip = (on: boolean) =>
+  `min-h-10 rounded-pill border px-4 text-sm font-semibold disabled:opacity-60 ${on ? "border-accent bg-accent text-accent-ink" : "border-border bg-surface text-ink hover:bg-surface2"}`;
+const campo = "min-h-10 w-full rounded-pill border border-border bg-input-bg px-4 text-sm text-ink";
+const etiqueta = "block space-y-1.5 text-xs font-semibold text-muted";
 
-interface Pregunta {
-  id: Id;
-  texto: string;
-  resumen: string;
-}
+const MODALIDADES: [Modalidad, string][] = [
+  ["presencial", "Presencial"],
+  ["virtual", "Virtual"],
+  ["hibrido", "Híbrido"],
+];
 
-function preguntas(d: DatosGuiado): Pregunta[] {
-  const pres = d.modality === "presencial" || d.modality === "hibrido";
-  const virt = d.modality !== "presencial";
-  const n = (x: number) => x.toLocaleString("es-CO");
-  const Q: Pregunta[] = [];
-  if (pres) Q.push({ id: "aforo", texto: "¿Cuál es el aforo presencial que confirma el organizador?", resumen: `${n(d.aforo)} personas` });
-  if (virt) Q.push({ id: "aforoVirtual", texto: "¿Cuántos asistentes virtuales espera?", resumen: `${n(d.aforoVirtual)} personas` });
-  Q.push({ id: "dias", texto: "¿Cuántos días dura el evento?", resumen: `${d.dias} día(s)` });
-  if (pres) {
-    Q.push({ id: "ciudad", texto: "¿En qué ciudad es?", resumen: d.city || "—" });
-    Q.push({ id: "productor", texto: "¿El evento lleva productor de Ticketcode?", resumen: d.productor > 0 ? `Sí, ${d.productor}` : "Sin productor, solo supervisores" });
-    Q.push({ id: "supervisores", texto: "¿Cuántos supervisores?", resumen: `${d.supervisores} supervisor(es)` });
-    Q.push({ id: "logisticos", texto: "¿Cuántos logísticos en total?", resumen: `${d.logisticos} logístico(s)` });
-    Q.push({ id: "puntos", texto: "¿Cuántos puntos de venta de boletería en sitio necesita?", resumen: d.puntos > 0 ? `${d.puntos} punto(s) de venta` : "Sin venta en sitio" });
-    Q.push({
-      id: "pre",
-      texto: "¿Habrá pre-acreditación?",
-      resumen: d.preDias > 0 ? `${d.preMedioDia ? "Medio día" : "Día completo"} × ${d.preDias} día(s)` : "Sin pre-acreditación",
-    });
-    Q.push({
-      id: "cred",
-      texto: "¿Qué credenciales necesita?",
-      resumen: d.manillas && d.escarapelas ? "Manillas y escarapelas" : d.manillas ? "Manillas" : d.escarapelas ? "Escarapelas físicas" : "Ninguna",
-    });
-    Q.push({
-      id: "extrasCred",
-      texto: "¿Branding de aliados en la credencial o labels de seguridad para proteger equipos?",
-      resumen: [d.branding && "Branding de aliados", d.labels && "Labels de seguridad"].filter(Boolean).join(" y ") || "Ninguno",
-    });
-  }
-  return Q;
-}
-
-const chipBase = "min-h-10 rounded-pill border px-4 text-sm font-semibold";
-const chip = (on: boolean) => `${chipBase} ${on ? "border-accent bg-accent text-accent-ink" : "border-border bg-surface text-ink hover:bg-surface2"}`;
-
-function BtnConfirmar({ onClick, pendiente, children = "Confirmar" }: { onClick: () => void; pendiente: boolean; children?: string }) {
-  return (
-    <button type="button" disabled={pendiente} onClick={onClick} className="min-h-10 rounded-pill bg-accent px-5 text-sm font-bold text-accent-ink disabled:opacity-50">
-      {pendiente ? "Guardando…" : children}
-    </button>
-  );
-}
-function BtnNoAplica({ onClick, pendiente }: { onClick: () => void; pendiente: boolean }) {
-  return (
-    <button type="button" disabled={pendiente} onClick={onClick} className={chip(false)}>
-      No aplica
-    </button>
-  );
+/** Texto "2.000, 500, 500" → [2000, 500, 500]. */
+function leerAforos(texto: string): number[] {
+  return texto
+    .split(/[,;\s]+/)
+    .map((x) => Number(x.replace(/\./g, "")))
+    .filter((x) => Number.isFinite(x) && x > 0);
 }
 
 export function DiagnosticoGuiado({ datos }: { datos: DatosGuiado }) {
   const router = useRouter();
   const [pendiente, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
-  const [abierta, setAbierta] = useState<Id | null>(null);
-  const [borrador, setBorrador] = useState<Record<string, string>>({});
-  const [preModo, setPreModo] = useState<"no" | "completo" | "medio" | null>(null);
+  const [guardado, setGuardado] = useState(false);
+  const [b, setB] = useState<Record<string, string>>({});
 
-  const Q = preguntas(datos);
-  const estadoDe = (id: Id): EstadoPregunta | "pendiente" => datos.estado[id] ?? "pendiente";
-  const primeraPendiente = Q.find((q) => estadoDe(q.id) === "pendiente")?.id ?? null;
-  const confirmadas = Q.filter((q) => estadoDe(q.id) !== "pendiente").length;
-  const activa = abierta ?? primeraPendiente;
+  const pres = datos.modality === "presencial" || datos.modality === "hibrido";
+  const virt = datos.modality !== "presencial";
+  const conLog = pres && datos.conLogistica;
 
-  function enviar(r: Respuesta, noAplica = false) {
+  /** Guarda al instante: lo que se ve en pantalla es lo que queda. */
+  function guardar(crudos: CambiosCrudos) {
     setError(null);
+    setGuardado(false);
     start(async () => {
-      const res = await responderPregunta(datos.proposalId, r, noAplica);
-      if (res.error) {
-        setError(res.error);
+      const r = await guardarDatos(datos.proposalId, crudos);
+      if (r.error) {
+        setError(r.error);
         return;
       }
-      setAbierta(null);
-      setBorrador({});
-      setPreModo(null);
+      setB({});
+      setGuardado(true);
       router.refresh();
     });
   }
 
-  const num = (id: string, fallback: number | "") => (borrador[id] ?? (fallback === "" ? "" : String(fallback)));
-  const setNum = (id: string, v: string) => setBorrador((b) => ({ ...b, [id]: v }));
-  const paso = (id: string, base: number, d: number, min: number, max: number) => {
-    const actual = Number(borrador[id] ?? base) || 0;
-    setNum(id, String(Math.min(max, Math.max(min, actual + d))));
-  };
+  const val = (k: string, actual: string | number) => (k in b ? b[k] : String(actual));
+  const set = (k: string, v: string) => setB((x) => ({ ...x, [k]: v }));
+  /** Descarta lo que se estaba escribiendo y vuelve al valor guardado. */
+  const limpiar = (k: string) =>
+    setB((x) => {
+      const c = { ...x };
+      delete c[k];
+      return c;
+    });
+  const num = (k: string, actual: number, min: number, max: number, aCrudos: (n: number) => CambiosCrudos) => ({
+    value: val(k, actual === 0 && k !== "dias" ? "0" : actual),
+    onChange: (e: React.ChangeEvent<HTMLInputElement>) => set(k, e.target.value),
+    onBlur: () => {
+      const v = b[k];
+      if (v === undefined || v === "") return limpiar(k);
+      const n = Number(v);
+      if (!Number.isFinite(n) || n < min || n > max) return setError(`Escribe un número entre ${min} y ${max}.`);
+      if (n !== actual) guardar(aCrudos(n));
+      else limpiar(k);
+    },
+    onKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => e.key === "Enter" && (e.target as HTMLInputElement).blur(),
+    type: "number" as const,
+    min,
+    max,
+  });
 
-  const contador = ({ id, base, min, max, hint }: { id: Id; base: number | ""; min: number; max: number; hint?: string }) => (
-    <div className="flex flex-wrap items-center gap-2">
-      <button type="button" className={chip(false)} onClick={() => paso(id, Number(base) || 0, -1, min, max)} aria-label="Menos">
-        −
-      </button>
-      <input
-        type="number"
-        min={min}
-        max={max}
-        value={num(id, base)}
-        onChange={(e) => setNum(id, e.target.value)}
-        placeholder="—"
-        aria-label="Valor"
-        className="min-h-10 w-28 rounded-pill border border-border bg-input-bg px-4 text-center text-sm text-ink"
-      />
-      <button type="button" className={chip(false)} onClick={() => paso(id, Number(base) || 0, 1, min, max)} aria-label="Más">
-        +
-      </button>
-      {hint && <span className="text-xs text-muted">{hint}</span>}
-    </div>
-  );
-
-  function confirmarNumero(id: "aforo" | "aforoVirtual" | "dias" | "productor" | "supervisores" | "logisticos" | "puntos", min: number, max: number, noAplica = false) {
-    const v = noAplica ? 0 : Number(borrador[id]);
-    if (!noAplica && (borrador[id] === undefined || borrador[id] === "" || !Number.isFinite(v) || v < min || v > max)) {
-      setError(`Escribe un número entre ${min} y ${max}.`);
-      return;
-    }
-    enviar({ id, valor: v }, noAplica);
-  }
-
-  function controles(q: Pregunta) {
-    const id = q.id;
-    const sinResponder = estadoDe(id) === "pendiente";
-    switch (id) {
-      case "aforo":
-        return (
-          <div className="space-y-3">
-            {contador({ id: "aforo", base: sinResponder ? "" : datos.aforo, min: 1, max: 100000, hint: "Al confirmar se recalcula la dotación según la tabla de aforo." })}
-            <BtnConfirmar pendiente={pendiente} onClick={() => confirmarNumero("aforo", 1, 100000)} />
-          </div>
-        );
-      case "aforoVirtual":
-        return (
-          <div className="space-y-3">
-            {contador({ id: "aforoVirtual", base: sinResponder ? "" : datos.aforoVirtual, min: 1, max: 100000 })}
-            <BtnConfirmar pendiente={pendiente} onClick={() => confirmarNumero("aforoVirtual", 1, 100000)} />
-          </div>
-        );
-      case "dias":
-        return (
-          <div className="space-y-3">
-            {contador({ id: "dias", base: sinResponder ? "" : datos.dias, min: 1, max: 30 })}
-            <BtnConfirmar pendiente={pendiente} onClick={() => confirmarNumero("dias", 1, 30)} />
-          </div>
-        );
-      case "ciudad":
-        return (
-          <div className="space-y-3">
-            <div className="flex flex-wrap gap-2">
-              <button type="button" className={chip(!sinResponder && /^bogot/i.test(datos.city))} disabled={pendiente} onClick={() => enviar({ id: "ciudad", valor: "Bogotá" })}>
-                Bogotá
-              </button>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <input
-                value={borrador.ciudad ?? (sinResponder || /^bogot/i.test(datos.city) ? "" : datos.city)}
-                onChange={(e) => setBorrador((b) => ({ ...b, ciudad: e.target.value }))}
-                placeholder="Otra ciudad"
-                aria-label="Ciudad"
-                className="min-h-10 w-56 rounded-pill border border-border bg-input-bg px-4 text-sm text-ink"
-              />
-              <BtnConfirmar pendiente={pendiente} onClick={() => (borrador.ciudad?.trim() ? enviar({ id: "ciudad", valor: borrador.ciudad.trim() }) : setError("Escribe la ciudad."))} />
-            </div>
-          </div>
-        );
-      case "productor":
-        return (
-          <div className="flex flex-wrap gap-2">
-            <button type="button" disabled={pendiente} className={chip(!sinResponder && datos.productor > 0)} onClick={() => enviar({ id: "productor", valor: 1 })}>
-              Sí, lleva productor
-            </button>
-            <button type="button" disabled={pendiente} className={chip(!sinResponder && datos.productor === 0)} onClick={() => enviar({ id: "productor", valor: 0 })}>
-              No, solo supervisores
-            </button>
-          </div>
-        );
-      case "supervisores":
-        return (
-          <div className="space-y-3">
-            {contador({ id: "supervisores", base: sinResponder ? "" : datos.supervisores, min: 0, max: 20, hint: datos.tabla ? `La tabla de aforo propone ${datos.tabla.supervisor}.` : undefined })}
-            <div className="flex flex-wrap gap-2">
-              <BtnConfirmar pendiente={pendiente} onClick={() => confirmarNumero("supervisores", 0, 20)} />
-              <BtnNoAplica pendiente={pendiente} onClick={() => confirmarNumero("supervisores", 0, 20, true)} />
-            </div>
-          </div>
-        );
-      case "logisticos":
-        return (
-          <div className="space-y-3">
-            {contador({ id: "logisticos", base: sinResponder ? "" : datos.logisticos, min: 0, max: 100, hint: datos.tabla ? `La tabla de aforo propone ${datos.tabla.logistico}.` : undefined })}
-            <BtnConfirmar pendiente={pendiente} onClick={() => confirmarNumero("logisticos", 0, 100)} />
-          </div>
-        );
-      case "puntos":
-        return (
-          <div className="space-y-3">
-            {contador({ id: "puntos", base: sinResponder ? "" : datos.puntos, min: 0, max: 20 })}
-            <div className="flex flex-wrap gap-2">
-              <BtnConfirmar pendiente={pendiente} onClick={() => confirmarNumero("puntos", 0, 20)} />
-              <BtnNoAplica pendiente={pendiente} onClick={() => confirmarNumero("puntos", 0, 20, true)} />
-            </div>
-          </div>
-        );
-      case "pre": {
-        const modoActual = preModo ?? (sinResponder ? null : datos.preDias === 0 ? "no" : datos.preMedioDia ? "medio" : "completo");
-        return (
-          <div className="space-y-3">
-            <div className="flex flex-wrap gap-2">
-              {(
-                [
-                  ["no", "No"],
-                  ["completo", "Día completo"],
-                  ["medio", "Medio día"],
-                ] as const
-              ).map(([v, l]) => (
-                <button key={v} type="button" disabled={pendiente} className={chip(modoActual === v)} onClick={() => (v === "no" ? enviar({ id: "pre", modo: "no", dias: 0 }) : setPreModo(v))}>
-                  {l}
-                </button>
-              ))}
-            </div>
-            {modoActual && modoActual !== "no" && (
-              <div className="space-y-3">
-                <p className="text-sm text-ink">¿Cuántos días?</p>
-                {contador({ id: "preDias", base: datos.preDias || 1, min: 1, max: 10, hint: "Va con la mitad de los logísticos del evento, hacia arriba." })}
-                <BtnConfirmar pendiente={pendiente} onClick={() => enviar({ id: "pre", modo: modoActual, dias: Number(borrador.preDias ?? (datos.preDias || 1)) })} />
-              </div>
-            )}
-          </div>
-        );
-      }
-      case "cred":
-        return (
-          <div className="flex flex-wrap gap-2">
-            {(
-              [
-                ["ninguna", "Ninguna", !datos.manillas && !datos.escarapelas],
-                ["manillas", "Manillas", datos.manillas && !datos.escarapelas],
-                ["escarapelas", "Escarapelas físicas", !datos.manillas && datos.escarapelas],
-                ["ambas", "Ambas", datos.manillas && datos.escarapelas],
-              ] as const
-            ).map(([v, l, on]) => (
-              <button key={v} type="button" disabled={pendiente} className={chip(!sinResponder && on)} onClick={() => enviar({ id: "cred", valor: v })}>
-                {l}
-              </button>
-            ))}
-          </div>
-        );
-      case "extrasCred": {
-        const b = borrador.branding !== undefined ? borrador.branding === "1" : !sinResponder && datos.branding;
-        const l = borrador.labels !== undefined ? borrador.labels === "1" : !sinResponder && datos.labels;
-        return (
-          <div className="space-y-3">
-            <div className="flex flex-wrap gap-2">
-              <button type="button" className={chip(b)} onClick={() => setBorrador((x) => ({ ...x, branding: b ? "0" : "1" }))}>
-                Branding de aliados
-              </button>
-              <button type="button" className={chip(l)} onClick={() => setBorrador((x) => ({ ...x, labels: l ? "0" : "1" }))}>
-                Labels de seguridad
-              </button>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <BtnConfirmar pendiente={pendiente} onClick={() => enviar({ id: "extrasCred", branding: b, labels: l })} />
-              <button type="button" disabled={pendiente} className={chip(false)} onClick={() => enviar({ id: "extrasCred", branding: false, labels: false }, true)}>
-                Ninguno
-              </button>
-            </div>
-          </div>
-        );
-      }
-    }
-  }
-
-  const etiquetaEstado = (e: EstadoPregunta | "pendiente") =>
-    e === "ok" ? "Confirmado" : e === "na" ? "No aplica" : e === "ia" ? "Claude · confirma" : "Pendiente";
+  const salonesTexto = val("salones", datos.salones.map((x) => x.toLocaleString("es-CO")).join(", "));
+  const logisticosSalones = totalLogisticosSalones(datos.salones);
 
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
-    <section aria-label="Diagnóstico guiado" className="min-w-0 space-y-4">
-      <NotasDiagnostico proposalId={datos.proposalId} />
+      <section aria-label="Diagnóstico" className="min-w-0 space-y-4">
+        <NotasDiagnostico proposalId={datos.proposalId} />
 
-      <div className="rounded-2xl bg-surface2 px-5 py-4">
-        <p className="font-display text-lg font-extrabold text-ink">Armemos el diagnóstico de {datos.eventName}</p>
-        <p className="mt-1 text-sm text-muted">
-          Contesta en orden o salta a la que quieras. Cada respuesta se guarda al confirmarla y mueve el valor abajo. También puedes contárselo a Claude con el botón
-          «Claude» (Ctrl+K) y él propone los cambios.
-        </p>
-        <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold">
-          <span className="rounded-pill bg-highlight px-3 py-1 text-highlight-ink">{Q.filter((q) => estadoDe(q.id) === "ok" || estadoDe(q.id) === "na").length} confirmadas</span>
-          {Q.some((q) => estadoDe(q.id) === "ia") && (
-            <span className="rounded-pill bg-surface px-3 py-1 text-ink">{Q.filter((q) => estadoDe(q.id) === "ia").length} por confirmar (Claude)</span>
+        <div className="space-y-5 rounded-2xl border border-border bg-surface p-5">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 className="font-display text-xl font-extrabold text-ink">Datos del evento</h2>
+              <p className="mt-1 text-sm text-muted">
+                Cambia lo que necesites aquí o pídeselo a NOVA (botón «NOVA» o Ctrl+K). Todo se guarda al instante y el valor se actualiza.
+              </p>
+            </div>
+            <span aria-live="polite" className="text-xs font-semibold text-muted">
+              {pendiente ? "Guardando…" : guardado ? "Guardado ✓" : ""}
+            </span>
+          </div>
+
+          {datos.faltantes.length > 0 && (
+            <p className="rounded-xl bg-warn-bg px-3 py-2 text-sm text-warn-ink">Falta: {datos.faltantes.join(", ")}. Mientras tanto el valor es provisional.</p>
           )}
-          <span className="rounded-pill bg-warn-bg px-3 py-1 text-warn-ink">{Q.filter((q) => estadoDe(q.id) === "pendiente").length} pendientes</span>
-        </div>
-        {Q.some((q) => estadoDe(q.id) === "pendiente") && (
-          <div className="mt-3 rounded-xl bg-warn-bg px-3 py-3">
-            <p className="mb-2 text-xs font-semibold text-warn-ink">Falta:</p>
-            <div className="flex flex-wrap gap-2">
-              {Q.filter((q) => estadoDe(q.id) === "pendiente").map((q) => (
-                <button key={q.id} type="button" onClick={() => setAbierta(q.id)} className="rounded-pill border border-border bg-surface px-3 py-1.5 text-xs text-ink hover:bg-surface2">
-                  {q.texto.replace(/^¿/, "").replace(/\?$/, "")}
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <label className={`${etiqueta} sm:col-span-2`}>
+              Nombre del evento
+              <input
+                className={campo}
+                value={val("nombre", datos.eventName)}
+                onChange={(e) => set("nombre", e.target.value)}
+                onBlur={() => {
+                  const v = (b.nombre ?? "").trim();
+                  if (b.nombre !== undefined && v && v !== datos.eventName) guardar({ nombre: v });
+                }}
+                maxLength={160}
+              />
+            </label>
+
+            <div className={etiqueta}>
+              ¿Es presencial, virtual o híbrido?
+              <div className="flex flex-wrap gap-2">
+                {MODALIDADES.map(([v, l]) => (
+                  <button key={v} type="button" disabled={pendiente} className={chip(datos.modality === v)} onClick={() => datos.modality !== v && guardar({ modalidad: v })}>
+                    {l}
+                  </button>
+                ))}
+                {datos.modality === "mundo_virtual" && (
+                  <button type="button" disabled className={chip(true)}>
+                    Mundo virtual
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <label className={etiqueta}>
+              Días del evento
+              <input className={campo} {...num("dias", datos.dias, 1, 30, (n) => ({ dias: n }))} />
+            </label>
+
+            <div className={etiqueta}>
+              ¿El evento vende boletas?
+              <div className="flex gap-2">
+                <button type="button" disabled={pendiente} className={chip(datos.vendeBoletas)} onClick={() => !datos.vendeBoletas && guardar({ vendeBoletas: true })}>
+                  Sí
                 </button>
+                <button type="button" disabled={pendiente} className={chip(!datos.vendeBoletas)} onClick={() => datos.vendeBoletas && guardar({ vendeBoletas: false })}>
+                  No
+                </button>
+              </div>
+            </div>
+
+            {pres && (
+              <div className={etiqueta}>
+                ¿Tiene logística en sitio?
+                <div className="flex gap-2">
+                  <button type="button" disabled={pendiente} className={chip(datos.conLogistica)} onClick={() => !datos.conLogistica && guardar({ conLogistica: true })}>
+                    Sí
+                  </button>
+                  <button type="button" disabled={pendiente} className={chip(!datos.conLogistica)} onClick={() => datos.conLogistica && guardar({ conLogistica: false })}>
+                    No
+                  </button>
+                </div>
+                <span className="block text-xs font-normal text-muted">
+                  {datos.conLogistica ? "El equipo se calcula con la tabla de aforo." : "Se muestran las cantidades (equipo, salones, pre-acreditación) para que el organizador sepa qué debe poner; no se cobran."}
+                </span>
+              </div>
+            )}
+
+            {pres && (
+              <label className={etiqueta}>
+                Aforo estimado (presencial)
+                <input className={campo} placeholder="—" {...num("aforo", datos.aforo, 1, 100000, (n) => ({ aforo: n }))} value={val("aforo", datos.aforo || "")} />
+              </label>
+            )}
+            {virt && (
+              <label className={etiqueta}>
+                Aforo estimado (virtual)
+                <input className={campo} placeholder="—" {...num("aforoVirtual", datos.aforoVirtual, 1, 100000, (n) => ({ aforoVirtual: n }))} value={val("aforoVirtual", datos.aforoVirtual || "")} />
+              </label>
+            )}
+
+            {pres && (
+                <div className={etiqueta}>
+                  Salones internos y su aforo estimado
+                  <div className="flex gap-2">
+                    <input
+                      className={campo}
+                      value={salonesTexto}
+                      onChange={(e) => set("salones", e.target.value)}
+                      onBlur={() => {
+                        if (b.salones === undefined) return;
+                        const aforos = leerAforos(b.salones);
+                        if (JSON.stringify(aforos) !== JSON.stringify(datos.salones)) guardar({ salonesInternos: aforos });
+                        else limpiar("salones");
+                      }}
+                      placeholder="Ej. 2.000, 500, 500"
+                      aria-label="Aforo de cada salón interno"
+                    />
+                    <button type="button" disabled={pendiente} className={chip(datos.salones.length === 0)} onClick={() => datos.salones.length > 0 && guardar({ salonesInternos: [] })}>
+                      Sin salones
+                    </button>
+                  </div>
+                  <span className="block text-xs font-normal text-muted">
+                    {datos.salones.length > 0
+                      ? `${datos.salones.length} salón(es) → ${logisticosSalones} logístico(s) de salón (1 hasta 100, 2 hasta 400, 3 hasta 800, 4 desde ahí).`
+                      : "Escribe el aforo de cada salón separado por comas."}
+                  </span>
+                </div>
+
+            )}
+
+            {pres && (
+                <div className={`${etiqueta} sm:col-span-2`}>
+                  ¿Habrá pre-acreditación?
+                  <div className="flex flex-wrap items-center gap-2">
+                    {(
+                      [
+                        ["no", "No"],
+                        ["completo", "Día completo"],
+                        ["medio", "Medio día"],
+                      ] as const
+                    ).map(([v, l]) => (
+                      <button
+                        key={v}
+                        type="button"
+                        disabled={pendiente}
+                        className={chip(datos.preModo === v)}
+                        onClick={() => datos.preModo !== v && guardar({ preacreditacion: { modo: v, dias: datos.preDias || 1 } })}
+                      >
+                        {l}
+                      </button>
+                    ))}
+                    {datos.preModo !== "no" && (
+                      <label className="flex items-center gap-2 text-xs font-semibold text-muted">
+                        Días
+                        <input
+                          className="min-h-10 w-20 rounded-pill border border-border bg-input-bg px-3 text-center text-sm text-ink"
+                          {...num("preDias", datos.preDias || 1, 1, 10, (n) => ({ preacreditacion: { modo: datos.preModo, dias: n } }))}
+                        />
+                      </label>
+                    )}
+                  </div>
+                </div>
+            )}
+
+            {conLog && (
+              <>
+                <label className={etiqueta}>
+                  Ciudad
+                  <div className="flex gap-2">
+                    <input
+                      className={campo}
+                      value={val("ciudad", datos.city)}
+                      onChange={(e) => set("ciudad", e.target.value)}
+                      onBlur={() => {
+                        const v = (b.ciudad ?? "").trim();
+                        if (b.ciudad !== undefined && v && v !== datos.city) guardar({ ciudad: v });
+                      }}
+                      placeholder="Ciudad"
+                      maxLength={80}
+                    />
+                    <button type="button" disabled={pendiente} className={chip(/^bogot/i.test(datos.city))} onClick={() => guardar({ ciudad: "Bogotá" })}>
+                      Bogotá
+                    </button>
+                  </div>
+                </label>
+
+              </>
+            )}
+          </div>
+
+          {error && (
+            <p role="alert" className="text-sm font-semibold text-danger">
+              {error}
+            </p>
+          )}
+          <PedirCambioButton sobre="los datos del evento" />
+        </div>
+
+        {pres && (
+          <div className="space-y-4 rounded-2xl border border-border bg-surface p-5">
+            <div>
+              <h2 className="font-display text-xl font-extrabold text-ink">{datos.conLogistica ? "Equipo y equipos en sitio" : "Equipo que necesita el evento"}</h2>
+              <p className="mt-1 text-sm text-muted">
+                {datos.conLogistica
+                  ? "Calculado con la tabla de aforo. Si necesitas otra cantidad, cámbiala aquí o pídeselo a NOVA."
+                  : "Calculado con la tabla de aforo. Lo pone el organizador: se muestra para que sepa qué debe disponer, pero no va en nuestro costo."}
+              </p>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-3">
+              {(
+                [
+                  ["productor", "Productores", datos.productor, 10, datos.tabla?.productor, (n: number) => ({ productor: n })],
+                  ["supervisores", "Supervisores", datos.supervisores, 20, datos.tabla?.supervisor, (n: number) => ({ supervisores: n })],
+                  ["logisticos", "Logísticos", datos.logisticos, 100, datos.tabla?.logistico, (n: number) => ({ logisticos: n })],
+                  ["computadores", "Portátiles", datos.computadores, 200, datos.tabla?.computadores, (n: number) => ({ computadores: n })],
+                  ["impresoras", "Impresoras", datos.impresoras, 200, datos.tabla?.impresoras, (n: number) => ({ impresoras: n })],
+                ] as const
+              ).map(([k, nombre, actual, max, sugerido, aCrudos]) => (
+                <label key={k} className={etiqueta}>
+                  {nombre}
+                  <input className={campo} {...num(k, actual, 0, max, aCrudos)} />
+                  {sugerido !== undefined && sugerido !== actual && <span className="block text-xs font-normal text-muted">La tabla propone {sugerido}.</span>}
+                </label>
               ))}
             </div>
           </div>
         )}
-      </div>
 
-      {datos.modality !== "presencial" && datos.modality !== "hibrido" && (
-        <p className="rounded-2xl bg-warn-bg px-4 py-3 text-sm text-warn-ink">
-          Para esta modalidad, las preguntas de transmisión (salas, cámaras, personal audiovisual, stands) llegan en la siguiente fase. Mientras tanto,
-          elige los servicios en el modo avanzado.
-        </p>
-      )}
+        {!pres && (
+          <p className="rounded-2xl bg-warn-bg px-4 py-3 text-sm text-warn-ink">
+            Para esta modalidad, las preguntas de transmisión (salas, cámaras, personal audiovisual, stands) llegan en la siguiente fase. Mientras tanto, elige los servicios en la lista de abajo.
+          </p>
+        )}
+        {pres && !datos.conLogistica && (
+          <p className="rounded-2xl bg-surface2 px-4 py-3 text-sm text-ink">
+            Este evento no lleva logística de Ticketcode: igual necesita ese equipo, la pre-acreditación y los salones, pero los pone el organizador. Aparecen con sus cantidades y sin costo; solo se cobra la capacitación al staff.
+          </p>
+        )}
 
-      <ol className="space-y-3">
-        {Q.map((q) => {
-          const e = estadoDe(q.id);
-          const abiertaEsta = activa === q.id;
-          return (
-            <li key={q.id} className={`rounded-2xl border px-5 py-4 ${abiertaEsta ? "border-accent bg-surface" : "border-border bg-surface"}`}>
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-semibold text-ink">{q.texto}</p>
-                  {!abiertaEsta && e !== "pendiente" && <p className="mt-1 text-sm text-muted">{e === "na" ? "No aplica" : q.resumen}</p>}
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className={`rounded-pill px-3 py-1 text-xs font-semibold ${e === "pendiente" ? "bg-warn-bg text-warn-ink" : "bg-highlight text-highlight-ink"}`}>
-                    {etiquetaEstado(e)}
-                  </span>
-                  {!abiertaEsta && e === "ia" && (
-                    <button
-                      type="button"
-                      disabled={pendiente}
-                      className="min-h-9 rounded-pill bg-accent px-4 text-xs font-bold text-accent-ink disabled:opacity-50"
-                      onClick={() =>
-                        start(async () => {
-                          const res = await confirmarPregunta(datos.proposalId, q.id);
-                          if (res.error) setError(res.error);
-                          else router.refresh();
-                        })
-                      }
-                    >
-                      Confirmar
-                    </button>
-                  )}
-                  {!abiertaEsta && (
-                    <button type="button" className="text-xs font-semibold text-muted underline" onClick={() => setAbierta(q.id)}>
-                      {e === "pendiente" ? "Responder" : "Cambiar"}
-                    </button>
-                  )}
-                </div>
-              </div>
-              {abiertaEsta && <div className="mt-3">{controles(q)}</div>}
-              {abiertaEsta && (
-                <div className="mt-3">
-                  <PedirCambioButton sobre={q.texto} />
-                </div>
-              )}
-            </li>
-          );
-        })}
-      </ol>
-
-      {error && (
-        <p role="alert" className="text-sm font-semibold text-danger">
-          {error}
-        </p>
-      )}
-
-      <LogisticaDetalle d={datos.logistica} />
-      <ServiciosPropuestos proposalId={datos.proposalId} servicios={datos.serviciosPorConfirmar} />
-      <ServiciosPersonalizados proposalId={datos.proposalId} servicios={datos.servicios} />
-
-    </section>
-    <ResumenPrecioCard r={datos.resumen} pendientes={Q.length - confirmadas} evento={datos.eventName} />
+        {conLog && <LogisticaDetalle d={datos.logistica} />}
+        <ServiciosPersonalizados proposalId={datos.proposalId} servicios={datos.servicios} />
+      </section>
+      <ResumenPrecioCard r={datos.resumen} pendientes={datos.faltantes.length} evento={datos.eventName} />
     </div>
   );
 }

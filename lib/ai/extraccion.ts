@@ -1,5 +1,5 @@
 /**
- * Datos del evento que Claude saca de unas notas de reunión. Todo se valida
+ * Datos del evento que NOVA saca de unas notas de reunión. Todo se valida
  * aquí: lo que no cumpla el formato o el rango se descarta, y nunca se guarda
  * nada hasta que el asesor confirma el formulario.
  */
@@ -36,7 +36,7 @@ function fecha(x: unknown): string | undefined {
   return anio >= 2024 && anio <= 2100 ? x : undefined;
 }
 
-/** Convierte la respuesta cruda de Claude en un borrador seguro. */
+/** Convierte la respuesta cruda de NOVA en un borrador seguro. */
 export function validarBorrador(raw: unknown): BorradorEvento {
   const r = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
   const b: BorradorEvento = {};

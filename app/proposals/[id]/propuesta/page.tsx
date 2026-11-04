@@ -6,6 +6,11 @@ import { computeTarifarioSummary } from "@/lib/pricing/summary";
 import { getValidServiceCostItems } from "@/lib/data/service-items";
 import { REQUERIMIENTOS_OPERATIVOS_TEMPLATE } from "@/lib/schedule-templates";
 import { PropuestaEditor } from "./propuesta-editor";
+import { PaquetesPropuesta } from "./paquetes-propuesta";
+import { VistaDiagnostico } from "../diagnostico/vista-diagnostico";
+import { agruparEnPaquetes, itemCatalogoAplica, type ItemParaPaquete } from "@/lib/data/paquetes";
+import { armarResumen, conCantidadesCalculadas } from "@/lib/data/resumen-precio";
+import { faltantesDiagnostico } from "@/lib/data/faltantes";
 
 export const dynamic = "force-dynamic";
 
@@ -42,7 +47,7 @@ export default async function PropuestaPage({
   const tarifarioSummary = computeTarifarioSummary(
     proposal as Proposal,
     logisticsRates,
-    allCostItems,
+    conCantidadesCalculadas(allCostItems, proposal as Proposal),
     honorariosProductorScale ?? []
   );
 
@@ -53,6 +58,7 @@ export default async function PropuestaPage({
     .filter((i) => i.included)
     .map((i) => ({
       id: i.id,
+      baseName: i.label,
       name: i.custom_name || i.label,
       description: i.custom_description || serviceCatalogItems?.find((c) => c.name === i.label)?.description || null,
       custom_name: i.custom_name,
@@ -199,7 +205,40 @@ export default async function PropuestaPage({
     operationalRequirements = inserted ?? [];
   }
 
+  // Paquetes: lo marcado en componentes, logística y servicios, agrupado como en la presentación.
+  const itemsPaquetes: ItemParaPaquete[] = [];
+  for (const c of catalogItemsForModality ?? []) {
+    const sel = selections.find((s) => s.catalog_item_id === c.id);
+    if (!sel?.included || !itemCatalogoAplica(c, proposal as Proposal)) continue;
+    const familia = c.category === "componente_basico" ? "componente" : c.category === "logistica_360" ? "logistica" : null;
+    if (familia) itemsPaquetes.push({ familia, baseName: c.name, name: sel.custom_name || c.name });
+  }
+  for (const s of includedServices) itemsPaquetes.push({ familia: "servicio", baseName: s.baseName, name: s.name });
+
+  const faltantes = faltantesDiagnostico(proposal as Proposal);
+  const { data: ultimaVersion } = await supabase
+    .from("proposal_versions")
+    .select("version_number")
+    .eq("proposal_id", id)
+    .order("version_number", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
   return (
+    <VistaDiagnostico
+      etiquetaGuiado="Paquetes"
+      etiquetaAvanzado="Detalle y textos (avanzado)"
+      guiado={
+        <PaquetesPropuesta
+          proposalId={id}
+          eventName={proposal.event_name}
+          grupos={agruparEnPaquetes(itemsPaquetes)}
+          resumen={armarResumen(tarifarioSummary, proposal as Proposal)}
+          faltantes={faltantes}
+          siguienteVersion={(ultimaVersion?.version_number ?? 0) + 1}
+        />
+      }
+      avanzado={
     <PropuestaEditor
       proposal={proposal as Proposal}
       tarifarioSummary={tarifarioSummary}
@@ -210,6 +249,8 @@ export default async function PropuestaPage({
       scheduleItems={scheduleItems}
       paymentMilestones={paymentMilestones}
       operationalRequirements={operationalRequirements}
+    />
+      }
     />
   );
 }

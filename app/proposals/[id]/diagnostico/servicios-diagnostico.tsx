@@ -16,6 +16,8 @@ export interface ServicioDiag {
   editable: boolean;
   /** Texto bajo el nombre: de dónde sale la cantidad. */
   nota: string;
+  /** Lo pone el organizador (evento sin logística de Ticketcode): se muestra con su cantidad pero sin costo. */
+  sinCosto?: boolean;
 }
 
 const th = "py-2 text-xs font-semibold uppercase tracking-wide text-muted";
@@ -70,7 +72,7 @@ export function ServiciosPersonalizados({ proposalId, servicios }: { proposalId:
                 <tr key={s.label} className="align-top">
                   <td className="py-2.5 pr-3">
                     <p className="text-ink">{s.label}</p>
-                    <p className="text-xs text-muted">{s.nota}</p>
+                    <p className="text-xs text-muted">{s.sinCosto ? `${s.nota} · Lo pone el organizador, sin costo` : s.nota}</p>
                   </td>
                   <td className="py-2.5 text-right text-ink">
                     {s.editable ? (
@@ -89,8 +91,8 @@ export function ServiciosPersonalizados({ proposalId, servicios }: { proposalId:
                       s.cantidad.toLocaleString("es-CO")
                     )}
                   </td>
-                  <td className="py-2.5 text-right text-ink">{formatCOP(s.precio)}</td>
-                  <td className="py-2.5 text-right font-semibold text-ink">{formatCOP(s.precio * s.cantidad)}</td>
+                  <td className="py-2.5 text-right text-ink">{s.sinCosto ? "—" : formatCOP(s.precio)}</td>
+                  <td className="py-2.5 text-right font-semibold text-ink">{s.sinCosto ? "Sin costo" : formatCOP(s.precio * s.cantidad)}</td>
                   <td className="py-2.5 pl-3 text-right">
                     <button type="button" disabled={pendiente} onClick={() => cambiar(s.label, false)} className="text-xs font-semibold text-muted underline disabled:opacity-50">
                       Quitar

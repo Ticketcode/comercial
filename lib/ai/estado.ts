@@ -56,6 +56,13 @@ export async function aplicarAtomos(
       else if (atomo.servicio!.incluir && !(Number(fila.quantity) > 0)) cambios.quantity = 1;
       const { error } = await supabase.from("proposal_cost_items").update(cambios).eq("id", fila.id);
       if (error) return { error: error.message, estado };
+    } else if (atomo.tipo === "textoServicio") {
+      const fila = estado.servicios.find((s) => s.label === atomo.texto!.label)!;
+      const cambios: Record<string, unknown> = {};
+      if (atomo.texto!.titulo !== undefined) cambios.custom_name = atomo.texto!.titulo;
+      if (atomo.texto!.descripcion !== undefined) cambios.custom_description = atomo.texto!.descripcion;
+      const { error } = await supabase.from("proposal_cost_items").update(cambios).eq("id", fila.id);
+      if (error) return { error: error.message, estado };
     } else if (atomo.tipo === "lamina") {
       const sig = aplicarEnMemoria(estado, atomo).ocultas;
       const { error } = await supabase.from("proposals").update({ presentacion_hidden_slides: sig }).eq("id", proposalId);
@@ -74,19 +81,11 @@ export async function aplicarAtomos(
   }
 
 
-  // Si cambió el aforo o los días, los servicios con cantidad calculada se actualizan para que
-  // todos los pasos (Propuesta, Presentación, Contrato) lean lo mismo.
-  for (const s of estado.servicios) {
-    const calc = computedServiceQuantity(s.label, estado.proposal);
-    if (calc !== null && s.included && Number(s.quantity) !== calc) {
-      await supabase.from("proposal_cost_items").update({ quantity: calc }).eq("id", s.id);
-    }
-  }
   return { error: null, estado };
 }
 
 /**
- * Marca preguntas del Diagnóstico guiado ("ia" = las contestó Claude y falta confirmar).
+ * Marca preguntas del Diagnóstico guiado ("ia" = las contestó NOVA y falta confirmar).
  * Si la columna aún no existe (migración 0044) no frena nada.
  */
 export async function marcarPreguntas(

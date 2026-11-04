@@ -55,7 +55,7 @@ export function AcuerdoEditor({
       }
       setDescuento(r.descuentoPct);
       setConceptos(conceptos.map((c) => ({ ...c, ...(r.conceptos.find((x) => x.id === c.id) ?? {}) })));
-      setMsg({ tipo: "info", texto: `Propuesta de Claude: ${r.razon} Es una sugerencia: ajústala antes de guardar.` });
+      setMsg({ tipo: "info", texto: `Propuesta de NOVA: ${r.razon} Es una sugerencia: ajústala antes de guardar.` });
     });
   }
 
@@ -89,7 +89,7 @@ export function AcuerdoEditor({
         />
         <div className="mt-3 flex flex-wrap items-center gap-3">
           <button type="button" onClick={sugerir} disabled={pensando || !objecion.trim()} className="min-h-11 rounded-pill bg-accent px-5 text-sm font-bold text-accent-ink disabled:opacity-50">
-            {pensando ? "Pensando…" : "Sugerir acuerdo con Claude"}
+            {pensando ? "Pensando…" : "Sugerir acuerdo con NOVA"}
           </button>
           <PedirCambioButton sobre="el acuerdo comercial" />
         </div>

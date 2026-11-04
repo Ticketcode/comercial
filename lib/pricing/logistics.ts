@@ -109,6 +109,8 @@ export interface LogisticsInput {
   preacreditacionDias?: number;
   /** true = la pre-acreditación es de medio día (honorario de logístico de medio día). */
   preacreditacionMedioDia?: boolean;
+  /** true = el evento no lleva logística 360 de Ticketcode: se muestran las cantidades pero no se cobra logística. */
+  sinLogistica?: boolean;
   extraCamisetasStaff: boolean;
   extraLavadoChalecos: boolean;
   extraCompraAgua: boolean;
@@ -486,6 +488,28 @@ export function computeLogisticsBreakdown(
     ...(input.extraActividadCierre ? [{ label: "Actividad de cierre", dias: 1, quantity: 1, rate: 350000, subtotal: 350000, basis: "Extra activado" }] : []),
   ]);
   const costosVarios = sumSubtotals(costosVariosItems);
+
+  // Sin logística de Ticketcode el personal y los equipos los pone el organizador: se muestran las cantidades
+  // (para que sepa qué necesita) pero no se cobra nada.
+  if (input.sinLogistica) {
+    const sinPrecio = (items: LogisticsLineItem[]) => items.map((i) => ({ ...i, subtotal: 0 }));
+    return {
+      honorarios: 0,
+      alimentacionHotel: 0,
+      transporte: 0,
+      equipos: 0,
+      costosVarios: 0,
+      subTotalCostoLogistica: 0,
+      totalCostoLogisticaConImprevistos: 0,
+      lineItems: {
+        honorarios: sinPrecio(honorariosItems),
+        alimentacionHotel: sinPrecio(alimentacionItems),
+        transporte: sinPrecio(transporteItems),
+        equipos: sinPrecio(equiposItems),
+        costosVarios: sinPrecio(costosVariosItems),
+      },
+    };
+  }
 
   const subTotalCostoLogistica = honorarios + alimentacionHotel + transporte + equipos + costosVarios;
 

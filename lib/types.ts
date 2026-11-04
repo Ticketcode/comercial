@@ -96,6 +96,10 @@ export interface Proposal {
   cronograma_dias: number | null;
   /** Pre-acreditación de medio día (honorario de logístico de medio día) en vez de día completo. */
   preacreditacion_medio_dia: boolean;
+  /** false = el evento no lleva logística 360 (todo su cálculo da cero). Sin dato = sí lleva. */
+  con_logistica?: boolean;
+  /** false = el evento no vende boletas por la plataforma. Sin dato = sí vende. */
+  vende_boletas?: boolean;
   /** Grupos de diapositivas ocultas en la Presentación (ej. "informes", "casos"). */
   presentacion_hidden_slides: string[];
   /** Datos del asesor editados en la lámina de Contacto; null = los del perfil. */

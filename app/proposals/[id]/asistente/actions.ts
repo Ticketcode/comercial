@@ -44,7 +44,7 @@ export interface TurnoChat {
   texto: string;
 }
 
-/** El asesor escribe lo que quiere ajustar; Claude propone cambios y el servidor los valida y calcula su efecto en el precio. */
+/** El asesor escribe lo que quiere ajustar; NOVA propone cambios y el servidor los valida y calcula su efecto en el precio. */
 export async function pedirCambios(
   proposalId: string,
   mensaje: string,
@@ -83,11 +83,11 @@ export async function pedirCambios(
     paso: contexto.paso.slice(0, 60),
     sobre: contexto.sobre ? contexto.sobre.slice(0, 120) : null,
   });
-  if (!json) return { ...vacio, error: errorClaude ?? "No se pudo consultar a Claude." };
+  if (!json) return { ...vacio, error: errorClaude ?? "No se pudo consultar a NOVA." };
 
   const { atomos, bloqueados } = validarCambios(json.cambios, estado, { aforoScales });
 
-  // Preguntas que el asesor contestó sin que cambie nada: se marcan de una vez como "Claude · confirma".
+  // Preguntas que el asesor contestó sin que cambie nada: se marcan de una vez como "NOVA · confirma".
   const tocadas = new Set(atomos.flatMap((a) => preguntasDeAtomo(a)));
   const confirmadas = (Array.isArray(json.confirmados) ? json.confirmados : [])
     .filter((x): x is PreguntaDiagnostico => typeof x === "string" && (PREGUNTAS_DIAGNOSTICO as readonly string[]).includes(x))
@@ -129,7 +129,7 @@ export async function aplicarCambios(
 
   const r = await aplicarAtomos(supabase, proposalId, estado, atomos);
   if (!r.error) {
-    // Lo que Claude cambió queda como pregunta contestada por Claude, por confirmar.
+    // Lo que NOVA cambió queda como pregunta contestada por NOVA, por confirmar.
     await marcarPreguntas(supabase, proposalId, estado, Array.from(new Set(atomos.flatMap((a) => preguntasDeAtomo(a)))), "ia");
   }
   if (r.error) return { error: r.error };

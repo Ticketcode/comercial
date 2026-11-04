@@ -359,3 +359,13 @@ export function itemsVisibles(p: Paquete): { visibles: string[]; ocultos: number
   const visibles = p.items.slice(0, MAX_ITEMS_VISIBLES);
   return { visibles, ocultos: p.items.length - visibles.length };
 }
+
+/** Los ítems del catálogo que no aplican a este evento (sin logística, o sin venta de boletas) no entran a los paquetes. */
+export function itemCatalogoAplica(
+  c: { name: string; category: string },
+  p: { con_logistica?: boolean; vende_boletas?: boolean }
+): boolean {
+  if (c.category === "logistica_360" && p.con_logistica === false) return false;
+  if (c.category === "componente_basico" && p.vende_boletas === false && normalizar(c.name).includes("venta de boleter")) return false;
+  return true;
+}
