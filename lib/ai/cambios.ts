@@ -8,10 +8,11 @@
  * volver a validarlo.
  */
 import type { Proposal, ProposalCostItem, Modality } from "@/lib/types";
-import { staffingForAforo, type AforoScaleRow } from "@/lib/pricing/logistics";
+import { staffingForAforo, totalLogisticosSalones, type AforoScaleRow } from "@/lib/pricing/logistics";
+import { SALONES_INTERNOS_SERVICE_LABEL } from "@/lib/pricing/service-quantity";
 import { HIDEABLE_SLIDE_GROUPS } from "@/lib/data/laminas";
 
-export type ValorCampo = number | string | boolean;
+export type ValorCampo = number | string | boolean | number[] | null;
 
 export interface Atomo {
   id: string;
@@ -31,6 +32,7 @@ export interface CambiosCrudos {
   dias?: unknown;
   ciudad?: unknown;
   lugar?: unknown;
+  salonesInternos?: unknown;
   fechaInicio?: unknown;
   fechaFin?: unknown;
   productor?: unknown;
@@ -67,7 +69,7 @@ const norm = (s: string) =>
     .trim();
 
 function esFecha(x: string): boolean {
-  if (!/^d{4}-d{2}-d{2}$/.test(x)) return false;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(x)) return false;
   const d = new Date(`${x}T12:00:00Z`);
   return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === x && d.getUTCFullYear() >= 2024 && d.getUTCFullYear() <= 2100;
 }
@@ -81,6 +83,8 @@ export const ETIQUETA_CAMPO: Record<string, string> = {
   dias: "Días",
   city: "Ciudad",
   lugar: "Lugar",
+  salones_internos_aforos: "Salones internos (aforo de cada uno)",
+  qty_logistica_salones_internos: "Logísticos de salones internos",
   event_start_date: "Fecha de inicio",
   event_end_date: "Fecha de fin",
   qty_productor: "Productores",
@@ -96,6 +100,7 @@ export const ETIQUETA_CAMPO: Record<string, string> = {
 
 export function formatearValor(campo: string, v: ValorCampo | undefined): string {
   if (v === undefined || v === null || v === "") return "—";
+  if (Array.isArray(v)) return v.length ? v.map((x) => Number(x).toLocaleString("es-CO")).join(", ") : "ninguno";
   if (typeof v === "boolean") return v ? "Sí" : "No";
   if (campo === "rentabilidad_pct") return `${Math.round(Number(v) * 100)}%`;
   if (campo === "acuerdo_comercial_pct_global") return `${v}%`;
@@ -162,6 +167,31 @@ export function validarCambios(
   if (typeof crudos.lugar === "string" && crudos.lugar.trim()) campo("lugar", crudos.lugar.trim().slice(0, 160));
   for (const [raw, clave] of [[crudos.fechaInicio, "event_start_date"], [crudos.fechaFin, "event_end_date"]] as const) {
     if (typeof raw === "string" && esFecha(raw)) campo(clave, raw);
+  }
+
+  // Salones internos: aforo de cada uno. Define cuántos son, los logísticos que necesitan y el módulo de datos simultáneos.
+  if (Array.isArray(crudos.salonesInternos)) {
+    const aforos = crudos.salonesInternos
+      .filter((x): x is number => typeof x === "number" && Number.isFinite(x) && x >= 1 && x <= 100000)
+      .map((x) => Math.round(x))
+      .slice(0, 20);
+    if (usaPresencial(m)) {
+      atomos.push({
+        id: nuevoId(),
+        tipo: "campos",
+        campos: { salones_internos_aforos: aforos, qty_logistica_salones_internos: totalLogisticosSalones(aforos) },
+      });
+      const mod = estado.servicios.find((s) => s.label === SALONES_INTERNOS_SERVICE_LABEL);
+      if (mod && (aforos.length > 0 || mod.included)) {
+        atomos.push({
+          id: nuevoId(),
+          tipo: "servicio",
+          servicio: { label: mod.label, incluir: aforos.length > 0, ...(aforos.length > 0 ? { cantidad: aforos.length } : {}) },
+        });
+      }
+    } else {
+      bloqueados.push({ etiqueta: "Salones internos", motivo: "No aplica a una modalidad sin evento presencial" });
+    }
   }
 
   const equipo: [unknown, string, number][] = [
@@ -256,13 +286,18 @@ export function validarAtomo(atomo: Atomo, estado: EstadoPropuesta): string | nu
 
 const esNum = (min: number, max: number) => (v: ValorCampo) => typeof v === "number" && Number.isFinite(v) && v >= min && v <= max;
 const REGLAS_CAMPO: Record<string, { valida: (v: ValorCampo) => boolean; presencial?: boolean }> = {
+  salones_internos_aforos: {
+    valida: (v) => Array.isArray(v) && v.length <= 20 && v.every((x) => Number.isInteger(x) && x >= 1 && x <= 100000),
+    presencial: true,
+  },
+  qty_logistica_salones_internos: { valida: esNum(0, 400), presencial: true },
   aforo: { valida: esNum(1, 100000), presencial: true },
   aforo_virtual: { valida: esNum(1, 100000) },
   dias: { valida: esNum(1, 30) },
-  city: { valida: (v) => typeof v === "string" && v.length > 0 && v.length <= 80 },
-  lugar: { valida: (v) => typeof v === "string" && v.length > 0 && v.length <= 160 },
-  event_start_date: { valida: (v) => typeof v === "string" && esFecha(v) },
-  event_end_date: { valida: (v) => typeof v === "string" && esFecha(v) },
+  city: { valida: (v) => v === null || (typeof v === "string" && v.length > 0 && v.length <= 80) },
+  lugar: { valida: (v) => v === null || (typeof v === "string" && v.length > 0 && v.length <= 160) },
+  event_start_date: { valida: (v) => v === null || (typeof v === "string" && esFecha(v)) },
+  event_end_date: { valida: (v) => v === null || (typeof v === "string" && esFecha(v)) },
   qty_productor: { valida: esNum(0, 10), presencial: true },
   qty_supervisor: { valida: esNum(0, 20), presencial: true },
   qty_logistico: { valida: esNum(0, 100), presencial: true },
@@ -303,7 +338,7 @@ export function valoresAntes(estado: EstadoPropuesta, atomo: Atomo): Atomo {
     const antes: Record<string, ValorCampo> = {};
     for (const k of Object.keys(atomo.campos ?? {})) {
       const v = (estado.proposal as unknown as Record<string, ValorCampo | null>)[k];
-      antes[k] = v ?? (k === "city" ? "" : 0);
+      antes[k] = v ?? (k === "salones_internos_aforos" ? [] : ["city", "lugar", "event_start_date", "event_end_date"].includes(k) ? null : 0);
     }
     return { ...atomo, id: nuevoId(), campos: antes };
   }
@@ -326,7 +361,7 @@ export function etiquetaAtomo(estado: EstadoPropuesta, atomo: Atomo): string {
   if (atomo.tipo === "campos") {
     const p = estado.proposal as unknown as Record<string, ValorCampo | null>;
     return Object.entries(atomo.campos ?? {})
-      .filter(([k, v]) => p[k] !== v)
+      .filter(([k, v]) => JSON.stringify(p[k] ?? null) !== JSON.stringify(v))
       .map(([k, v]) => `${ETIQUETA_CAMPO[k] ?? k}: ${formatearValor(k, p[k] ?? undefined)} → ${formatearValor(k, v)}`)
       .join(" · ");
   }

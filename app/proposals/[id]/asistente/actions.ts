@@ -23,7 +23,7 @@ const MODELO = "claude-sonnet-5-5";
 const MAX_MENSAJE = 1500;
 const MAX_HISTORIAL = 6;
 const MAX_TURNO = 600;
-const MAX_TOKENS = 900;
+const MAX_TOKENS = 1800;
 
 export interface TarjetaCambio {
   id: string;
@@ -87,7 +87,7 @@ Responde SOLO con un objeto JSON (sin markdown) con esta forma:
 {"mensaje": string (1 a 3 frases en español, cercano y claro; si falta un dato para actuar, pregúntalo aquí), "cambios": { ... }}
 
 En "cambios" usa solo estas claves (omite las que no cambian; no inventes valores que el asesor no dijo):
-- aforo (número): asistentes presenciales. aforoVirtual (número). dias (1-30). ciudad (texto). lugar (texto: recinto o sede). fechaInicio y fechaFin ("AAAA-MM-DD"; si el evento es de un solo día, las dos iguales).
+- aforo (número): asistentes presenciales. aforoVirtual (número). dias (1-30). ciudad (texto). lugar (texto: recinto o sede). salonesInternos (lista con el aforo de cada salón interno, ej. [2000, 500, 500]). salonesInternos (lista con el aforo de cada salón interno, ej. [2000, 500, 500]). fechaInicio y fechaFin ("AAAA-MM-DD"; si el evento es de un solo día, las dos iguales).
 - productor, supervisores, logisticos (números): cantidades de personal en sitio.
 - preacreditacionMedioDia (true/false).
 - rentabilidadPct (0-100). descuentoPct (0-35).
@@ -156,25 +156,32 @@ export async function pedirCambios(
   if (mensajes.length > 0 && mensajes[mensajes.length - 1].role === "user") mensajes.pop();
   mensajes.push({ role: "user", content: texto });
 
-  let salida: string;
-  try {
-    const anthropic = new Anthropic({ apiKey });
-    const r = await anthropic.messages.create({
-      model: MODELO,
-      max_tokens: MAX_TOKENS,
-      system: promptSistema(estado, contexto.paso.slice(0, 60), contexto.sobre ? contexto.sobre.slice(0, 120) : null),
-      messages: mensajes,
-    });
-    salida = r.content
-      .filter((b): b is Anthropic.TextBlock => b.type === "text")
-      .map((b) => b.text)
-      .join("\n");
-  } catch (e) {
-    return { ...vacio, error: mensajeErrorClaude(e) };
+  // Si Claude no devuelve JSON válido (o se corta), se reintenta una vez recordándole el formato.
+  const sistema = promptSistema(estado, contexto.paso.slice(0, 60), contexto.sobre ? contexto.sobre.slice(0, 120) : null);
+  let json: ReturnType<typeof extraerJson> = null;
+  for (let intento = 0; intento < 2 && !json; intento++) {
+    try {
+      const anthropic = new Anthropic({ apiKey });
+      const r = await anthropic.messages.create({
+        model: MODELO,
+        max_tokens: MAX_TOKENS,
+        system:
+          intento === 0
+            ? sistema
+            : `${sistema}\n\nIMPORTANTE: tu respuesta anterior no fue un JSON válido. Responde SOLO con el objeto JSON, sin texto antes ni después, y con el mensaje corto.`,
+        messages: mensajes,
+      });
+      const salida = r.content
+        .filter((b): b is Anthropic.TextBlock => b.type === "text")
+        .map((b) => b.text)
+        .join("\n");
+      json = extraerJson(salida);
+      if (!json) console.error("[claude] respuesta sin JSON válido", r.stop_reason, salida.slice(0, 400));
+    } catch (e) {
+      return { ...vacio, error: mensajeErrorClaude(e) };
+    }
   }
-
-  const json = extraerJson(salida);
-  if (!json) return { ...vacio, error: "Claude respondió algo que no pude leer. Intenta con otras palabras." };
+  if (!json) return { ...vacio, error: "Claude respondió algo que no pude leer. Intenta con otras palabras o en mensajes más cortos." };
 
   const { atomos, bloqueados } = validarCambios(json.cambios, estado, { aforoScales });
 
