@@ -3,6 +3,7 @@ import type { Client, Profile, Proposal, ProposalCostItem } from "@/lib/types";
 import { buildLogisticsRates } from "@/lib/pricing/logistics";
 import { computeTarifarioSummary } from "@/lib/pricing/summary";
 import { getValidServiceCostItems } from "@/lib/data/service-items";
+import { conCantidadesCalculadas } from "@/lib/data/resumen-precio";
 import { DEFAULT_INFORMES } from "@/app/proposals/[id]/presentacion/slides-fixed";
 import type { DeckData } from "@/app/proposals/[id]/presentacion/deck-shell";
 
@@ -61,17 +62,18 @@ export async function loadDeckData(supabase: SupabaseClient, id: string): Promis
     (costItems ?? []) as ProposalCostItem[],
     proposal.modality
   );
+  // Mismas cantidades calculadas que el Diagnóstico (cloud y correos usan el aforo): así el valor es igual en todos los pasos.
   const tarifarioSummary = computeTarifarioSummary(
     proposal as Proposal,
     logisticsRates,
-    allCostItems,
+    conCantidadesCalculadas(allCostItems, proposal as Proposal),
     honorariosProductorScale ?? []
   );
   const includedServices = allCostItems
     .filter((i) => i.included)
     .map((i) => ({
       baseName: i.label,
-      name: i.custom_name || i.label,
+      name: i.custom_name || serviceCatalogItems?.find((c) => c.name === i.label)?.titulo_comercial || i.label,
       description: i.custom_description || serviceCatalogItems?.find((c) => c.name === i.label)?.description || null,
     }));
 

@@ -16,7 +16,7 @@ export async function getValidServiceCostItems(
 ) {
   const { data: catalog } = await supabase
     .from("catalog_items")
-    .select("name, description")
+    .select("*")
     .eq("category", "servicio_personalizado")
     .in("modality", [modality, "general"]);
 

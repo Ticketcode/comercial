@@ -59,7 +59,7 @@ export default async function PropuestaPage({
     .map((i) => ({
       id: i.id,
       baseName: i.label,
-      name: i.custom_name || i.label,
+      name: i.custom_name || serviceCatalogItems?.find((c) => c.name === i.label)?.titulo_comercial || i.label,
       description: i.custom_description || serviceCatalogItems?.find((c) => c.name === i.label)?.description || null,
       custom_name: i.custom_name,
       custom_description: i.custom_description,
