@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { cargarEstado, aplicarAtomos, marcarPreguntas } from "@/lib/ai/estado";
-import { validarCambios, type Atomo, type EstadoPropuesta } from "@/lib/ai/cambios";
+import { consultarCambios, excedeTope } from "@/lib/ai/consulta";
+import { validarCambios, preguntasDeAtomo, PREGUNTAS_DIAGNOSTICO, type Atomo, type EstadoPropuesta } from "@/lib/ai/cambios";
 
 export type EstadoPregunta = "ia" | "ok" | "na";
 
@@ -124,5 +125,100 @@ export async function alternarServicio(proposalId: string, label: string, inclui
   for (const sub of ["diagnostico", "propuesta", "presentacion", "versiones", "contrato"]) {
     revalidatePath(`/proposals/${proposalId}/${sub}`);
   }
+  return { error: null };
+}
+
+type DiagnosticoJson = Record<string, unknown>;
+
+async function leerDiagnostico(supabase: Awaited<ReturnType<typeof createClient>>, proposalId: string): Promise<DiagnosticoJson> {
+  const { data } = await supabase.from("proposals").select("diagnostico_estado").eq("id", proposalId).single();
+  return ((data as { diagnostico_estado?: DiagnosticoJson } | null)?.diagnostico_estado ?? {}) as DiagnosticoJson;
+}
+
+/**
+ * Notas de la reunión → Claude llena lo que entienda. Los datos del evento y las respuestas quedan aplicados
+ * como "Claude · confirma"; los servicios que sugiere NO se agregan: quedan por confirmar.
+ */
+export async function extraerDiagnostico(
+  proposalId: string,
+  notas: string
+): Promise<{ error: string | null; resumen: string }> {
+  const supabase = await createClient();
+  const { data: auth } = await supabase.auth.getUser();
+  if (!auth.user) return { error: "Tu sesión expiró. Vuelve a entrar.", resumen: "" };
+  const texto = notas.trim().slice(0, 6000);
+  if (!texto) return { error: "Escribe o pega primero las notas de la reunión.", resumen: "" };
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) return { error: "Falta configurar ANTHROPIC_API_KEY en el servidor.", resumen: "" };
+  if (excedeTope(auth.user.id)) return { error: "Muchas consultas seguidas. Espera unos minutos.", resumen: "" };
+
+  const base = await cargarEstado(supabase, proposalId);
+  if (!base) return { error: "No se encontró la propuesta.", resumen: "" };
+
+  const { json, error } = await consultarCambios({
+    apiKey,
+    estado: base.estado,
+    mensajes: [{ role: "user", content: `Notas de la reunión del diagnóstico (extrae solo lo que digan):\n${texto}` }],
+    paso: "Diagnóstico (extracción desde notas)",
+    sobre: null,
+  });
+  if (!json) return { error: error ?? "No se pudo consultar a Claude.", resumen: "" };
+
+  const { atomos } = validarCambios(json.cambios, base.estado, { aforoScales: base.aforoScales });
+  const aAplicar = atomos.filter((a) => a.tipo === "campos");
+  const sugeridos = atomos.filter((a) => a.tipo === "servicio" && a.servicio?.incluir);
+
+  let estado = base.estado;
+  if (aAplicar.length > 0) {
+    const r = await aplicarAtomos(supabase, proposalId, estado, aAplicar);
+    if (r.error) return { error: r.error, resumen: "" };
+    estado = r.estado;
+  }
+
+  const confirmadasCrudas = (Array.isArray(json.confirmados) ? json.confirmados : []).filter(
+    (x): x is string => typeof x === "string" && (PREGUNTAS_DIAGNOSTICO as readonly string[]).includes(x)
+  );
+  const preguntas = Array.from(new Set([...aAplicar.flatMap((a) => preguntasDeAtomo(a)), ...confirmadasCrudas]));
+
+  const previo = await leerDiagnostico(supabase, proposalId);
+  const yaPropuestos = Array.isArray(previo._servicios) ? (previo._servicios as string[]) : [];
+  const nuevosServicios = sugeridos
+    .map((a) => a.servicio!.label)
+    .filter((l) => !yaPropuestos.includes(l) && !base.estado.servicios.find((s) => s.label === l)?.included);
+  const sig: DiagnosticoJson = { ...previo };
+  for (const q of preguntas) if (previo[q] !== "ok") sig[q] = "ia";
+  if (nuevosServicios.length > 0) sig._servicios = [...yaPropuestos, ...nuevosServicios];
+  await supabase.from("proposals").update({ diagnostico_estado: sig }).eq("id", proposalId);
+
+  for (const sub of ["diagnostico", "propuesta", "presentacion", "versiones", "contrato"]) {
+    revalidatePath(`/proposals/${proposalId}/${sub}`);
+  }
+  const partes = [
+    preguntas.length > 0 ? `${preguntas.length} ${preguntas.length === 1 ? "respuesta" : "respuestas"}` : "",
+    nuevosServicios.length > 0 ? `${nuevosServicios.length} ${nuevosServicios.length === 1 ? "servicio por confirmar" : "servicios por confirmar"}` : "",
+  ].filter(Boolean);
+  return {
+    error: null,
+    resumen: partes.length > 0 ? `Listo, completé ${partes.join(" y ")}. Revísalo abajo y confirma.` : "No encontré datos claros en las notas. Responde las preguntas a mano.",
+  };
+}
+
+/** El asesor acepta o descarta un servicio que propuso Claude desde las notas. */
+export async function resolverServicioPropuesto(
+  proposalId: string,
+  label: string,
+  aceptar: boolean
+): Promise<{ error: string | null }> {
+  const supabase = await createClient();
+  const { data: auth } = await supabase.auth.getUser();
+  if (!auth.user) return { error: "Tu sesión expiró. Vuelve a entrar." };
+  if (aceptar) {
+    const r = await alternarServicio(proposalId, label, true);
+    if (r.error) return r;
+  }
+  const previo = await leerDiagnostico(supabase, proposalId);
+  const lista = (Array.isArray(previo._servicios) ? (previo._servicios as string[]) : []).filter((l) => l !== label);
+  await supabase.from("proposals").update({ diagnostico_estado: { ...previo, _servicios: lista } }).eq("id", proposalId);
+  revalidatePath(`/proposals/${proposalId}/diagnostico`);
   return { error: null };
 }

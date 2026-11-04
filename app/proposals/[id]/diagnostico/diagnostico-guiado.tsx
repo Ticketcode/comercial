@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { LogisticaDetalle, NotasDiagnostico, ServiciosPropuestos, type DetalleLogistica } from "./extras-diagnostico";
 import { ResumenPrecioCard, ServiciosPersonalizados, type ResumenPrecio, type ServicioDiag } from "./resumen-y-servicios";
 import { PedirCambioButton } from "../asistente/asistente-panel";
 import { confirmarPregunta, responderPregunta, type EstadoPregunta, type Respuesta } from "./guiado-actions";
@@ -28,6 +29,8 @@ export interface DatosGuiado {
   tabla: { logistico: number; supervisor: number; productor: number } | null;
   estado: Record<string, EstadoPregunta>;
   resumen: ResumenPrecio;
+  serviciosPorConfirmar: string[];
+  logistica: DetalleLogistica;
   servicios: ServicioDiag[];
 }
 
@@ -315,15 +318,33 @@ export function DiagnosticoGuiado({ datos }: { datos: DatosGuiado }) {
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
     <section aria-label="Diagnóstico guiado" className="min-w-0 space-y-4">
+      <NotasDiagnostico proposalId={datos.proposalId} />
+
       <div className="rounded-2xl bg-surface2 px-5 py-4">
         <p className="font-display text-lg font-extrabold text-ink">Armemos el diagnóstico de {datos.eventName}</p>
         <p className="mt-1 text-sm text-muted">
           Contesta en orden o salta a la que quieras. Cada respuesta se guarda al confirmarla y mueve el valor abajo. También puedes contárselo a Claude con el botón
           «Claude» (Ctrl+K) y él propone los cambios.
         </p>
-        <p className="mt-2 text-xs font-semibold text-muted">
-          {confirmadas} de {Q.length} preguntas respondidas
-        </p>
+        <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold">
+          <span className="rounded-pill bg-highlight px-3 py-1 text-highlight-ink">{Q.filter((q) => estadoDe(q.id) === "ok" || estadoDe(q.id) === "na").length} confirmadas</span>
+          {Q.some((q) => estadoDe(q.id) === "ia") && (
+            <span className="rounded-pill bg-surface px-3 py-1 text-ink">{Q.filter((q) => estadoDe(q.id) === "ia").length} por confirmar (Claude)</span>
+          )}
+          <span className="rounded-pill bg-warn-bg px-3 py-1 text-warn-ink">{Q.filter((q) => estadoDe(q.id) === "pendiente").length} pendientes</span>
+        </div>
+        {Q.some((q) => estadoDe(q.id) === "pendiente") && (
+          <div className="mt-3 rounded-xl bg-warn-bg px-3 py-3">
+            <p className="mb-2 text-xs font-semibold text-warn-ink">Falta:</p>
+            <div className="flex flex-wrap gap-2">
+              {Q.filter((q) => estadoDe(q.id) === "pendiente").map((q) => (
+                <button key={q.id} type="button" onClick={() => setAbierta(q.id)} className="rounded-pill border border-border bg-surface px-3 py-1.5 text-xs text-ink hover:bg-surface2">
+                  {q.texto.replace(/^¿/, "").replace(/\?$/, "")}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {datos.modality !== "presencial" && datos.modality !== "hibrido" && (
@@ -388,7 +409,9 @@ export function DiagnosticoGuiado({ datos }: { datos: DatosGuiado }) {
         </p>
       )}
 
+      <ServiciosPropuestos proposalId={datos.proposalId} servicios={datos.serviciosPorConfirmar} />
       <ServiciosPersonalizados proposalId={datos.proposalId} servicios={datos.servicios} />
+      <LogisticaDetalle d={datos.logistica} />
 
     </section>
     <ResumenPrecioCard r={datos.resumen} pendientes={Q.length - confirmadas} evento={datos.eventName} />

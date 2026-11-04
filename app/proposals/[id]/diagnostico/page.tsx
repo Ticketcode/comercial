@@ -66,6 +66,7 @@ export default async function TarifarioPage({
     honorariosProductorScale ?? []
   );
   const tabla = staffingForAforo(Number(p.aforo ?? 0), aforoScales ?? []);
+  const diagEstado = ((proposal as { diagnostico_estado?: Record<string, unknown> }).diagnostico_estado ?? {}) as Record<string, unknown>;
   const datos: DatosGuiado = {
     proposalId: id,
     eventName: p.event_name,
@@ -85,7 +86,34 @@ export default async function TarifarioPage({
     branding: !!incluido("branding"),
     labels: !!incluido("labels de seguridad"),
     tabla: tabla ? { logistico: tabla.logistico, supervisor: tabla.supervisor, productor: tabla.productor } : null,
-    estado: ((proposal as { diagnostico_estado?: Record<string, EstadoPregunta> }).diagnostico_estado ?? {}) as Record<string, EstadoPregunta>,
+    estado: Object.fromEntries(
+      Object.entries(diagEstado).filter(([k, v]) => !k.startsWith("_") && typeof v === "string")
+    ) as Record<string, EstadoPregunta>,
+    serviciosPorConfirmar: (Array.isArray(diagEstado._servicios) ? (diagEstado._servicios as string[]) : []).filter(
+      (l) => !!serviceItems.find((i) => i.label === l && !i.included)
+    ),
+    logistica: {
+      rubros: [
+        ["Honorarios", summary.logistica.lineItems.honorarios, summary.logistica.honorarios],
+        ["Alimentación y hotel", summary.logistica.lineItems.alimentacionHotel, summary.logistica.alimentacionHotel],
+        ["Transporte", summary.logistica.lineItems.transporte, summary.logistica.transporte],
+        ["Equipos", summary.logistica.lineItems.equipos, summary.logistica.equipos],
+        ["Costos varios", summary.logistica.lineItems.costosVarios, summary.logistica.costosVarios],
+      ].map(([titulo, lineas, total]) => ({
+        titulo: titulo as string,
+        total: total as number,
+        lineas: (lineas as typeof summary.logistica.lineItems.honorarios).map((l) => ({
+          label: l.label,
+          dias: l.dias,
+          cantidad: l.quantity,
+          tarifa: l.rate,
+          subtotal: l.subtotal,
+        })),
+      })),
+      subtotal: summary.logistica.subTotalCostoLogistica,
+      imprevistos: summary.logistica.totalCostoLogisticaConImprevistos - summary.logistica.subTotalCostoLogistica,
+      total: summary.logistica.totalCostoLogisticaConImprevistos,
+    },
     resumen: {
       logistica: summary.logistica.totalCostoLogisticaConImprevistos,
       servicios: summary.subtotalServicios,
