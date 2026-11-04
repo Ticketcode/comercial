@@ -11,6 +11,7 @@ import type { Proposal, ProposalCostItem, Modality } from "@/lib/types";
 import { staffingForAforo, totalLogisticosSalones, type AforoScaleRow } from "@/lib/pricing/logistics";
 import { SALONES_INTERNOS_SERVICE_LABEL } from "@/lib/pricing/service-quantity";
 import { HIDEABLE_SLIDE_GROUPS } from "@/lib/data/laminas";
+import { servicioAplica } from "@/lib/data/servicios-alcance";
 
 export type ValorCampo = number | string | boolean | number[] | null;
 
@@ -228,6 +229,7 @@ export function validarCambios(
   for (const nombre of lista(crudos.serviciosAgregar)) {
     const s = buscarServicio(nombre);
     if (!s) bloqueados.push({ etiqueta: String(nombre).slice(0, 80), motivo: "No está en el catálogo de esta modalidad" });
+    else if (!servicioAplica(s.label, m)) bloqueados.push({ etiqueta: s.label, motivo: "No aplica a esta modalidad" });
     else if (!s.included) atomos.push({ id: nuevoId(), tipo: "servicio", servicio: { label: s.label, incluir: true } });
   }
   for (const nombre of lista(crudos.serviciosQuitar)) {
@@ -274,6 +276,7 @@ export function validarAtomo(atomo: Atomo, estado: EstadoPropuesta): string | nu
   if (atomo.tipo === "servicio") {
     const s = estado.servicios.find((x) => x.label === atomo.servicio?.label);
     if (!s) return "Servicio no disponible en esta propuesta";
+    if (atomo.servicio?.incluir && !s.included && !servicioAplica(s.label, m)) return "Ese servicio no aplica a esta modalidad";
     const c = atomo.servicio?.cantidad;
     if (c !== undefined && !(Number.isInteger(c) && c >= 0 && c <= 100000)) return "Cantidad fuera de rango";
     return null;

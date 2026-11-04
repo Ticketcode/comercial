@@ -9,6 +9,7 @@ import { TarifarioEditor } from "./tarifario-editor";
 import { DiagnosticoGuiado, type DatosGuiado } from "./diagnostico-guiado";
 import { VistaDiagnostico } from "./vista-diagnostico";
 import { notaServicio } from "./nota-servicio";
+import { controladoPorPregunta, servicioAplica } from "@/lib/data/servicios-alcance";
 import type { EstadoPregunta } from "./guiado-actions";
 
 // Evita que Next cachee las consultas a Supabase entre requests — sin esto,
@@ -129,7 +130,10 @@ export default async function TarifarioPage({
       ivaRate: summary.ivaRate,
       total: summary.valorPropuestaFinal + summary.iva,
     },
-    servicios: serviceItems.map((i) => ({
+    servicios: serviceItems
+      // Lo ya incluido se muestra siempre (cuesta); lo disponible, solo si aplica a la modalidad y no se define por pregunta.
+      .filter((i) => i.included || (servicioAplica(i.label, p.modality) && !controladoPorPregunta(i.label)))
+      .map((i) => ({
       label: i.label,
       incluido: !!i.included,
       precio: Number(i.unit_cost),

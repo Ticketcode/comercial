@@ -4,6 +4,7 @@
  */
 import Anthropic from "@anthropic-ai/sdk";
 import { HIDEABLE_SLIDE_GROUPS } from "@/lib/data/laminas";
+import { servicioAplica } from "@/lib/data/servicios-alcance";
 import { mensajeErrorClaude } from "@/lib/ai/errores";
 import type { CambiosCrudos, EstadoPropuesta } from "@/lib/ai/cambios";
 
@@ -64,7 +65,10 @@ Estado actual de la propuesta:
 ${JSON.stringify(resumenParaClaude(e))}
 
 Servicios personalizados disponibles para esta modalidad (nombre — incluido):
-${e.servicios.map((s) => `- ${s.label} — ${s.included ? "sí" : "no"}`).join("\n")}
+${e.servicios
+  .filter((s) => s.included || servicioAplica(s.label, e.proposal.modality))
+  .map((s) => `- ${s.label} — ${s.included ? "sí" : "no"}`)
+  .join("\n")}
 
 Láminas que se pueden ocultar:
 ${HIDEABLE_SLIDE_GROUPS.map((g) => `- ${g.label}`).join("\n")}`;
