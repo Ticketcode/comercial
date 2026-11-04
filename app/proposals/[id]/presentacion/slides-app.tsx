@@ -1,18 +1,10 @@
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import type { PresentacionContacto } from "@/lib/types";
 import { formatCOP } from "@/lib/pricing/summary";
 import { formatFechaCorta } from "@/lib/fecha-local";
-import {
-  GRUPO_INFO,
-  agruparEnPaquetes,
-  esPaqueteAncho,
-  itemCatalogoAplica,
-  itemsVisibles,
-  type GrupoPaquetes,
-  type ItemParaPaquete,
-  type Paquete,
-  type PaquetesDeGrupo,
-} from "@/lib/data/paquetes";
+import { GRUPO_INFO, agruparEnPaquetes, itemCatalogoAplica, type GrupoPaquetes, type ItemParaPaquete, type Paquete, type PaquetesDeGrupo } from "@/lib/data/paquetes";
+import { cantidadesLogistica, type CantidadesLogistica } from "@/lib/data/logistica-cantidades";
+import { repartirServicios, serviciosPorPaquete, type PaqueteServicios } from "@/lib/data/servicios-deck";
 import {
   CheckBadge,
   DISPLAY_FONT,
@@ -400,6 +392,30 @@ export function getPaquetesDeck(data: DeckData): PaquetesDeGrupo[] {
   return agruparEnPaquetes(items);
 }
 
+const sinTildes = (s: string) =>
+  s
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "");
+
+/** Logística 360 con sus cantidades (salen del Diagnóstico). null = no hay nada que mostrar. */
+export function getLogisticaDeck(data: DeckData): CantidadesLogistica | null {
+  const selectedMap = Object.fromEntries(data.catalogSelections.map((s) => [s.catalog_item_id, s]));
+  const catalogo = data.catalogItems
+    .filter((c) => c.category === "logistica_360")
+    .map((c) => ({ name: c.name, included: !!selectedMap[c.id]?.included }));
+  const pre = data.includedServices.find((s) => sinTildes(s.baseName ?? s.name).includes("pre acreditacion"));
+  const capacitacion = data.includedServices.some((s) => sinTildes(s.baseName ?? s.name).includes("capacitacion al staff"));
+  return cantidadesLogistica(data.proposal, Number(pre?.cantidad ?? 0), catalogo, capacitacion);
+}
+
+/** Servicios personalizados de la propuesta, agrupados por paquete y repartidos en láminas. */
+export function getServiciosDeck(data: DeckData): PaqueteServicios[][][] {
+  return repartirServicios(
+    serviciosPorPaquete(data.includedServices.map((s) => ({ baseName: s.baseName ?? s.name, titulo: s.name, alcance: s.description })))
+  );
+}
+
 /** Clave de "ocultar lámina" que corresponde a cada grupo de paquetes. */
 export function claveOcultarGrupo(grupo: GrupoPaquetes): string {
   if (grupo === "Logística 360") return "logistica";
@@ -407,69 +423,163 @@ export function claveOcultarGrupo(grupo: GrupoPaquetes): string {
   return "componentes";
 }
 
-const PAQUETE_VARIANTES: TileVariant[] = ["ink", "mint", "gray", "deep"];
+const VARIANTES: TileVariant[] = ["ink", "mint", "gray", "deep"];
 
-export function PaqueteSlide({
-  grupo,
-  paquetes,
-  parte,
-  page,
-  total,
-}: {
-  grupo: GrupoPaquetes;
-  paquetes: Paquete[];
-  /** "1/2" cuando el grupo ocupa varias láminas. */
-  parte?: string;
-  page: number;
-  total: number;
-}) {
+/** Encabezado común de las láminas de componentes: píldora, título e intro opcional. */
+function CabeceraComponentes({ pill, titulo, intro }: { pill: string; titulo: string; intro?: string }) {
   const t = THEME.light;
-  const info = GRUPO_INFO[grupo];
   return (
-    <Slide1920 theme="light" section="La propuesta" page={page} total={total} contentStyle={{ flexDirection: "row", gap: 64 }}>
-      <div style={{ width: 520, display: "flex", flexDirection: "column", gap: 32, justifyContent: "center" }}>
-        <Pill>{parte ? `${grupo} (${parte})` : grupo}</Pill>
-        <h2 style={{ fontFamily: DISPLAY_FONT, fontSize: 68, fontWeight: 800, lineHeight: 1.05, letterSpacing: -1, color: t.fg }}>
-          {info.titulo}
-        </h2>
-        <p style={{ fontSize: 28, lineHeight: 1.4, color: t.muted }}>{info.intro}</p>
+    <div style={{ display: "flex", flexDirection: "column", marginBottom: intro ? 28 : 24 }}>
+      <Pill>{pill}</Pill>
+      <h2 style={{ fontFamily: DISPLAY_FONT, fontSize: 64, fontWeight: 800, lineHeight: 1.05, letterSpacing: -1, color: t.fg, marginTop: 20 }}>{titulo}</h2>
+      {intro && <p style={{ fontSize: 28, lineHeight: 1.35, color: t.muted, marginTop: 12 }}>{intro}</p>}
+    </div>
+  );
+}
+
+/** Reparte n tarjetas en filas que llenan el ancho: 4 → 2+2, 5 → 3+2, 6 → 3+3. */
+function filasDe<T>(items: T[]): T[][] {
+  const n = items.length;
+  const tam = n <= 3 ? n : n === 4 ? 2 : 3;
+  const filas: T[][] = [];
+  for (let i = 0; i < n; i += tam || 1) filas.push(items.slice(i, i + (tam || 1)));
+  return filas;
+}
+
+/** Plataforma base (y otros grupos de componentes): una tarjeta por paquete, igual de altas y sin huecos. */
+export function GrupoSlide({ grupo, paquetes, page, total }: { grupo: GrupoPaquetes; paquetes: Paquete[]; page: number; total: number }) {
+  const MAX = 4;
+  const grande = Math.max(...paquetes.map((p) => Math.min(p.items.length, MAX))) <= 3 && paquetes.length <= 4;
+  const filas = filasDe(paquetes);
+  return (
+    <Slide1920 theme="light" section="La propuesta" page={page} total={total}>
+      <CabeceraComponentes pill={grupo} titulo={GRUPO_INFO[grupo].titulo} intro={GRUPO_INFO[grupo].intro} />
+      <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
+        {filas.map((fila, r) => (
+          <Fragment key={r}>
+            {r > 0 && <div style={{ height: 24, flexShrink: 0 }} />}
+            <div style={{ display: "flex", flexDirection: "row", flex: 1, minHeight: 0 }}>
+              {fila.map((p, i) => {
+                const idx = paquetes.indexOf(p);
+                const v = VARIANTES[idx % VARIANTES.length];
+                const c = tileColors(v);
+                const checkBg = v === "mint" ? "#EAF3F0" : "#3CD65C";
+                const visibles = p.items.slice(0, MAX);
+                const resto = p.items.length - visibles.length;
+                return (
+                  <Fragment key={p.nombre}>
+                    {i > 0 && <div style={{ width: 24, flexShrink: 0 }} />}
+                    <Tile variant={v} style={{ flex: 1, padding: 32, overflow: "hidden" }}>
+                      <h3 style={{ fontFamily: DISPLAY_FONT, fontSize: grande ? 38 : 36, fontWeight: 700, lineHeight: 1.1, color: c.accent }}>{p.nombre}</h3>
+                      <p style={{ fontSize: 24, lineHeight: 1.3, color: c.muted, marginTop: 6 }}>{p.promesa}</p>
+                      <div style={{ display: "flex", flexDirection: "column", marginTop: 14 }}>
+                        {visibles.map((it, k) => (
+                          <div key={it} style={{ display: "flex", flexDirection: "row", alignItems: "flex-start", marginTop: k === 0 ? 0 : 10 }}>
+                            <CheckBadge size={grande ? 28 : 26} iconSize={grande ? 18 : 16} bg={checkBg} />
+                            <p style={{ flex: 1, fontSize: grande ? 26 : 24, lineHeight: 1.25, fontWeight: 600, color: c.fg, marginLeft: 12 }}>{it}</p>
+                          </div>
+                        ))}
+                        {resto > 0 && <p style={{ fontSize: 24, fontWeight: 600, color: c.accent, marginTop: 10 }}>+ {resto} más</p>}
+                      </div>
+                    </Tile>
+                  </Fragment>
+                );
+              })}
+            </div>
+          </Fragment>
+        ))}
       </div>
-      <div style={{ flex: 1, display: "grid", gridTemplateColumns: "1fr 1fr", gridAutoRows: "1fr", gap: 24, minHeight: 0 }}>
+    </Slide1920>
+  );
+}
+
+/** Logística 360: lo que se pone en el evento, con la cantidad de cada cosa bien visible. */
+export function LogisticaCantidadesSlide({ datos, page, total }: { datos: CantidadesLogistica; page: number; total: number }) {
+  const { paquetes, sinLogistica } = datos;
+  return (
+    <Slide1920 theme="light" section="La propuesta" page={page} total={total}>
+      <CabeceraComponentes
+        pill={sinLogistica ? "Lo dispone el organizador" : "Logística 360"}
+        titulo={sinLogistica ? "Lo que necesita tu evento en sitio" : "Personas y equipos en sitio"}
+        intro={
+          sinLogistica
+            ? "Las cantidades que el organizador debe disponer. Ticketcode capacita a tu equipo en la plataforma."
+            : "Esto es lo que ponemos en tu evento, con las cantidades calculadas para tu aforo."
+        }
+      />
+      <div style={{ display: "flex", flexDirection: "row", flex: 1, minHeight: 0 }}>
         {paquetes.map((p, i) => {
-          const variant = PAQUETE_VARIANTES[i % PAQUETE_VARIANTES.length];
-          const c = tileColors(variant);
-          const ancho = esPaqueteAncho(p);
-          const { visibles, ocultos } = itemsVisibles(p);
-          const checkBg = variant === "mint" ? "#EAF3F0" : "#3CD65C";
+          const v = VARIANTES[i % VARIANTES.length];
+          const c = tileColors(v);
+          const checkBg = v === "mint" ? "#EAF3F0" : "#3CD65C";
           return (
-            <Tile
-              key={p.nombre}
-              variant={variant}
-              style={{ padding: 32, gap: 12, overflow: "hidden", ...(ancho ? { gridColumn: "span 2" } : {}) }}
-            >
-              <h3 style={{ fontFamily: DISPLAY_FONT, fontSize: 36, fontWeight: 700, lineHeight: 1.1, color: c.accent }}>{p.nombre}</h3>
-              <p style={{ fontSize: 24, lineHeight: 1.3, color: c.muted }}>{p.promesa}</p>
-              <div
-                style={{
-                  display: ancho ? "grid" : "flex",
-                  ...(ancho ? { gridTemplateColumns: "1fr 1fr", columnGap: 24 } : { flexDirection: "column" as const }),
-                  rowGap: 8,
-                  marginTop: 4,
-                }}
-              >
-                {visibles.map((it) => (
-                  <div key={it} style={{ display: "flex", flexDirection: "row", gap: 12, alignItems: "flex-start" }}>
-                    <CheckBadge size={26} iconSize={16} bg={checkBg} />
-                    <p style={{ flex: 1, fontSize: 24, lineHeight: 1.25, fontWeight: 600, color: c.fg, margin: 0 }}>{it}</p>
-                  </div>
-                ))}
-                {ocultos > 0 && (
-                  <p style={{ fontSize: 24, fontWeight: 600, color: c.accent, margin: 0 }}>+ {ocultos} más</p>
-                )}
-              </div>
-            </Tile>
+            <Fragment key={p.nombre}>
+              {i > 0 && <div style={{ width: 24, flexShrink: 0 }} />}
+              <Tile variant={v} style={{ flex: 1, padding: "24px 28px", overflow: "hidden" }}>
+                <h3 style={{ fontFamily: DISPLAY_FONT, fontSize: 34, fontWeight: 700, lineHeight: 1.1, color: c.accent }}>{p.nombre}</h3>
+                <p style={{ fontSize: 24, lineHeight: 1.25, color: c.muted, marginTop: 6 }}>{p.promesa}</p>
+                <div style={{ display: "flex", flexDirection: "column", flex: 1, justifyContent: "space-evenly", marginTop: 12 }}>
+                  {p.filas.map((f) => (
+                    <div key={f.etiqueta} style={{ display: "flex", flexDirection: "row", alignItems: "center" }}>
+                      <div style={{ width: 84, flexShrink: 0, display: "flex", justifyContent: "center" }}>
+                        {f.cantidad === null ? (
+                          <CheckBadge size={40} iconSize={24} bg={checkBg} />
+                        ) : (
+                          <p style={{ fontFamily: DISPLAY_FONT, fontSize: 48, fontWeight: 800, lineHeight: 1, color: c.accent }}>{f.cantidad.toLocaleString("es-CO")}</p>
+                        )}
+                      </div>
+                      <div style={{ flex: 1, marginLeft: 12 }}>
+                        <p style={{ fontSize: 26, fontWeight: 600, lineHeight: 1.15, color: c.fg }}>{f.etiqueta}</p>
+                        {f.detalle && <p style={{ fontSize: 24, lineHeight: 1.2, color: c.muted, marginTop: 2 }}>{f.detalle}</p>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </Tile>
+            </Fragment>
           );
         })}
+      </div>
+    </Slide1920>
+  );
+}
+
+/** Servicios personalizados: UNA tarjeta por paquete, con todos sus servicios dentro (título y alcance de cada uno). */
+export function ServiciosPorPaqueteSlide({ filas, parte, page, total }: { filas: PaqueteServicios[][]; parte?: string; page: number; total: number }) {
+  return (
+    <Slide1920 theme="light" section="La propuesta" page={page} total={total}>
+      <CabeceraComponentes pill={parte ? `Servicios personalizados (${parte})` : "Servicios personalizados"} titulo={GRUPO_INFO["Servicios personalizados"].titulo} />
+      <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
+        {filas.map((fila, r) => (
+          <Fragment key={r}>
+            {r > 0 && <div style={{ height: 24, flexShrink: 0 }} />}
+            <div style={{ display: "flex", flexDirection: "row", flex: 1, minHeight: 0 }}>
+              {fila.map((p, i) => {
+                const v = VARIANTES[p.idx % VARIANTES.length];
+                const c = tileColors(v);
+                return (
+                  <Fragment key={p.nombre + p.servicios[0].titulo}>
+                    {i > 0 && <div style={{ width: 24, flexShrink: 0 }} />}
+                    <Tile variant={v} style={{ flex: p.servicios.length, padding: "20px 24px", overflow: "hidden", justifyContent: "flex-start" }}>
+                      <h3 style={{ fontFamily: DISPLAY_FONT, fontSize: 28, fontWeight: 700, lineHeight: 1.1, color: c.accent }}>{p.nombre}</h3>
+                      <div style={{ display: "flex", flexDirection: "row", flex: 1, minHeight: 0, marginTop: 14 }}>
+                        {p.servicios.map((sv, k) => (
+                          <Fragment key={sv.titulo}>
+                            {k > 0 && <div style={{ width: 1, background: c.line, marginLeft: 16, marginRight: 16, flexShrink: 0 }} />}
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <h4 style={{ fontFamily: DISPLAY_FONT, fontSize: 30, fontWeight: 700, lineHeight: 1.1, color: c.fg }}>{sv.titulo}</h4>
+                              {sv.alcance && <p style={{ fontSize: 24, lineHeight: 1.25, color: c.muted, marginTop: 6 }}>{sv.alcance}</p>}
+                            </div>
+                          </Fragment>
+                        ))}
+                      </div>
+                    </Tile>
+                  </Fragment>
+                );
+              })}
+            </div>
+          </Fragment>
+        ))}
       </div>
     </Slide1920>
   );

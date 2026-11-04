@@ -73,6 +73,7 @@ export async function loadDeckData(supabase: SupabaseClient, id: string): Promis
     .filter((i) => i.included)
     .map((i) => ({
       baseName: i.label,
+      cantidad: Number(i.quantity),
       name: i.custom_name || serviceCatalogItems?.find((c) => c.name === i.label)?.titulo_comercial || i.label,
       description: i.custom_description || serviceCatalogItems?.find((c) => c.name === i.label)?.description || null,
     }));

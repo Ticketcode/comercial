@@ -267,12 +267,13 @@
     "La explicación del módulo de códigos de descuento y las actividades de logística se cortan en la app; guardar el texto completo y no usar cajas con scroll al exportar."
   ],
   "packaging": {
-    "descripcion": "La lámina 'Lo que incluye tu evento' y las tablas de Componentes básicos, Logística 360 y Servicios personalizados se reemplazaron por láminas de paquetes: columna izquierda con píldora, título e intro del grupo; a la derecha tarjetas 2x2 con nombre comercial, promesa de valor y viñetas de lo incluido.",
-    "grupos": ["Plataforma base", "Logística 360", "Streaming", "Mundo virtual", "Servicios personalizados"],
-    "fuente_de_reglas": "lib/data/paquetes.ts (nombres, promesas y a qué paquete va cada ítem según su nombre en el catálogo; lo que no calza cae en 'Otros ...').",
-    "capacidad": "4 casillas por lámina; un paquete con más de 4 ítems ocupa 2 columnas; más de 12 ítems se resume con '+ N más'.",
+    "descripcion": "Los componentes van cada grupo en su lámina (sin vista general ni láminas combinadas): Plataforma base, Logística 360, Streaming, Mundo virtual y Servicios personalizados.",
+    "plataforma_y_otros_grupos": "Una tarjeta por paquete (nombre, promesa y viñetas), todas del mismo alto; 4 paquetes = 2x2, 5 = 3+2, 6 = 3+3.",
+    "logistica": "Tres tarjetas con las CANTIDADES como protagonistas (número grande + nombre + detalle). Salen del Diagnóstico: productor, supervisores, logísticos, logísticos de salón con su distribución por aforo, portátiles, impresoras, smartphones, rollos de labels, visita preoperativa y pre-acreditación. Sin logística de Ticketcode la lámina se titula 'Lo que necesita tu evento en sitio' y lo marca como lo que dispone el organizador (solo se cobra la capacitación al staff).",
+    "servicios": "UNA tarjeta por paquete con todos sus servicios dentro (título comercial y alcance). Un paquete ocupa tantas columnas como servicios tiene (máx. 3); filas de 3 columnas sin huecos; 2 filas por lámina.",
+    "fuente_de_reglas": "lib/data/paquetes.ts (paquetes), lib/data/logistica-cantidades.ts (cantidades), lib/data/servicios-deck.ts (servicios por paquete).",
     "ocultar": "Plataforma base/Streaming/Mundo virtual usan la clave 'componentes'; Logística 360 'logistica'; Servicios personalizados 'servicios'.",
-    "pendiente": "Los nombres y promesas están en código; deben aprobarse por el área comercial y luego pasar a una tabla del catálogo."
+    "maqueta": "docs/propuesta-deck/vista-previa-componentes-v2/"
   },
   "perfil": "Lámina Perfil: tarjeta tinta con modalidad, nombre del evento y 'Lugar · Ciudad'; a la derecha Fechas (menta, con días), Aforo según modalidad y Ciudad, sin tarjetas huérfanas.",
   "instructions_for_claude_code": [

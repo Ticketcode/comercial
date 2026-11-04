@@ -416,6 +416,8 @@ export function CheckBadge({ size = 36, iconSize = 22, bg }: { size?: number; ic
 export interface IncludedService {
   /** Nombre original del catálogo (name puede ser el que editó el comercial). */
   baseName?: string;
+  /** Cantidad con la que entra al precio (para la pre-acreditación son los días). */
+  cantidad?: number;
   name: string;
   description: string | null;
 }

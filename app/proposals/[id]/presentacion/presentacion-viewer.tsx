@@ -24,17 +24,20 @@ import {
   CronogramaSlide,
   FinalSlide,
   InversionSlide,
+  GrupoSlide,
+  LogisticaCantidadesSlide,
   PagosSlide,
-  PaqueteSlide,
   PerfilSlide,
   PresencialSlide,
   RequerimientosSlide,
+  ServiciosPorPaqueteSlide,
   claveOcultarGrupo,
+  getLogisticaDeck,
   getPaquetesDeck,
+  getServiciosDeck,
   hasAcuerdoComercial,
 } from "./slides-app";
 import { HIDEABLE_SLIDE_GROUPS } from "@/lib/data/laminas";
-import { repartirPaquetes } from "@/lib/data/paquetes";
 
 const PREVIEW_SCALE = 760 / 1920;
 
@@ -68,22 +71,33 @@ function buildSlides(data: DeckData, hidden: string[], edit: SlideEditHandlers =
     { key: "organizador", group: "organizador", render: (p) => <OrganizadorSlide page={p.page} total={p.total} /> },
     { key: "presencial", group: "presencial", render: (p) => <PresencialSlide {...p} /> },
     { key: "perfil", group: "perfil", render: (p) => <PerfilSlide {...p} /> },
-    ...getPaquetesDeck(data).flatMap(({ grupo, paquetes }) => {
-      const laminas = repartirPaquetes(paquetes);
-      return laminas.map((chunk, i) => ({
-        key: `paquetes-${grupo}-${i}`,
+    // Componentes: cada grupo va en su lámina. La logística muestra las cantidades configuradas en el Diagnóstico.
+    ...getPaquetesDeck(data)
+      .filter((g) => g.grupo !== "Logística 360" && g.grupo !== "Servicios personalizados")
+      .map(({ grupo, paquetes }) => ({
+        key: `componentes-${grupo}`,
         group: claveOcultarGrupo(grupo),
+        render: (p: Parameters<SlideFn>[0]) => <GrupoSlide grupo={grupo} paquetes={paquetes} page={p.page} total={p.total} />,
+      })),
+    ...(getLogisticaDeck(data)
+      ? [
+          {
+            key: "logistica-cantidades",
+            group: "logistica",
+            render: (p: Parameters<SlideFn>[0]) => <LogisticaCantidadesSlide datos={getLogisticaDeck(data)!} page={p.page} total={p.total} />,
+          },
+        ]
+      : []),
+    ...(() => {
+      const laminas = getServiciosDeck(data);
+      return laminas.map((filas, i) => ({
+        key: `servicios-${i}`,
+        group: "servicios",
         render: (p: Parameters<SlideFn>[0]) => (
-          <PaqueteSlide
-            grupo={grupo}
-            paquetes={chunk}
-            parte={laminas.length > 1 ? `${i + 1}/${laminas.length}` : undefined}
-            page={p.page}
-            total={p.total}
-          />
+          <ServiciosPorPaqueteSlide filas={filas} parte={laminas.length > 1 ? `${i + 1}/${laminas.length}` : undefined} page={p.page} total={p.total} />
         ),
       }));
-    }),
+    })(),
     {
       key: "comercial",
       group: "comercial",

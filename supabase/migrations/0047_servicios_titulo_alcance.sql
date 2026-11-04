@@ -5,13 +5,9 @@
 alter table catalog_items
   add column if not exists titulo_comercial text;
 
--- Respaldo de las descripciones anteriores, por si hay que volver atrás.
-create table if not exists catalog_items_descripcion_antes_0047 as
-  select id, name, description from catalog_items where category = 'servicio_personalizado';
-
-update catalog_items set titulo_comercial = 'Asesoría previa con tu productor', description = 'Dos reuniones de hasta 1 hora con el productor del evento: una de arranque (onboarding) y otra de preproducción, para dejar definidos tiempos, responsables y configuración.'
+update catalog_items set titulo_comercial = 'Asesoría previa con tu productor', description = 'Dos reuniones de hasta 1 hora con tu productor: arranque y preproducción, para dejar definidos tiempos, responsables y configuración.'
   where category = 'servicio_personalizado' and modality = 'general' and name ilike 'Asesor%pre-evento%';
-update catalog_items set titulo_comercial = 'Servidores dedicados para tu evento', description = 'Infraestructura robusta en la nube: servidores, bases de datos, demanda de tráfico, seguridad informática, latencia y respaldo de datos, dimensionada al aforo y a los días del evento.'
+update catalog_items set titulo_comercial = 'Servidores dedicados para tu evento', description = 'Infraestructura en la nube dimensionada al aforo y a los días del evento: servidores, bases de datos, seguridad y respaldo de datos.'
   where category = 'servicio_personalizado' and modality = 'general' and name ilike 'Cloud server';
 update catalog_items set titulo_comercial = 'Servidores para tu audiencia virtual', description = 'Infraestructura en la nube dimensionada al aforo virtual y a los días de transmisión, con seguridad informática y respaldo de datos.'
   where category = 'servicio_personalizado' and modality = 'general' and name ilike 'Cloud server virtual';
@@ -57,7 +53,7 @@ update catalog_items set titulo_comercial = 'Informes finales de asistencia', de
   where category = 'servicio_personalizado' and modality = 'general' and name ilike 'Informes finales';
 update catalog_items set titulo_comercial = 'Política de protección de datos propia', description = 'Espacio para personalizar el texto de protección de datos según las condiciones del organizador.'
   where category = 'servicio_personalizado' and modality = 'general' and name ilike 'Protecci_n de datos';
-update catalog_items set titulo_comercial = 'Pre-acreditación', description = 'Acreditación anticipada durante los días definidos antes del evento, con personal logístico, equipos y suministros, para que los asistentes lleguen con su credencial lista. Se cobra por día.'
+update catalog_items set titulo_comercial = 'Pre-acreditación', description = 'Acreditación anticipada antes del evento, con personal, equipos y suministros, para que lleguen con su credencial lista. Se cobra por día.'
   where category = 'servicio_personalizado' and modality = 'general' and name ilike 'Pre acreditaci_n';
 update catalog_items set titulo_comercial = 'Control de alimentos y elementos', description = 'Control de las cantidades de alimentos o elementos que se entregan a los asistentes.'
   where category = 'servicio_personalizado' and modality = 'general' and name ilike 'Control suministro%';
