@@ -142,7 +142,6 @@ const PRESENCIAL_COPY: Record<string, { title: string; intro: string; bullets: s
     bullets: [
       "La forma más eficiente de configurar y publicar cualquier evento.",
       "Organización, agilidad y comodidad desde el registro hasta el acceso de los asistentes.",
-      "DATA real y segmentada de todo el flujo de los asistentes antes y durante el evento.",
     ],
   },
   hibrido: {
@@ -160,7 +159,6 @@ const PRESENCIAL_COPY: Record<string, { title: string; intro: string; bullets: s
     bullets: [
       "La forma más eficiente de configurar y publicar tu evento virtual.",
       "Registro, acceso y transmisión en un solo flujo, sin fricciones.",
-      "DATA real y segmentada de todo el flujo de los asistentes antes y durante el evento.",
     ],
   },
   mundo_virtual: {
@@ -169,7 +167,6 @@ const PRESENCIAL_COPY: Record<string, { title: string; intro: string; bullets: s
     bullets: [
       "La forma más eficiente de configurar y publicar cualquier evento.",
       "Organización, agilidad y comodidad desde el registro hasta el acceso de los asistentes.",
-      "DATA real y segmentada de todo el flujo de los asistentes antes y durante el evento.",
     ],
   },
 };
