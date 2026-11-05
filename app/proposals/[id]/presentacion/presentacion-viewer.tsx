@@ -23,7 +23,6 @@ import {
   CoverSlide,
   CronogramaSlide,
   FinalSlide,
-  InversionSlide,
   GrupoSlide,
   LogisticaCantidadesSlide,
   PagosSlide,
@@ -118,12 +117,8 @@ function buildSlides(data: DeckData, hidden: string[], edit: SlideEditHandlers =
     ...(hasAcuerdoComercial(data)
       ? [{ key: "acuerdo", group: "acuerdo", render: (p: Parameters<SlideFn>[0]) => <AcuerdoSlide {...p} /> }]
       : []),
-    // "Inversión inicial" solo tiene sentido como contraste antes/después
-    // cuando hay un % de acuerdo comercial que restar — si no hay acuerdo,
-    // el valor ya se muestra completo en "Presupuesto final".
-    ...(data.proposal.acuerdo_comercial_pct_global > 0
-      ? [{ key: "inversion", group: "inversion", render: (p: Parameters<SlideFn>[0]) => <InversionSlide {...p} /> }]
-      : []),
+    // "Presupuesto final" ya cuenta toda la historia de la inversión (valor sin acuerdo → acuerdo comercial → total, IVA y
+    // total con IVA), así que no hay lámina aparte de "Inversión inicial": repetía el mismo valor.
     { key: "final", group: "final", render: (p) => <FinalSlide {...p} /> },
     { key: "pagos", group: "pagos", render: (p) => <PagosSlide {...p} /> },
     {

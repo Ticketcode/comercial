@@ -10,7 +10,6 @@ export const HIDEABLE_SLIDE_GROUPS: { key: string; label: string }[] = [
   { key: "comercial", label: "Comercialización" },
   { key: "informes", label: "Informes y entregables" },
   { key: "acuerdo", label: "Acuerdo comercial" },
-  { key: "inversion", label: "Inversión inicial" },
   { key: "final", label: "Presupuesto final" },
   { key: "pagos", label: "Modelo de pagos" },
   { key: "preproduccion", label: "Preproducción" },
