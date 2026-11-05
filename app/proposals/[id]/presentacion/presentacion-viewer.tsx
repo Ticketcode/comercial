@@ -174,6 +174,7 @@ export function PresentacionViewer({ data: initialData, version }: { data: DeckD
   const [hiddenSlides, setHiddenSlides] = useState<string[]>(initialData.proposal.presentacion_hidden_slides ?? []);
   const [contacto, setContacto] = useState<PresentacionContacto | null>(initialData.proposal.presentacion_contacto);
   const [informes, setInformes] = useState<string[]>(initialData.informes);
+  const [vigenciaDias, setVigenciaDias] = useState(String(initialData.proposal.vigencia_dias ?? 15));
   const [isPending, startTransition] = useTransition();
   const [isDownloading, setIsDownloading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -192,6 +193,7 @@ export function PresentacionViewer({ data: initialData, version }: { data: DeckD
       presentacion_contacto: contacto,
       impactos_registro: impactosRegistro === "" ? null : Number(impactosRegistro),
       impactos_acreditacion: impactosAcreditacion === "" ? null : Number(impactosAcreditacion),
+      vigencia_dias: Math.min(90, Math.max(1, Number(vigenciaDias) || 15)),
     },
   };
 
@@ -212,6 +214,7 @@ export function PresentacionViewer({ data: initialData, version }: { data: DeckD
           hiddenSlides,
           contacto,
           informes: informes.filter((i) => i.trim() !== ""),
+          vigenciaDias: Number(vigenciaDias) || 15,
         })
       );
       setMessage(result.error ? saveErrorMessage(result.error) : "Guardado.");
@@ -284,23 +287,96 @@ export function PresentacionViewer({ data: initialData, version }: { data: DeckD
       )}
       {!readOnly && (
       <section className="no-print rounded-xl border border-neutral-200 bg-white p-5">
-        <h3 className="text-sm font-semibold text-neutral-900">Datos pendientes de la presentación</h3>
+        <h3 className="text-sm font-semibold text-neutral-900">Datos de la presentación</h3>
         <p className="mt-1 text-xs text-neutral-500">
-          Estos datos no existen todavía en ningún otro paso de la app — complétalos aquí para que no salgan
-          como [Por definir]. Los demás datos (impacto inicial, etc.) ya se editan directo en su propia
-          lámina, más abajo. Los datos del asesor comercial salen de{" "}
+          Completa lo que lleva la presentación. También puedes pedírselo a NOVA (botón «NOVA» o Ctrl+K). Lo que dejes vacío usa el valor por defecto, y los datos del asesor
+          salen de{" "}
           <Link href="/perfil" className="underline">
             tu perfil
-          </Link>
-          .
+          </Link>{" "}
+          si no los cambias aquí. El resto (impacto inicial, informes) se edita directo en su lámina.
         </p>
-        <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-4">
-          <LabeledField label="Nombre del contacto (cliente)">
-            <input value={contactName} onChange={(e) => setContactName(e.target.value)} className={inputClass} />
-          </LabeledField>
-          <LabeledField label="Cargo del contacto">
-            <input value={contactCargo} onChange={(e) => setContactCargo(e.target.value)} className={inputClass} />
-          </LabeledField>
+
+        <div className="mt-4 space-y-5">
+          <fieldset>
+            <legend className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-500">Contacto del cliente</legend>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <LabeledField label="Nombre">
+                <input value={contactName} onChange={(e) => setContactName(e.target.value)} className={inputClass} maxLength={120} />
+              </LabeledField>
+              <LabeledField label="Cargo">
+                <input value={contactCargo} onChange={(e) => setContactCargo(e.target.value)} className={inputClass} maxLength={120} />
+              </LabeledField>
+            </div>
+          </fieldset>
+
+          <fieldset>
+            <legend className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-500">Asesor comercial</legend>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {(
+                [
+                  ["full_name", "Nombre"],
+                  ["cargo", "Cargo"],
+                  ["correo", "Correo"],
+                  ["telefono", "Teléfono"],
+                ] as const
+              ).map(([campo, etiqueta]) => (
+                <LabeledField key={campo} label={etiqueta}>
+                  <input
+                    value={contacto?.[campo] ?? initialData.owner?.[campo] ?? ""}
+                    onChange={(e) => onEditContacto(campo, e.target.value)}
+                    className={inputClass}
+                    maxLength={campo === "telefono" ? 40 : 120}
+                  />
+                </LabeledField>
+              ))}
+            </div>
+          </fieldset>
+
+          <fieldset>
+            <legend className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-500">Lámina de cierre</legend>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+              <LabeledField label="Encabezado">
+                <input value={contacto?.eyebrow ?? ""} onChange={(e) => onEditContacto("eyebrow", e.target.value)} placeholder="Atentamente" className={inputClass} maxLength={60} />
+              </LabeledField>
+              <LabeledField label="Título">
+                <input value={contacto?.titulo ?? ""} onChange={(e) => onEditContacto("titulo", e.target.value)} placeholder="Gracias" className={inputClass} maxLength={60} />
+              </LabeledField>
+              <LabeledField label="Mensaje">
+                <input
+                  value={contacto?.mensaje ?? ""}
+                  onChange={(e) => onEditContacto("mensaje", e.target.value)}
+                  placeholder={`Hagamos de ${initialData.proposal.event_name} un evento sin filas y con datos reales.`}
+                  className={inputClass}
+                  maxLength={240}
+                />
+              </LabeledField>
+            </div>
+          </fieldset>
+
+          <fieldset>
+            <legend className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-500">Oferta</legend>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
+              <LabeledField label="Vigencia (días)">
+                <input type="number" min={1} max={90} value={vigenciaDias} onChange={(e) => setVigenciaDias(e.target.value)} className={inputClass} />
+              </LabeledField>
+              <p className="self-end text-xs text-neutral-500 sm:col-span-3">
+                Aparece en la lámina de inversión como «Oferta válida hasta …», contada desde la fecha de la propuesta.
+              </p>
+            </div>
+          </fieldset>
+
+          <fieldset>
+            <legend className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-500">Láminas que se muestran</legend>
+            <div className="flex flex-wrap gap-x-5 gap-y-2">
+              {HIDEABLE_SLIDE_GROUPS.map((g) => (
+                <label key={g.key} className="flex items-center gap-2 text-xs text-neutral-700">
+                  <input type="checkbox" checked={!hiddenSlides.includes(g.key)} onChange={() => toggleHiddenSlide(g.key)} className="h-4 w-4" />
+                  {g.label}
+                </label>
+              ))}
+            </div>
+          </fieldset>
         </div>
         {pesoInvalido && (
           <p className="mt-3 text-xs text-amber-700">

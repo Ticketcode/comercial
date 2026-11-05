@@ -14,6 +14,8 @@ export interface SaveDatosPresentacionPayload {
   hiddenSlides: string[];
   contacto: PresentacionContacto | null;
   informes: string[] | null;
+  /** Días de vigencia de la oferta (1-90). */
+  vigenciaDias: number;
 }
 
 export async function saveDatosPresentacion(payload: SaveDatosPresentacionPayload) {
@@ -38,6 +40,7 @@ export async function saveDatosPresentacion(payload: SaveDatosPresentacionPayloa
       presentacion_hidden_slides: payload.hiddenSlides,
       presentacion_contacto: payload.contacto,
       presentacion_informes: payload.informes,
+      vigencia_dias: Math.min(90, Math.max(1, Math.round(payload.vigenciaDias) || 15)),
     })
     .eq("id", payload.proposalId);
   if (proposalError) return { error: proposalError.message };

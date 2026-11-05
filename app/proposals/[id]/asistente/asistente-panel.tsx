@@ -31,7 +31,7 @@ const SUGERENCIAS: Record<string, string[]> = {
   diagnostico: ["Es híbrido con 1.200 personas", "El evento no tiene logística", "No vende boletas", "Hay 3 salones: 2.000, 500 y 500", "Pre-acreditación de medio día"],
   propuesta: ["Quieren recordatorios por correo", "Quita el servicio de chat", "Sube el descuento al 15%"],
   acuerdo: ["Sube el descuento al 20%", "Propón un acuerdo con patrocinio"],
-  presentacion: ["Oculta la lámina de casos de éxito", "Muestra la lámina de acuerdo comercial"],
+  presentacion: ["El asesor es Laura Gómez, directora comercial", "Pon vigencia de 30 días", "Cambia el mensaje de cierre", "Oculta la lámina de casos de éxito"],
   versiones: ["¿Qué cambió frente a la versión anterior?"],
   contrato: ["¿Qué cambia si el aforo sube a 2.000?"],
 };

@@ -17,8 +17,16 @@ export async function cargarEstado(supabase: SupabaseClient, proposalId: string)
     ]);
   if (!proposal) return null;
   const { items } = await getValidServiceCostItems(supabase, (costItems ?? []) as ProposalCostItem[], proposal.modality);
+  const dueno = (proposal as Proposal).owner_id;
+  const clienteId = (proposal as Proposal).client_id;
+  const [{ data: owner }, { data: cliente }] = await Promise.all([
+    dueno ? supabase.from("profiles").select("full_name, cargo, correo, telefono").eq("id", dueno).maybeSingle() : Promise.resolve({ data: null }),
+    clienteId ? supabase.from("clients").select("id, contact_name, contact_cargo").eq("id", clienteId).maybeSingle() : Promise.resolve({ data: null }),
+  ]);
   const estado: EstadoPropuesta = {
     proposal: proposal as Proposal,
+    owner: owner ?? null,
+    cliente: cliente ?? null,
     servicios: items,
     ocultas: (proposal as Proposal).presentacion_hidden_slides ?? [],
   };
@@ -56,6 +64,22 @@ export async function aplicarAtomos(
       else if (atomo.servicio!.incluir && !(Number(fila.quantity) > 0)) cambios.quantity = 1;
       const { error } = await supabase.from("proposal_cost_items").update(cambios).eq("id", fila.id);
       if (error) return { error: error.message, estado };
+    } else if (atomo.tipo === "presentacion") {
+      const sig = aplicarEnMemoria(estado, atomo);
+      const campo = atomo.pres!.campo;
+      if (campo === "vigenciaDias") {
+        const { error } = await supabase.from("proposals").update({ vigencia_dias: sig.proposal.vigencia_dias }).eq("id", proposalId);
+        if (error) return { error: error.message, estado };
+      } else if (campo === "clienteNombre" || campo === "clienteCargo") {
+        const { error } = await supabase
+          .from("clients")
+          .update({ contact_name: sig.cliente?.contact_name ?? null, contact_cargo: sig.cliente?.contact_cargo ?? null })
+          .eq("id", estado.cliente!.id);
+        if (error) return { error: error.message, estado };
+      } else {
+        const { error } = await supabase.from("proposals").update({ presentacion_contacto: sig.proposal.presentacion_contacto }).eq("id", proposalId);
+        if (error) return { error: error.message, estado };
+      }
     } else if (atomo.tipo === "textoServicio") {
       const fila = estado.servicios.find((s) => s.label === atomo.texto!.label)!;
       const cambios: Record<string, unknown> = {};

@@ -98,6 +98,8 @@ export interface Proposal {
   preacreditacion_medio_dia: boolean;
   /** false = el evento no lleva logística 360 (todo su cálculo da cero). Sin dato = sí lleva. */
   con_logistica?: boolean;
+  /** Días de vigencia de la oferta desde la fecha de la propuesta. Sin dato = 15. */
+  vigencia_dias?: number;
   /** false = el evento no vende boletas por la plataforma. Sin dato = sí vende. */
   vende_boletas?: boolean;
   /** Grupos de diapositivas ocultas en la Presentación (ej. "informes", "casos"). */

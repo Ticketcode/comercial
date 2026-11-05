@@ -17,13 +17,15 @@ export type ValorCampo = number | string | boolean | number[] | null;
 
 export interface Atomo {
   id: string;
-  tipo: "campos" | "servicio" | "lamina" | "textoServicio";
+  tipo: "campos" | "servicio" | "lamina" | "textoServicio" | "presentacion";
   /** Campos de `proposals` que cambian (tipo "campos"). */
   campos?: Record<string, ValorCampo>;
   /** Servicio personalizado por su nombre de catálogo (tipo "servicio"). */
   servicio?: { label: string; incluir: boolean; cantidad?: number };
   /** Lámina de la presentación (tipo "lamina"). */
   lamina?: { key: string; ocultar: boolean };
+  /** Dato de la presentación: asesor, contacto del cliente, textos de cierre o vigencia (tipo "presentacion"). null = vuelve al valor por defecto. */
+  pres?: { campo: PresCampo; valor: string | number | null };
   /** Título y alcance con los que se muestra un servicio en la propuesta (tipo "textoServicio"). null = vuelve al texto del catálogo. */
   texto?: { label: string; titulo?: string | null; descripcion?: string | null };
 }
@@ -37,6 +39,7 @@ export interface CambiosCrudos {
   preacreditacion?: unknown;
   computadores?: unknown;
   impresoras?: unknown;
+  presentacion?: unknown;
   visitaPreoperativaDias?: unknown;
   extras?: unknown;
   serviciosCantidad?: unknown;
@@ -61,8 +64,49 @@ export interface CambiosCrudos {
   mostrarLaminas?: unknown;
 }
 
+/** Datos de la presentación que NOVA puede editar. */
+export type PresCampo =
+  | "asesorNombre"
+  | "asesorCargo"
+  | "asesorCorreo"
+  | "asesorTelefono"
+  | "clienteNombre"
+  | "clienteCargo"
+  | "cierreEyebrow"
+  | "cierreTitulo"
+  | "cierreMensaje"
+  | "vigenciaDias";
+
+export const PRES_META: Record<PresCampo, { etiqueta: string; max: number }> = {
+  asesorNombre: { etiqueta: "Asesor: nombre", max: 120 },
+  asesorCargo: { etiqueta: "Asesor: cargo", max: 120 },
+  asesorCorreo: { etiqueta: "Asesor: correo", max: 120 },
+  asesorTelefono: { etiqueta: "Asesor: teléfono", max: 40 },
+  clienteNombre: { etiqueta: "Contacto del cliente: nombre", max: 120 },
+  clienteCargo: { etiqueta: "Contacto del cliente: cargo", max: 120 },
+  cierreEyebrow: { etiqueta: "Cierre: encabezado", max: 60 },
+  cierreTitulo: { etiqueta: "Cierre: título", max: 60 },
+  cierreMensaje: { etiqueta: "Cierre: mensaje", max: 240 },
+  vigenciaDias: { etiqueta: "Vigencia de la oferta (días)", max: 90 },
+};
+
+/** Columna de presentacion_contacto que corresponde a cada campo del asesor y del cierre. */
+export const PRES_COLUMNA: Partial<Record<PresCampo, "full_name" | "cargo" | "correo" | "telefono" | "eyebrow" | "titulo" | "mensaje">> = {
+  asesorNombre: "full_name",
+  asesorCargo: "cargo",
+  asesorCorreo: "correo",
+  asesorTelefono: "telefono",
+  cierreEyebrow: "eyebrow",
+  cierreTitulo: "titulo",
+  cierreMensaje: "mensaje",
+};
+
 export interface EstadoPropuesta {
   proposal: Proposal;
+  /** Asesor dueño de la propuesta (sus datos se usan si no se editaron en la presentación). */
+  owner?: { full_name: string | null; cargo: string | null; correo: string | null; telefono: string | null } | null;
+  /** Contacto del cliente (vive en la tabla de clientes). */
+  cliente?: { id: string; contact_name: string | null; contact_cargo: string | null } | null;
   /** Servicios personalizados válidos de la propuesta (los mismos del Tarifario). */
   servicios: ProposalCostItem[];
   ocultas: string[];
@@ -395,6 +439,32 @@ export function validarCambios(
     });
   }
 
+  // Datos de la presentación: asesor, contacto del cliente, textos de cierre y vigencia de la oferta.
+  if (crudos.presentacion && typeof crudos.presentacion === "object") {
+    const pr = crudos.presentacion as Record<string, unknown>;
+    for (const campoPres of Object.keys(PRES_META) as PresCampo[]) {
+      const v = pr[campoPres];
+      if (v === undefined || v === null) continue;
+      if (campoPres === "vigenciaDias") {
+        const d = num(v, 1, 90);
+        if (d !== null) atomos.push({ id: nuevoId(), tipo: "presentacion", pres: { campo: campoPres, valor: d } });
+        continue;
+      }
+      if (typeof v !== "string") continue;
+      const texto = v.trim().slice(0, PRES_META[campoPres].max);
+      if (campoPres === "asesorCorreo" && texto && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(texto)) {
+        bloqueados.push({ etiqueta: PRES_META[campoPres].etiqueta, motivo: "El correo no tiene un formato válido" });
+        continue;
+      }
+      if ((campoPres === "clienteNombre" || campoPres === "clienteCargo") && !estado.cliente) {
+        bloqueados.push({ etiqueta: PRES_META[campoPres].etiqueta, motivo: "La propuesta no tiene un cliente asociado" });
+        continue;
+      }
+      // Vacío en los textos de cierre = volver al texto por defecto.
+      atomos.push({ id: nuevoId(), tipo: "presentacion", pres: { campo: campoPres, valor: texto === "" ? null : texto } });
+    }
+  }
+
   // Láminas de la presentación.
   const buscarLamina = (nombre: unknown) => {
     if (typeof nombre !== "string" || !nombre.trim()) return null;
@@ -437,6 +507,14 @@ export function validarAtomo(atomo: Atomo, estado: EstadoPropuesta): string | nu
     if (atomo.servicio?.incluir && !s.included && !servicioDisponible(s.label, estado.proposal)) return "Ese servicio no aplica a este evento";
     const c = atomo.servicio?.cantidad;
     if (c !== undefined && !(Number.isInteger(c) && c >= 0 && c <= 100000)) return "Cantidad fuera de rango";
+    return null;
+  }
+  if (atomo.tipo === "presentacion") {
+    const p = atomo.pres;
+    if (!p || !(p.campo in PRES_META)) return "Dato de presentación desconocido";
+    if (p.campo === "vigenciaDias") return typeof p.valor === "number" && Number.isInteger(p.valor) && p.valor >= 1 && p.valor <= 90 ? null : "La vigencia debe estar entre 1 y 90 días";
+    if (p.valor !== null && (typeof p.valor !== "string" || p.valor.length > PRES_META[p.campo].max)) return "Texto demasiado largo";
+    if ((p.campo === "clienteNombre" || p.campo === "clienteCargo") && !estado.cliente) return "La propuesta no tiene un cliente asociado";
     return null;
   }
   if (atomo.tipo === "textoServicio") {
@@ -501,6 +579,23 @@ export function aplicarEnMemoria(estado: EstadoPropuesta, atomo: Atomo): EstadoP
       ),
     };
   }
+  if (atomo.tipo === "presentacion" && atomo.pres) {
+    const { campo, valor } = atomo.pres;
+    if (campo === "vigenciaDias") return { ...estado, proposal: { ...estado.proposal, vigencia_dias: Number(valor) } };
+    if (campo === "clienteNombre" || campo === "clienteCargo") {
+      if (!estado.cliente) return estado;
+      const col = campo === "clienteNombre" ? "contact_name" : "contact_cargo";
+      return { ...estado, cliente: { ...estado.cliente, [col]: valor as string | null } };
+    }
+    const col = PRES_COLUMNA[campo]!;
+    const base = estado.proposal.presentacion_contacto ?? {
+      full_name: estado.owner?.full_name ?? null,
+      cargo: estado.owner?.cargo ?? null,
+      correo: estado.owner?.correo ?? null,
+      telefono: estado.owner?.telefono ?? null,
+    };
+    return { ...estado, proposal: { ...estado.proposal, presentacion_contacto: { ...base, [col]: valor as string | null } } };
+  }
   if (atomo.tipo === "textoServicio" && atomo.texto) {
     const t = atomo.texto;
     return {
@@ -546,6 +641,9 @@ export function valoresAntes(estado: EstadoPropuesta, atomo: Atomo): Atomo {
       servicio: { label: atomo.servicio.label, incluir: !!s?.included, ...(atomo.servicio.cantidad !== undefined ? { cantidad: Number(s?.quantity ?? 0) } : {}) },
     };
   }
+  if (atomo.tipo === "presentacion" && atomo.pres) {
+    return { ...atomo, id: nuevoId(), pres: { campo: atomo.pres.campo, valor: valorPresentacion(estado, atomo.pres.campo) } };
+  }
   if (atomo.tipo === "textoServicio" && atomo.texto) {
     const s = estado.servicios.find((x) => x.label === atomo.texto!.label);
     return {
@@ -578,6 +676,13 @@ export function etiquetaAtomo(estado: EstadoPropuesta, atomo: Atomo): string {
     const c = atomo.servicio.cantidad;
     if (s?.included && atomo.servicio.incluir && c !== undefined) return `${atomo.servicio.label}: cantidad ${Number(s.quantity)} → ${c}`;
     return `${atomo.servicio.incluir ? "Agregar" : "Quitar"} servicio: ${atomo.servicio.label}${c !== undefined && atomo.servicio.incluir ? ` × ${c}` : ""}`;
+  }
+  if (atomo.tipo === "presentacion" && atomo.pres) {
+    const { campo, valor } = atomo.pres;
+    const antes = valorPresentacion(estado, campo);
+    if ((antes ?? null) === (valor ?? null)) return "";
+    const ver = (x: string | number | null) => (x === null || x === "" ? "(por defecto)" : String(x));
+    return `${PRES_META[campo].etiqueta}: ${ver(antes)} → ${ver(valor)}`;
   }
   if (atomo.tipo === "textoServicio" && atomo.texto) {
     const t = atomo.texto;
@@ -630,4 +735,17 @@ export function preguntasDeAtomo(atomo: Atomo): PreguntaDiagnostico[] {
     for (const [frase, q] of SERVICIO_A_PREGUNTA) if (n.includes(frase)) out.add(q);
   }
   return Array.from(out);
+}
+
+/** Valor actual de un dato de la presentación (para mostrar "antes → después" y para deshacer). */
+export function valorPresentacion(estado: EstadoPropuesta, campo: PresCampo): string | number | null {
+  if (campo === "vigenciaDias") return Number(estado.proposal.vigencia_dias ?? 15);
+  if (campo === "clienteNombre") return estado.cliente?.contact_name ?? null;
+  if (campo === "clienteCargo") return estado.cliente?.contact_cargo ?? null;
+  const col = PRES_COLUMNA[campo]!;
+  const guardado = estado.proposal.presentacion_contacto?.[col];
+  if (guardado !== undefined && guardado !== null) return guardado;
+  // El asesor sin editar sale del perfil del dueño de la propuesta.
+  if (col === "full_name" || col === "cargo" || col === "correo" || col === "telefono") return estado.owner?.[col] ?? null;
+  return null;
 }

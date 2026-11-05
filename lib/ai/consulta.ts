@@ -30,6 +30,9 @@ function resumenParaClaude(e: EstadoPropuesta) {
     vendeBoletas: p.vende_boletas !== false,
     conLogistica: p.con_logistica !== false,
     salonesInternosAforos: p.salones_internos_aforos ?? [],
+    vigenciaDiasOferta: p.vigencia_dias ?? 15,
+    asesor: e.proposal.presentacion_contacto ?? e.owner ?? null,
+    contactoCliente: e.cliente ? { nombre: e.cliente.contact_name, cargo: e.cliente.contact_cargo } : null,
     productores: p.qty_productor,
     supervisores: p.qty_supervisor,
     logisticos: p.qty_logistico,
@@ -54,6 +57,7 @@ En "cambios" usa solo estas claves (omite las que no cambian; no inventes valore
 - vendeBoletas (true/false): si el evento vende boletas por la plataforma. conLogistica (true/false): si Ticketcode pone la logística en sitio (personal y equipos). Si es true el equipo se calcula solo con la tabla de aforo. Si es false las cantidades se muestran igual (las pone el organizador) pero no se cobran, y solo se cobra la capacitación al staff.
 - preacreditacion: {"modo": "no" | "completo" | "medio", "dias": número}.
 - computadores, impresoras (números). visitaPreoperativaDias (0-10). extras: {"camisetas": true/false, "chalecos": …, "agua": …, "bloqueador": …, "cierre": …}.
+- presentacion: datos de la presentación, con estas claves opcionales: asesorNombre, asesorCargo, asesorCorreo, asesorTelefono (quién atiende al cliente), clienteNombre, clienteCargo (contacto del cliente), cierreEyebrow, cierreTitulo, cierreMensaje (textos de la lámina final; una cadena vacía vuelve al texto por defecto) y vigenciaDias (1-90, días de validez de la oferta).
 - serviciosCantidad: lista de {"nombre": nombre exacto de un servicio, "cantidad": número} para cambiar cuántas unidades lleva un servicio (no aplica a los que se calculan con el aforo, la pre-acreditación ni los salones).
 - textosServicios: lista de {"nombre": nombre exacto de un servicio, "titulo": título corto y comercial para el cliente, "descripcion": alcance en una o dos frases claras}. Úsalo cuando el asesor pida redactar o mejorar cómo se presenta un servicio; no prometas nada que el servicio no haga.
 - aforo (número): asistentes presenciales. aforoVirtual (número). dias (1-30). ciudad (texto). lugar (texto: recinto o sede). fechaInicio y fechaFin ("AAAA-MM-DD"; si el evento es de un solo día, las dos iguales).

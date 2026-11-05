@@ -1178,6 +1178,14 @@ export function InversionSlide({ data, page, total }: { data: DeckData; page: nu
   );
 }
 
+/** "7 de diciembre de 2026": fecha de la propuesta más los días de vigencia de la oferta. */
+function vigenciaHasta(data: DeckData): string {
+  const dias = Number(data.proposal.vigencia_dias ?? 15);
+  const d = new Date(data.propuestaFecha + "T12:00:00");
+  d.setDate(d.getDate() + dias);
+  return d.toLocaleDateString("es-CO", { day: "numeric", month: "long", year: "numeric" });
+}
+
 export function FinalSlide({ data, page, total }: { data: DeckData; page: number; total: number }) {
   const t = THEME.dark;
   const { tarifarioSummary, proposal } = data;
@@ -1201,6 +1209,7 @@ export function FinalSlide({ data, page, total }: { data: DeckData; page: number
           Presupuesto final
         </h2>
         <p style={{ fontSize: 28, lineHeight: 1.4, color: t.muted }}>Valor justo y ganador para las partes.</p>
+        <p style={{ fontSize: 28, lineHeight: 1.4, color: t.fg, fontWeight: 600 }}>Oferta válida hasta el {vigenciaHasta(data)}.</p>
         {hasAcuerdo && (
           <div style={{ display: "flex", flexDirection: "column", marginTop: 12 }}>
             <MoneyRow label="Valor sin acuerdo comercial" value={formatCOP(base)} variant="gray" on="dark" width="100%" />
