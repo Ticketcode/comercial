@@ -132,7 +132,8 @@ export function cantidadesLogistica(
   if (sin) {
     if (capacitacionStaff) operacion.push({ cantidad: null, etiqueta: "Capacitación a tu equipo", detalle: "2 horas con Ticketcode: plataforma, roles y contingencias" });
   } else {
-    if (lleva(/capacitaciones a logisticos/)) operacion.push({ cantidad: null, etiqueta: "Capacitación a logísticos", detalle: "2 horas: plataforma, roles y contingencias" });
+    // Ticketcode entrena a su propio personal (va incluido). No es la "Capacitación a tu equipo" de cobro, que es para el personal del organizador.
+    if (lleva(/capacitaciones a logisticos/)) operacion.push({ cantidad: null, etiqueta: "Logísticos capacitados", detalle: "Llegan entrenados en la plataforma, los roles y las contingencias" });
     if (lleva(/soporte tecnico/)) operacion.push({ cantidad: null, etiqueta: "Soporte técnico permanente" });
   }
 
