@@ -62,7 +62,7 @@ export async function pedirCambios(
   if (!apiKey) return { ...vacio, error: "Falta configurar ANTHROPIC_API_KEY en el servidor." };
   if (excedeTope(auth.user.id)) return { ...vacio, error: "Muchas consultas seguidas. Espera unos minutos." };
 
-  const base = await cargarEstado(supabase, proposalId);
+  const base = await cargarEstado(supabase, proposalId, true);
   if (!base) return { ...vacio, error: "No se encontró la propuesta." };
   const { estado, total, aforoScales } = base;
 
@@ -123,7 +123,7 @@ export async function aplicarCambios(
   if (!auth.user) return { error: "Tu sesión expiró. Vuelve a entrar." };
   if (!Array.isArray(atomos) || atomos.length === 0 || atomos.length > 40) return { error: "Nada que aplicar." };
 
-  const base = await cargarEstado(supabase, proposalId);
+  const base = await cargarEstado(supabase, proposalId, true);
   if (!base) return { error: "No se encontró la propuesta." };
   const estado = base.estado;
 

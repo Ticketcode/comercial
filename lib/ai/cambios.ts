@@ -12,18 +12,21 @@ import { staffingForAforo, totalLogisticosSalones, type AforoScaleRow } from "@/
 import { SALONES_INTERNOS_SERVICE_LABEL, computedServiceQuantity } from "@/lib/pricing/service-quantity";
 import { HIDEABLE_SLIDE_GROUPS } from "@/lib/data/laminas";
 import { necesitaBoleteria, servicioDisponible } from "@/lib/data/servicios-alcance";
+import { aplicarEnt, antesEnt, etiquetaEnt, validarAtomoEnt, validarEdicion, type DatosEnt, type EstadoExtra } from "@/lib/ai/entidades";
 
-export type ValorCampo = number | string | boolean | number[] | null;
+export type ValorCampo = number | string | boolean | number[] | string[] | null;
 
 export interface Atomo {
   id: string;
-  tipo: "campos" | "servicio" | "lamina" | "textoServicio" | "presentacion";
+  tipo: "campos" | "servicio" | "lamina" | "textoServicio" | "presentacion" | "entidad";
   /** Campos de `proposals` que cambian (tipo "campos"). */
   campos?: Record<string, ValorCampo>;
   /** Servicio personalizado por su nombre de catálogo (tipo "servicio"). */
   servicio?: { label: string; incluir: boolean; cantidad?: number };
   /** Lámina de la presentación (tipo "lamina"). */
   lamina?: { key: string; ocultar: boolean };
+  /** Cambio en una tabla propia de la propuesta: cronograma, pagos, requerimientos, acuerdo, catálogo, contrato o cliente (tipo "entidad"). */
+  ent?: DatosEnt;
   /** Dato de la presentación: asesor, contacto del cliente, textos de cierre o vigencia (tipo "presentacion"). null = vuelve al valor por defecto. */
   pres?: { campo: PresCampo; valor: string | number | null };
   /** Título y alcance con los que se muestra un servicio en la propuesta (tipo "textoServicio"). null = vuelve al texto del catálogo. */
@@ -40,6 +43,21 @@ export interface CambiosCrudos {
   computadores?: unknown;
   impresoras?: unknown;
   presentacion?: unknown;
+  edicion?: unknown;
+  comisionDirectorPct?: unknown;
+  comisionAsesorPct?: unknown;
+  tasaConversionPct?: unknown;
+  ivaPct?: unknown;
+  baseGravable?: unknown;
+  rollosLabels?: unknown;
+  transporteAeropuerto?: unknown;
+  cronogramaSemanas?: unknown;
+  cronogramaDias?: unknown;
+  impactosRegistro?: unknown;
+  impactosAcreditacion?: unknown;
+  informes?: unknown;
+  informesPorDefecto?: unknown;
+  acuerdoObjecion?: unknown;
   visitaPreoperativaDias?: unknown;
   extras?: unknown;
   serviciosCantidad?: unknown;
@@ -105,6 +123,8 @@ export interface EstadoPropuesta {
   proposal: Proposal;
   /** Asesor dueño de la propuesta (sus datos se usan si no se editaron en la presentación). */
   owner?: { full_name: string | null; cargo: string | null; correo: string | null; telefono: string | null } | null;
+  /** Listas, contrato y cliente completos. Solo se carga para el chat de NOVA. */
+  extra?: EstadoExtra;
   /** Contacto del cliente (vive en la tabla de clientes). */
   cliente?: { id: string; contact_name: string | null; contact_cargo: string | null } | null;
   /** Servicios personalizados válidos de la propuesta (los mismos del Tarifario). */
@@ -137,6 +157,18 @@ const usaVirtual = (m: Modality) => m === "virtual" || m === "hibrido" || m === 
 
 export const ETIQUETA_CAMPO: Record<string, string> = {
   event_name: "Nombre del evento",
+  comision_director_pct: "Comisión del director comercial",
+  comision_asesor_pct: "Comisión del asesor comercial",
+  tasa_conversion_pct: "Tasa de conversión de asistencia",
+  iva_rate_override: "IVA (manual)",
+  base_gravable_override: "Base gravable (manual)",
+  qty_transporte_aeropuerto: "Transportes aeropuerto",
+  cronograma_semanas: "Semanas del cronograma",
+  cronograma_dias: "Días del cronograma",
+  impactos_registro: "Impactos de registro",
+  impactos_acreditacion: "Impactos de acreditación",
+  presentacion_informes: "Informes y entregables",
+  acuerdo_objecion: "Objeción del cliente",
   visita_preoperativa_dias: "Días de visita preoperativa",
   extra_camisetas_staff: "Camisetas para el staff",
   extra_lavado_chalecos: "Lavado de chalecos",
@@ -171,7 +203,10 @@ const MODALIDAD_ETIQUETA: Record<string, string> = { presencial: "Presencial", v
 export function formatearValor(campo: string, v: ValorCampo | undefined): string {
   if (v === undefined || v === null || v === "") return "—";
   if (campo === "modality") return MODALIDAD_ETIQUETA[String(v)] ?? String(v);
+  if (campo === "presentacion_informes" && Array.isArray(v)) return v.length ? `${v.length} ítems` : "ninguno";
   if (Array.isArray(v)) return v.length ? v.map((x) => Number(x).toLocaleString("es-CO")).join(", ") : "ninguno";
+  if (["comision_director_pct", "comision_asesor_pct", "tasa_conversion_pct", "iva_rate_override"].includes(campo)) return `${Math.round(Number(v) * 1000) / 10}%`;
+  if (campo === "base_gravable_override") return `$ ${Number(v).toLocaleString("es-CO")}`;
   if (typeof v === "boolean") return v ? "Sí" : "No";
   if (campo === "rentabilidad_pct") return `${Math.round(Number(v) * 100)}%`;
   if (campo === "acuerdo_comercial_pct_global") return `${v}%`;
@@ -385,6 +420,58 @@ export function validarCambios(
     if (s?.included) atomos.push({ id: nuevoId(), tipo: "servicio", servicio: { label: s.label, incluir: false } });
   }
 
+  // Números del cálculo (comisiones, IVA, conversión), del cronograma y de la presentación.
+  const pct = (x: unknown, max: number) => {
+    const n = typeof x === "number" && Number.isFinite(x) && x >= 0 && x <= max ? x : null;
+    return n === null ? null : Math.round(n * 10) / 1000;
+  };
+  const dirPct = pct(crudos.comisionDirectorPct, 30);
+  if (dirPct !== null) campo("comision_director_pct", dirPct);
+  const asePct = pct(crudos.comisionAsesorPct, 30);
+  if (asePct !== null) campo("comision_asesor_pct", asePct);
+  const tasa = pct(crudos.tasaConversionPct, 100);
+  if (tasa !== null) campo("tasa_conversion_pct", tasa);
+  if (crudos.ivaPct === "defecto") campo("iva_rate_override", null);
+  else if (pct(crudos.ivaPct, 30) !== null) campo("iva_rate_override", pct(crudos.ivaPct, 30)!);
+  if (crudos.baseGravable === "defecto") campo("base_gravable_override", null);
+  else if (typeof crudos.baseGravable === "number" && Number.isFinite(crudos.baseGravable) && crudos.baseGravable >= 0 && crudos.baseGravable <= 1e11) campo("base_gravable_override", Math.round(crudos.baseGravable));
+  const rollos = num(crudos.rollosLabels, 0, 500);
+  if (rollos !== null) {
+    if (usaPresencial(m)) campo("qty_rollos_labels", rollos);
+    else bloquear("qty_rollos_labels", "No aplica a una modalidad sin evento presencial");
+  }
+  const aero = num(crudos.transporteAeropuerto, 0, 50);
+  if (aero !== null) {
+    if (usaPresencial(m)) campo("qty_transporte_aeropuerto", aero);
+    else bloquear("qty_transporte_aeropuerto", "No aplica a una modalidad sin evento presencial");
+  }
+  const semanas = num(crudos.cronogramaSemanas, 1, 52);
+  if (semanas !== null) campo("cronograma_semanas", semanas);
+  const diasCron = num(crudos.cronogramaDias, 1, 31);
+  if (diasCron !== null) campo("cronograma_dias", diasCron);
+  const imReg = num(crudos.impactosRegistro, 0, 1e9);
+  if (imReg !== null) campo("impactos_registro", imReg);
+  const imAcr = num(crudos.impactosAcreditacion, 0, 1e9);
+  if (imAcr !== null) campo("impactos_acreditacion", imAcr);
+  if (Array.isArray(crudos.informes)) {
+    const lista = crudos.informes.filter((x): x is string => typeof x === "string").map((x) => x.trim().slice(0, 200)).filter(Boolean).slice(0, 20);
+    if (lista.length > 0) campo("presentacion_informes", lista);
+  } else if (crudos.informesPorDefecto === true) {
+    campo("presentacion_informes", null);
+  }
+  if (typeof crudos.acuerdoObjecion === "string") campo("acuerdo_objecion", crudos.acuerdoObjecion.trim().slice(0, 4000) || null);
+
+  // Tablas propias de la propuesta: cronograma, pagos, requerimientos, acuerdo, catálogo, contrato y cliente.
+  if (crudos.edicion !== undefined) {
+    if (!estado.extra) {
+      bloqueados.push({ etiqueta: "Edición", motivo: "No disponible en este momento" });
+    } else {
+      const r = validarEdicion(crudos.edicion, estado.extra);
+      r.ents.forEach((ent) => atomos.push({ id: nuevoId(), tipo: "entidad", ent }));
+      bloqueados.push(...r.bloqueados);
+    }
+  }
+
   // Visita preoperativa y extras de logística (camisetas, chalecos, agua, bloqueador, actividad de cierre).
   const visita = num(crudos.visitaPreoperativaDias, 0, 10);
   if (visita !== null) {
@@ -509,6 +596,7 @@ export function validarAtomo(atomo: Atomo, estado: EstadoPropuesta): string | nu
     if (c !== undefined && !(Number.isInteger(c) && c >= 0 && c <= 100000)) return "Cantidad fuera de rango";
     return null;
   }
+  if (atomo.tipo === "entidad") return validarAtomoEnt(atomo.ent, estado.extra);
   if (atomo.tipo === "presentacion") {
     const p = atomo.pres;
     if (!p || !(p.campo in PRES_META)) return "Dato de presentación desconocido";
@@ -532,6 +620,18 @@ export function validarAtomo(atomo: Atomo, estado: EstadoPropuesta): string | nu
 const esNum = (min: number, max: number) => (v: ValorCampo) => typeof v === "number" && Number.isFinite(v) && v >= min && v <= max;
 const REGLAS_CAMPO: Record<string, { valida: (v: ValorCampo) => boolean; presencial?: boolean }> = {
   event_name: { valida: (v) => typeof v === "string" && v.length > 0 && v.length <= 160 },
+  comision_director_pct: { valida: esNum(0, 0.3) },
+  comision_asesor_pct: { valida: esNum(0, 0.3) },
+  tasa_conversion_pct: { valida: esNum(0, 1) },
+  iva_rate_override: { valida: (v) => v === null || esNum(0, 0.3)(v) },
+  base_gravable_override: { valida: (v) => v === null || esNum(0, 1e11)(v) },
+  qty_transporte_aeropuerto: { valida: esNum(0, 50), presencial: true },
+  cronograma_semanas: { valida: (v) => v === null || (esNum(1, 52)(v) && Number.isInteger(v)) },
+  cronograma_dias: { valida: (v) => v === null || (esNum(1, 31)(v) && Number.isInteger(v)) },
+  impactos_registro: { valida: (v) => v === null || (esNum(0, 1e9)(v) && Number.isInteger(v)) },
+  impactos_acreditacion: { valida: (v) => v === null || (esNum(0, 1e9)(v) && Number.isInteger(v)) },
+  presentacion_informes: { valida: (v) => v === null || (Array.isArray(v) && v.length <= 20 && (v as unknown[]).every((x) => typeof x === "string" && x.length > 0 && x.length <= 200)) },
+  acuerdo_objecion: { valida: (v) => v === null || (typeof v === "string" && v.length <= 4000) },
   visita_preoperativa_dias: { valida: esNum(0, 10), presencial: true },
   extra_camisetas_staff: { valida: (v) => typeof v === "boolean", presencial: true },
   extra_lavado_chalecos: { valida: (v) => typeof v === "boolean", presencial: true },
@@ -542,7 +642,7 @@ const REGLAS_CAMPO: Record<string, { valida: (v: ValorCampo) => boolean; presenc
   vende_boletas: { valida: (v) => typeof v === "boolean" },
   con_logistica: { valida: (v) => typeof v === "boolean", presencial: true },
   salones_internos_aforos: {
-    valida: (v) => Array.isArray(v) && v.length <= 20 && v.every((x) => Number.isInteger(x) && x >= 1 && x <= 100000),
+    valida: (v) => Array.isArray(v) && v.length <= 20 && (v as number[]).every((x) => Number.isInteger(x) && x >= 1 && x <= 100000),
     presencial: true,
   },
   qty_logistica_salones_internos: { valida: esNum(0, 400), presencial: true },
@@ -578,6 +678,9 @@ export function aplicarEnMemoria(estado: EstadoPropuesta, atomo: Atomo): EstadoP
         s.label === label ? { ...s, included: incluir, ...(cantidad !== undefined ? { quantity: cantidad } : {}) } : s
       ),
     };
+  }
+  if (atomo.tipo === "entidad" && atomo.ent && estado.extra) {
+    return { ...estado, extra: aplicarEnt(estado.extra, atomo.ent) };
   }
   if (atomo.tipo === "presentacion" && atomo.pres) {
     const { campo, valor } = atomo.pres;
@@ -625,7 +728,7 @@ export function valoresAntes(estado: EstadoPropuesta, atomo: Atomo): Atomo {
         v ??
         (k === "salones_internos_aforos"
           ? []
-          : ["city", "lugar", "event_start_date", "event_end_date"].includes(k)
+          : ["city", "lugar", "event_start_date", "event_end_date", "iva_rate_override", "base_gravable_override", "cronograma_semanas", "cronograma_dias", "impactos_registro", "impactos_acreditacion", "presentacion_informes", "acuerdo_objecion"].includes(k)
             ? null
             : k === "con_logistica" || k === "vende_boletas"
               ? true
@@ -640,6 +743,9 @@ export function valoresAntes(estado: EstadoPropuesta, atomo: Atomo): Atomo {
       id: nuevoId(),
       servicio: { label: atomo.servicio.label, incluir: !!s?.included, ...(atomo.servicio.cantidad !== undefined ? { cantidad: Number(s?.quantity ?? 0) } : {}) },
     };
+  }
+  if (atomo.tipo === "entidad" && atomo.ent && estado.extra) {
+    return { ...atomo, id: nuevoId(), ent: antesEnt(estado.extra, atomo.ent) };
   }
   if (atomo.tipo === "presentacion" && atomo.pres) {
     return { ...atomo, id: nuevoId(), pres: { campo: atomo.pres.campo, valor: valorPresentacion(estado, atomo.pres.campo) } };
@@ -677,6 +783,7 @@ export function etiquetaAtomo(estado: EstadoPropuesta, atomo: Atomo): string {
     if (s?.included && atomo.servicio.incluir && c !== undefined) return `${atomo.servicio.label}: cantidad ${Number(s.quantity)} → ${c}`;
     return `${atomo.servicio.incluir ? "Agregar" : "Quitar"} servicio: ${atomo.servicio.label}${c !== undefined && atomo.servicio.incluir ? ` × ${c}` : ""}`;
   }
+  if (atomo.tipo === "entidad" && atomo.ent && estado.extra) return etiquetaEnt(estado.extra, atomo.ent);
   if (atomo.tipo === "presentacion" && atomo.pres) {
     const { campo, valor } = atomo.pres;
     const antes = valorPresentacion(estado, campo);

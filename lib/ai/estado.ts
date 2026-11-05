@@ -5,8 +5,9 @@ import { computeTarifarioSummary } from "@/lib/pricing/summary";
 import { getValidServiceCostItems } from "@/lib/data/service-items";
 import { computedServiceQuantity } from "@/lib/pricing/service-quantity";
 import { aplicarEnMemoria, validarAtomo, type Atomo, type EstadoPropuesta } from "@/lib/ai/cambios";
+import type { DatosEnt, EstadoExtra, Fila, ValorEnt } from "@/lib/ai/entidades";
 
-export async function cargarEstado(supabase: SupabaseClient, proposalId: string) {
+export async function cargarEstado(supabase: SupabaseClient, proposalId: string, conExtra = false) {
   const [{ data: proposal }, { data: costItems }, { data: rateRows }, { data: escalaProductor }, { data: aforoScales }] =
     await Promise.all([
       supabase.from("proposals").select("*").eq("id", proposalId).single(),
@@ -23,10 +24,12 @@ export async function cargarEstado(supabase: SupabaseClient, proposalId: string)
     dueno ? supabase.from("profiles").select("full_name, cargo, correo, telefono").eq("id", dueno).maybeSingle() : Promise.resolve({ data: null }),
     clienteId ? supabase.from("clients").select("id, contact_name, contact_cargo").eq("id", clienteId).maybeSingle() : Promise.resolve({ data: null }),
   ]);
+  const extra = conExtra ? await cargarExtra(supabase, proposalId, proposal as Proposal) : undefined;
   const estado: EstadoPropuesta = {
     proposal: proposal as Proposal,
     owner: owner ?? null,
     cliente: cliente ?? null,
+    extra,
     servicios: items,
     ocultas: (proposal as Proposal).presentacion_hidden_slides ?? [],
   };
@@ -64,6 +67,9 @@ export async function aplicarAtomos(
       else if (atomo.servicio!.incluir && !(Number(fila.quantity) > 0)) cambios.quantity = 1;
       const { error } = await supabase.from("proposal_cost_items").update(cambios).eq("id", fila.id);
       if (error) return { error: error.message, estado };
+    } else if (atomo.tipo === "entidad") {
+      const r = await escribirEntidad(supabase, proposalId, estado, atomo.ent!);
+      if (r) return { error: r, estado };
     } else if (atomo.tipo === "presentacion") {
       const sig = aplicarEnMemoria(estado, atomo);
       const campo = atomo.pres!.campo;
@@ -124,4 +130,76 @@ export async function marcarPreguntas(
   const sig = { ...previo };
   for (const id of ids) sig[id] = valor;
   await supabase.from("proposals").update({ diagnostico_estado: sig }).eq("id", proposalId);
+}
+
+/** Listas, contrato y cliente completos de la propuesta (para el chat de NOVA). */
+async function cargarExtra(supabase: SupabaseClient, proposalId: string, proposal: Proposal): Promise<EstadoExtra> {
+  const [cron, pagos, reqs, acuerdo, sel, contrato, cliente] = await Promise.all([
+    supabase.from("proposal_schedule_items").select("*").eq("proposal_id", proposalId).order("week_number").order("sort_order"),
+    supabase.from("proposal_payment_milestones").select("*").eq("proposal_id", proposalId).order("sort_order"),
+    supabase.from("proposal_operational_requirements").select("*").eq("proposal_id", proposalId).order("sort_order"),
+    supabase.from("proposal_commercial_agreement").select("*").eq("proposal_id", proposalId).order("sort_order"),
+    supabase.from("proposal_catalog_selections").select("*").eq("proposal_id", proposalId),
+    supabase.from("proposal_contract_fields").select("*").eq("proposal_id", proposalId).maybeSingle(),
+    proposal.client_id ? supabase.from("clients").select("*").eq("id", proposal.client_id).maybeSingle() : Promise.resolve({ data: null }),
+  ]);
+  const ids = (sel.data ?? []).map((s: { catalog_item_id: string }) => s.catalog_item_id);
+  const { data: catalogo } = ids.length > 0 ? await supabase.from("catalog_items").select("id, name, category").in("id", ids) : { data: [] };
+  const nombres = new Map((catalogo ?? []).map((c: { id: string; name: string; category: string }) => [c.id, c]));
+
+  const fila = (r: Record<string, unknown>): Fila => r as Fila;
+  const contratoFila = (contrato.data ?? null) as Record<string, ValorEnt> | null;
+  const { proposal_id: _p, ...contratoCampos } = contratoFila ?? ({} as Record<string, ValorEnt>);
+  void _p;
+  return {
+    listas: {
+      cronograma: (cron.data ?? []).map(fila),
+      pagos: (pagos.data ?? []).map(fila),
+      requerimientos: (reqs.data ?? []).map(fila),
+      acuerdo: (acuerdo.data ?? []).map(fila),
+      // Solo componentes y logística (los servicios personalizados se editan por su propia vía).
+      catalogo: (sel.data ?? [])
+        .map((s: Record<string, unknown>) => {
+          const c = nombres.get(String(s.catalog_item_id));
+          return c ? ({ ...s, nombre: c.name, categoria: c.category } as unknown as Fila) : null;
+        })
+        .filter((x: Fila | null): x is Fila => x !== null),
+    },
+    contrato: contratoCampos,
+    contratoExiste: !!contratoFila,
+    cliente: (cliente.data ?? null) as Record<string, ValorEnt> | null,
+  };
+}
+
+const TABLAS = {
+  cronograma: "proposal_schedule_items",
+  pagos: "proposal_payment_milestones",
+  requerimientos: "proposal_operational_requirements",
+  acuerdo: "proposal_commercial_agreement",
+  catalogo: "proposal_catalog_selections",
+} as const;
+
+/** Escribe un cambio de entidad en su tabla. Devuelve un mensaje de error o null. */
+async function escribirEntidad(supabase: SupabaseClient, proposalId: string, estado: EstadoPropuesta, ent: DatosEnt): Promise<string | null> {
+  if (ent.entidad === "contrato") {
+    const datos = { ...ent.datos };
+    const { error } = await supabase.from("proposal_contract_fields").update(datos).eq("proposal_id", proposalId);
+    return error?.message ?? null;
+  }
+  if (ent.entidad === "cliente") {
+    const { error } = await supabase.from("clients").update({ ...ent.datos }).eq("id", estado.proposal.client_id!);
+    return error?.message ?? null;
+  }
+  const tabla = TABLAS[ent.entidad];
+  if (ent.op === "crear") {
+    const orden = estado.extra!.listas[ent.entidad].reduce((m, x) => Math.max(m, Number(x.sort_order ?? 0)), -1) + 1;
+    const { error } = await supabase.from(tabla).insert({ id: ent.id, proposal_id: proposalId, sort_order: orden, ...ent.datos });
+    return error?.message ?? null;
+  }
+  if (ent.op === "borrar") {
+    const { error } = await supabase.from(tabla).delete().eq("id", ent.id!).eq("proposal_id", proposalId);
+    return error?.message ?? null;
+  }
+  const { error } = await supabase.from(tabla).update({ ...ent.datos }).eq("id", ent.id!).eq("proposal_id", proposalId);
+  return error?.message ?? null;
 }

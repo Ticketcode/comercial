@@ -7,6 +7,7 @@ import { HIDEABLE_SLIDE_GROUPS } from "@/lib/data/laminas";
 import { servicioDisponible } from "@/lib/data/servicios-alcance";
 import { mensajeErrorClaude } from "@/lib/ai/errores";
 import type { CambiosCrudos, EstadoPropuesta } from "@/lib/ai/cambios";
+import { camposEditables } from "@/lib/ai/entidades";
 
 const MODELO = "claude-sonnet-5-5";
 const MAX_TOKENS = 1800;
@@ -33,6 +34,9 @@ function resumenParaClaude(e: EstadoPropuesta) {
     vigenciaDiasOferta: p.vigencia_dias ?? 15,
     asesor: e.proposal.presentacion_contacto ?? e.owner ?? null,
     contactoCliente: e.cliente ? { nombre: e.cliente.contact_name, cargo: e.cliente.contact_cargo } : null,
+    comisionDirectorPct: Math.round(Number(p.comision_director_pct) * 1000) / 10,
+    comisionAsesorPct: Math.round(Number(p.comision_asesor_pct) * 1000) / 10,
+    tasaConversionPct: Math.round(Number(p.tasa_conversion_pct) * 1000) / 10,
     productores: p.qty_productor,
     supervisores: p.qty_supervisor,
     logisticos: p.qty_logistico,
@@ -43,6 +47,22 @@ function resumenParaClaude(e: EstadoPropuesta) {
     descuentoPct: p.acuerdo_comercial_pct_global,
     serviciosIncluidos: e.servicios.filter((s) => s.included).map((s) => s.label),
     laminasOcultas: e.ocultas,
+  };
+}
+
+/** Estado actual de las tablas editables, con sus ids, para que NOVA pueda editarlas. */
+function resumenTablas(e: EstadoPropuesta) {
+  const x = e.extra;
+  if (!x) return {};
+  const sinVacios = (o: Record<string, unknown>) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== null && v !== ""));
+  return {
+    cronograma: x.listas.cronograma.map((r) => ({ id: r.id, week_number: r.week_number, day_number: r.day_number, hito: r.hito, comentario: r.comentario })),
+    pagos: x.listas.pagos.map((r) => ({ id: r.id, label: r.label, pct: r.pct })),
+    requerimientos: x.listas.requerimientos.map((r) => ({ id: r.id, text: r.text })),
+    acuerdo: x.listas.acuerdo.map((r) => ({ id: r.id, concepto: r.label, included: r.included, pct: r.pct })),
+    catalogo: x.listas.catalogo.map((r) => ({ id: r.id, nombre: r.nombre, categoria: r.categoria, included: r.included, custom_name: r.custom_name })),
+    contrato: x.contratoExiste ? sinVacios(x.contrato) : "aún no creado",
+    cliente: x.cliente ? sinVacios({ ...x.cliente, id: undefined, created_at: undefined }) : null,
   };
 }
 
@@ -58,6 +78,16 @@ En "cambios" usa solo estas claves (omite las que no cambian; no inventes valore
 - preacreditacion: {"modo": "no" | "completo" | "medio", "dias": número}.
 - computadores, impresoras (números). visitaPreoperativaDias (0-10). extras: {"camisetas": true/false, "chalecos": …, "agua": …, "bloqueador": …, "cierre": …}.
 - presentacion: datos de la presentación, con estas claves opcionales: asesorNombre, asesorCargo, asesorCorreo, asesorTelefono (quién atiende al cliente), clienteNombre, clienteCargo (contacto del cliente), cierreEyebrow, cierreTitulo, cierreMensaje (textos de la lámina final; una cadena vacía vuelve al texto por defecto) y vigenciaDias (1-90, días de validez de la oferta).
+- edicion: lista de operaciones sobre las tablas de la propuesta. Cada una: {"entidad": ..., "op": "crear" | "editar" | "borrar", "id": id de la fila (solo para editar o borrar filas de una lista), "datos": {...}}. Usa los ids y los nombres de campo EXACTOS de abajo:
+  · cronograma (crear/editar/borrar): ${camposEditables("cronograma")}
+  · pagos, el modelo de pagos (crear/editar/borrar): ${camposEditables("pagos")}
+  · requerimientos operativos (crear/editar/borrar): ${camposEditables("requerimientos")}
+  · acuerdo, conceptos del acuerdo comercial (solo editar): ${camposEditables("acuerdo")}
+  · catalogo, componentes y logística de la propuesta (solo editar; el id es el de la lista "catalogo"): ${camposEditables("catalogo")}
+  · contrato (solo editar, sin id): ${camposEditables("contrato")}
+  · cliente (solo editar, sin id): ${camposEditables("cliente")}
+  Para vaciar un texto o una fecha usa una cadena vacía. Los pesos del acuerdo incluidos deben sumar 100 y los pagos también.
+- comisionDirectorPct, comisionAsesorPct, tasaConversionPct (0-100, en %), ivaPct (0-30, o "defecto" para volver al 19%), baseGravable (en pesos, o "defecto"), rollosLabels, transporteAeropuerto, cronogramaSemanas (1-52), cronogramaDias (1-31), impactosRegistro e impactosAcreditacion (números), informes (lista COMPLETA de entregables: reemplaza la lista actual) o informesPorDefecto: true, acuerdoObjecion (texto).
 - serviciosCantidad: lista de {"nombre": nombre exacto de un servicio, "cantidad": número} para cambiar cuántas unidades lleva un servicio (no aplica a los que se calculan con el aforo, la pre-acreditación ni los salones).
 - textosServicios: lista de {"nombre": nombre exacto de un servicio, "titulo": título corto y comercial para el cliente, "descripcion": alcance en una o dos frases claras}. Úsalo cuando el asesor pida redactar o mejorar cómo se presenta un servicio; no prometas nada que el servicio no haga.
 - aforo (número): asistentes presenciales. aforoVirtual (número). dias (1-30). ciudad (texto). lugar (texto: recinto o sede). fechaInicio y fechaFin ("AAAA-MM-DD"; si el evento es de un solo día, las dos iguales).
@@ -84,6 +114,9 @@ ${e.servicios
   .filter((s) => s.included || servicioDisponible(s.label, e.proposal))
   .map((s) => `- ${s.label} — ${s.included ? "sí" : "no"}`)
   .join("\n")}
+
+Tablas de la propuesta (ids para editar):
+${JSON.stringify(resumenTablas(e))}
 
 Láminas que se pueden ocultar:
 ${HIDEABLE_SLIDE_GROUPS.map((g) => `- ${g.label}`).join("\n")}`;

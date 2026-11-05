@@ -29,11 +29,11 @@ const PASOS: Record<string, string> = {
 
 const SUGERENCIAS: Record<string, string[]> = {
   diagnostico: ["Es híbrido con 1.200 personas", "El evento no tiene logística", "No vende boletas", "Hay 3 salones: 2.000, 500 y 500", "Pre-acreditación de medio día"],
-  propuesta: ["Quieren recordatorios por correo", "Quita el servicio de chat", "Sube el descuento al 15%"],
+  propuesta: ["Agrega al cronograma: ensayo general en la semana 3", "Pagos: 30% a la firma y 70% antes del evento", "Agrega el requerimiento: salón con 20 mesas", "Quita el soporte técnico de la logística"],
   acuerdo: ["Sube el descuento al 20%", "Propón un acuerdo con patrocinio"],
   presentacion: ["El asesor es Laura Gómez, directora comercial", "Pon vigencia de 30 días", "Cambia el mensaje de cierre", "Oculta la lámina de casos de éxito"],
-  versiones: ["¿Qué cambió frente a la versión anterior?"],
-  contrato: ["¿Qué cambia si el aforo sube a 2.000?"],
+  versiones: ["Pon vigencia de 30 días", "Cambia la comisión del asesor al 4%"],
+  contrato: ["El contratante es Mercado Libre S.A.S., NIT 900.123.456-7", "La firma es el 1 de marzo de 2027 en Bogotá", "Cambia el objeto general del contrato", "El representante legal es …"],
 };
 
 const uid = () => Math.random().toString(36).slice(2, 9);
