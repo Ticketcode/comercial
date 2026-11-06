@@ -70,6 +70,7 @@ const ALCANCE = {
       "Agente personalizado (avatar para el evento)",
       "Flujo comercial para generación de leads calificados post-evento, especial para participantes de la muestra comercial",
       "Flujo para aumentar aforo: campaña de calentamiento de la base de datos histórica del evento para generar registros o compra de boletería, y complemento con nuevas comunidades en redes sociales o buscadores",
+      "Informes especializados: fricción, influencia e impacto",
     ],
   },
   soporte: { titulo: "Soporte técnico permanente", texto: "Mesa de ayuda remota, atención y solución a problemas técnicos, respaldo de operaciones." },
