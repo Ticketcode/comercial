@@ -6,7 +6,7 @@ import { LabeledField } from "@/app/components/labeled-field";
 import { callSafe, saveErrorMessage } from "@/lib/errors";
 import type { DeckData } from "./deck-shell";
 import { saveDatosPresentacion } from "./actions";
-import type { Profile, PresentacionContacto } from "@/lib/types";
+import type { FilaComercial, Profile, PresentacionContacto } from "@/lib/types";
 import { exo, poppins } from "@/lib/fonts";
 import {
   CasosSlide,
@@ -55,15 +55,16 @@ const inputClass =
  * estructurales (portada, perfil, cierre) no se incluyen. */
 
 interface SlideEditHandlers {
-  onEditImpactos?: (field: "registro" | "acreditacion", value: number | null) => void;
+  onEditComercial?: (filas: FilaComercial[] | null) => void;
   onEditContacto?: (field: keyof PresentacionContacto, value: string) => void;
   onEditInformes?: (items: string[]) => void;
 }
 
 function buildSlides(data: DeckData, hidden: string[], edit: SlideEditHandlers = {}) {
-  const { onEditImpactos, onEditContacto, onEditInformes } = edit;
+  const { onEditComercial, onEditContacto, onEditInformes } = edit;
   type SlideFn = (p: { data: DeckData; page: number; total: number }) => JSX.Element;
-  const isHidden = (group: string) => hidden.includes(group);
+  // Se oculta por diapositiva (su clave) o, si NOVA ocultó el grupo completo, por grupo.
+  const isHidden = (group: string, key: string) => hidden.includes(group) || hidden.includes(key);
   const todas: { key: string; group: string; render: SlideFn }[] = [
     { key: "cover", group: "cover", render: (p) => <CoverSlide {...p} /> },
     { key: "plataforma", group: "plataforma", render: (p) => <PlataformaSlide page={p.page} total={p.total} /> },
@@ -112,7 +113,7 @@ function buildSlides(data: DeckData, hidden: string[], edit: SlideEditHandlers =
     {
       key: "comercial",
       group: "comercial",
-      render: (p) => <ComercialSlide {...p} onEditImpactos={onEditImpactos} onEditContacto={onEditContacto} />,
+      render: (p) => <ComercialSlide {...p} onEditFilas={onEditComercial} />,
     },
     {
       key: "informes",
@@ -149,10 +150,10 @@ function buildSlides(data: DeckData, hidden: string[], edit: SlideEditHandlers =
   // La numeración de página (dibujada dentro de cada lámina) solo cuenta las
   // visibles — una oculta conserva el número de la última visible, ya que no
   // se le asigna un puesto propio en el PDF final.
-  const total = entries.filter((e) => !isHidden(e.group)).length;
+  const total = entries.filter((e) => !isHidden(e.group, e.key)).length;
   let counter = 0;
   return entries.map((e) => {
-    const hidden = isHidden(e.group);
+    const hidden = isHidden(e.group, e.key);
     if (!hidden) counter += 1;
     return {
       key: e.key,
@@ -175,10 +176,10 @@ export function PresentacionViewer({ data: initialData, version }: { data: DeckD
   const readOnly = !!version;
   const [contactName, setContactName] = useState(initialData.client?.contact_name ?? "");
   const [contactCargo, setContactCargo] = useState(initialData.client?.contact_cargo ?? "");
-  const [impactosRegistro, setImpactosRegistro] = useState(
+  const [impactosRegistro] = useState(
     initialData.proposal.impactos_registro != null ? String(initialData.proposal.impactos_registro) : ""
   );
-  const [impactosAcreditacion, setImpactosAcreditacion] = useState(
+  const [impactosAcreditacion] = useState(
     initialData.proposal.impactos_acreditacion != null ? String(initialData.proposal.impactos_acreditacion) : ""
   );
   const [hiddenSlides, setHiddenSlides] = useState<string[]>(initialData.proposal.presentacion_hidden_slides ?? []);
@@ -249,9 +250,16 @@ export function PresentacionViewer({ data: initialData, version }: { data: DeckD
     }
   }
 
-  function onEditImpactos(field: "registro" | "acreditacion", value: number | null) {
-    if (field === "registro") setImpactosRegistro(value === null ? "" : String(value));
-    else setImpactosAcreditacion(value === null ? "" : String(value));
+  function onEditComercial(filas: FilaComercial[] | null) {
+    const owner = initialData.owner;
+    setContacto((prev) => ({
+      full_name: owner?.full_name ?? null,
+      cargo: owner?.cargo ?? null,
+      correo: owner?.correo ?? null,
+      telefono: owner?.telefono ?? null,
+      ...prev,
+      comercial_filas: filas,
+    }));
   }
 
   function onEditContacto(field: keyof PresentacionContacto, value: string) {
@@ -266,8 +274,14 @@ export function PresentacionViewer({ data: initialData, version }: { data: DeckD
     }));
   }
 
-  function toggleHiddenSlide(group: string) {
-    setHiddenSlides((prev) => (prev.includes(group) ? prev.filter((g) => g !== group) : [...prev, group]));
+  /** Oculta o muestra UNA diapositiva. Si NOVA había ocultado todo su grupo, al mostrarla solo vuelve esa. */
+  function toggleSlide(key: string, group: string) {
+    const hermanas = buildSlides(data, [], {}).filter((s) => s.group === group).map((s) => s.key);
+    setHiddenSlides((prev) => {
+      if (prev.includes(key)) return prev.filter((k) => k !== key);
+      if (prev.includes(group)) return [...prev.filter((k) => k !== group), ...hermanas.filter((k) => k !== key)];
+      return [...prev, key];
+    });
   }
 
   return (
@@ -380,7 +394,7 @@ export function PresentacionViewer({ data: initialData, version }: { data: DeckD
       )}
 
       <div className="no-print flex flex-col items-center gap-6 rounded-xl border border-neutral-200 bg-neutral-50 p-6">
-        {buildSlides(data, hiddenSlides, readOnly ? {} : { onEditImpactos, onEditContacto, onEditInformes: setInformes }).map((slide) => {
+        {buildSlides(data, hiddenSlides, readOnly ? {} : { onEditComercial, onEditContacto, onEditInformes: setInformes }).map((slide) => {
           const hideable = HIDEABLE_SLIDE_GROUPS.some((g) => g.key === slide.group);
           return (
             <div
@@ -401,7 +415,7 @@ export function PresentacionViewer({ data: initialData, version }: { data: DeckD
               {!readOnly && hideable && !slide.hidden && (
                 <button
                   type="button"
-                  onClick={() => toggleHiddenSlide(slide.group)}
+                  onClick={() => toggleSlide(slide.key, slide.group)}
                   title="Ocultar esta diapositiva"
                   className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/80"
                 >
@@ -411,7 +425,7 @@ export function PresentacionViewer({ data: initialData, version }: { data: DeckD
               {!readOnly && slide.hidden && (
                 <button
                   type="button"
-                  onClick={() => toggleHiddenSlide(slide.group)}
+                  onClick={() => toggleSlide(slide.key, slide.group)}
                   title="Mostrar esta diapositiva"
                   className="absolute inset-0 flex items-center justify-center"
                 >

@@ -1,5 +1,6 @@
 import { Fragment, useState } from "react";
-import type { PresentacionContacto } from "@/lib/types";
+import type { FilaComercial, PresentacionContacto } from "@/lib/types";
+import { filasComercial } from "@/lib/data/comercial";
 import { formatCOP } from "@/lib/pricing/summary";
 import { formatFechaCorta } from "@/lib/fecha-local";
 import { GRUPO_INFO, agruparEnPaquetes, itemCatalogoAplica, type GrupoPaquetes, type ItemParaPaquete, type Paquete, type PaquetesDeGrupo } from "@/lib/data/paquetes";
@@ -978,81 +979,43 @@ export function LogisticaSlide({
   );
 }
 
-const COMERCIAL_REGISTRO_DEFAULT =
-  "Correo de confirmación · Correo de recordación · Escarapela digital (descarga) · Impacto comercial a la base de datos";
-const COMERCIAL_ACREDITACION_DEFAULT =
-  "Escarapela digital (acceso) · Manilla biodegradable · Base de datos de visitantes a cada stand de la zona expo";
-
 export function ComercialSlide({
   data,
   page,
   total: totalPages,
-  onEditImpactos,
-  onEditContacto,
+  onEditFilas,
 }: {
   data: DeckData;
   page: number;
   total: number;
-  /** Si se pasa, "Impacto inicial" se edita en la propia lámina en vez de solo mostrarse
-   * (no se pasa en el área oculta que exporta el PDF, para no capturar cajas de input). */
-  onEditImpactos?: (field: "registro" | "acreditacion", value: number | null) => void;
-  /** Si se pasa, los elementos con marca de cada concepto se editan en la propia lámina. */
-  onEditContacto?: (field: keyof PresentacionContacto, value: string) => void;
+  /** Si se pasa, toda la tabla se edita en la propia lámina (no se pasa en el área oculta que exporta el PDF). null = volver a la tabla original. */
+  onEditFilas?: (filas: FilaComercial[] | null) => void;
 }) {
   const t = THEME.light;
-  const { proposal } = data;
-  const textos = {
-    comercial_registro: proposal.presentacion_contacto?.comercial_registro ?? COMERCIAL_REGISTRO_DEFAULT,
-    comercial_acreditacion: proposal.presentacion_contacto?.comercial_acreditacion ?? COMERCIAL_ACREDITACION_DEFAULT,
-  };
-  const editableTexto = (key: "comercial_registro" | "comercial_acreditacion") =>
-    onEditContacto ? (
-      <textarea
-        value={textos[key]}
-        onChange={(e) => onEditContacto(key, e.target.value)}
-        rows={3}
-        style={{
-          width: "100%",
-          fontSize: 24,
-          lineHeight: 1.3,
-          fontFamily: "inherit",
-          color: t.fg,
-          background: "transparent",
-          border: `1px solid ${t.line}`,
-          borderRadius: 8,
-          padding: "6px 10px",
-          resize: "none",
-        }}
-      />
-    ) : (
-      textos[key]
-    );
-  const registro = proposal.impactos_registro;
-  const acreditacion = proposal.impactos_acreditacion;
-  const total = registro != null && acreditacion != null ? registro + acreditacion : null;
-  const cell = (v: number | null) => (v != null ? `${formatNumber(v)} impactos de marca` : `${POR_DEFINIR} impactos de marca`);
-  const editableCell = (field: "registro" | "acreditacion", v: number | null) =>
-    onEditImpactos ? (
-      <input
-        type="number"
-        min={0}
-        value={v ?? ""}
-        onChange={(e) => onEditImpactos(field, e.target.value === "" ? null : Number(e.target.value))}
-        placeholder="N° de impactos"
-        style={{
-          width: 140,
-          fontSize: 24,
-          fontFamily: "inherit",
-          color: t.fg,
-          background: "transparent",
-          border: `1px solid ${t.line}`,
-          borderRadius: 8,
-          padding: "6px 10px",
-        }}
-      />
-    ) : (
-      cell(v)
-    );
+  const filas = filasComercial(data.proposal);
+  const total = filas.length > 0 && filas.every((f) => f.impactos != null) ? filas.reduce((s, f) => s + (f.impactos ?? 0), 0) : null;
+  const cambiar = (i: number, parche: Partial<FilaComercial>) => onEditFilas?.(filas.map((f, j) => (j === i ? { ...f, ...parche } : f)));
+  const campo = {
+    fontFamily: "inherit",
+    color: t.fg,
+    background: "transparent",
+    border: `1px solid ${t.line}`,
+    borderRadius: 8,
+    padding: "6px 10px",
+    width: "100%",
+    fontSize: 24,
+  } as const;
+  const boton = {
+    fontSize: 22,
+    fontFamily: "inherit",
+    color: t.fg,
+    background: "transparent",
+    border: `1px solid ${t.line}`,
+    borderRadius: 8,
+    padding: "6px 16px",
+    cursor: "pointer",
+  } as const;
+  const celda = { padding: "16px 20px" } as const;
   return (
     <Slide1920 theme="light" section="La propuesta" page={page} total={totalPages}>
       <h2 style={{ fontFamily: DISPLAY_FONT, fontSize: 68, fontWeight: 800, lineHeight: 1.05, letterSpacing: -1, color: t.fg, marginBottom: 16 }}>
@@ -1063,35 +1026,70 @@ export function ComercialSlide({
         acreditación y el control de acceso.
       </p>
       <div style={{ borderRadius: 28, overflow: "hidden" }}>
-      <table style={{ fontFamily: "inherit", fontSize: 28, color: t.fg, borderCollapse: "collapse", width: "100%" }}>
-        <tbody>
-          <tr style={{ background: t.accent2 }}>
-            <th style={{ width: "22%", color: "#FFFFFF", textAlign: "left", padding: "16px 20px" }}>Concepto</th>
-            <th style={{ width: "54%", color: "#FFFFFF", textAlign: "left", padding: "16px 20px" }}>
-              Elementos con presencia de marca del patrocinador
-            </th>
-            <th style={{ width: "24%", color: "#FFFFFF", textAlign: "left", padding: "16px 20px" }}>Impacto inicial</th>
-          </tr>
-          <tr>
-            <td style={{ padding: "16px 20px" }}>Registro</td>
-            <td style={{ padding: "16px 20px" }}>{editableTexto("comercial_registro")}</td>
-            <td style={{ padding: "16px 20px" }}>{editableCell("registro", registro)}</td>
-          </tr>
-          <tr>
-            <td style={{ padding: "16px 20px" }}>Acreditación y control de acceso</td>
-            <td style={{ padding: "16px 20px" }}>{editableTexto("comercial_acreditacion")}</td>
-            <td style={{ padding: "16px 20px" }}>{editableCell("acreditacion", acreditacion)}</td>
-          </tr>
-          <tr style={{ background: t.card }}>
-            <td style={{ padding: "16px 20px" }}>Total estimado</td>
-            <td />
-            <td style={{ padding: "16px 20px" }}>
-              {total != null ? `${formatNumber(total)} impactos` : `${POR_DEFINIR} impactos`}
-            </td>
-          </tr>
-        </tbody>
-      </table>
+        <table style={{ fontFamily: "inherit", fontSize: 28, color: t.fg, borderCollapse: "collapse", width: "100%" }}>
+          <tbody>
+            <tr style={{ background: t.accent2 }}>
+              <th style={{ width: "22%", color: "#FFFFFF", textAlign: "left", padding: "16px 20px" }}>Concepto</th>
+              <th style={{ width: "54%", color: "#FFFFFF", textAlign: "left", padding: "16px 20px" }}>
+                Elementos con presencia de marca del patrocinador
+              </th>
+              <th style={{ width: "24%", color: "#FFFFFF", textAlign: "left", padding: "16px 20px" }}>Impacto inicial</th>
+            </tr>
+            {filas.map((f, i) => (
+              <tr key={onEditFilas ? i : f.concepto + i}>
+                {onEditFilas ? (
+                  <>
+                    <td style={celda}>
+                      <textarea value={f.concepto} onChange={(e) => cambiar(i, { concepto: e.target.value })} rows={Math.max(1, Math.ceil(f.concepto.length / 22))} placeholder="Concepto" style={{ ...campo, resize: "none" }} />
+                    </td>
+                    <td style={celda}>
+                      <textarea value={f.elementos} onChange={(e) => cambiar(i, { elementos: e.target.value })} rows={Math.max(2, Math.ceil(f.elementos.length / 58))} placeholder="Elementos con presencia de marca" style={{ ...campo, resize: "none", lineHeight: 1.3 }} />
+                    </td>
+                    <td style={celda}>
+                      <div style={{ display: "flex", flexDirection: "row", gap: 10, alignItems: "center" }}>
+                        <input
+                          type="number"
+                          min={0}
+                          value={f.impactos ?? ""}
+                          onChange={(e) => cambiar(i, { impactos: e.target.value === "" ? null : Number(e.target.value) })}
+                          placeholder="N° de impactos"
+                          style={{ ...campo, width: 150 }}
+                        />
+                        <button type="button" title="Quitar fila" onClick={() => onEditFilas(filas.filter((_, j) => j !== i))} style={{ ...boton, padding: "4px 12px" }}>
+                          ×
+                        </button>
+                      </div>
+                    </td>
+                  </>
+                ) : (
+                  <>
+                    <td style={celda}>{f.concepto}</td>
+                    <td style={celda}>{f.elementos}</td>
+                    <td style={celda}>{f.impactos != null ? `${formatNumber(f.impactos)} impactos de marca` : `${POR_DEFINIR} impactos de marca`}</td>
+                  </>
+                )}
+              </tr>
+            ))}
+            {filas.length > 0 && (
+              <tr style={{ background: t.card }}>
+                <td style={celda}>Total estimado</td>
+                <td />
+                <td style={celda}>{total != null ? `${formatNumber(total)} impactos` : `${POR_DEFINIR} impactos`}</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
       </div>
+      {onEditFilas && (
+        <div style={{ display: "flex", flexDirection: "row", gap: 12, marginTop: 20 }}>
+          <button type="button" onClick={() => onEditFilas([...filas, { concepto: "", elementos: "", impactos: null }])} style={boton}>
+            + Agregar fila
+          </button>
+          <button type="button" onClick={() => onEditFilas(null)} style={boton}>
+            Restaurar tabla original
+          </button>
+        </div>
+      )}
     </Slide1920>
   );
 }

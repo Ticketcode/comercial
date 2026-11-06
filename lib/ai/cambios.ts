@@ -9,6 +9,7 @@
  */
 import type { Proposal, ProposalCostItem, Modality } from "@/lib/types";
 import { staffingForAforo, totalLogisticosSalones, type AforoScaleRow } from "@/lib/pricing/logistics";
+import { COMERCIAL_ACREDITACION_DEFAULT, COMERCIAL_REGISTRO_DEFAULT, filasComercial } from "@/lib/data/comercial";
 import { SALONES_INTERNOS_SERVICE_LABEL, computedServiceQuantity } from "@/lib/pricing/service-quantity";
 import { HIDEABLE_SLIDE_GROUPS } from "@/lib/data/laminas";
 import { necesitaBoleteria, servicioDisponible } from "@/lib/data/servicios-alcance";
@@ -480,9 +481,13 @@ export function validarCambios(
   const diasCron = num(crudos.cronogramaDias, 1, 31);
   if (diasCron !== null) campo("cronograma_dias", diasCron);
   const imReg = num(crudos.impactosRegistro, 0, 1e9);
-  if (imReg !== null) campo("impactos_registro", imReg);
   const imAcr = num(crudos.impactosAcreditacion, 0, 1e9);
-  if (imAcr !== null) campo("impactos_acreditacion", imAcr);
+  if (estado.proposal.presentacion_contacto?.comercial_filas && (imReg !== null || imAcr !== null)) {
+    bloquear("impactos_registro", "La tabla de comercialización está editada fila por fila: cambia los impactos directo en la lámina");
+  } else {
+    if (imReg !== null) campo("impactos_registro", imReg);
+    if (imAcr !== null) campo("impactos_acreditacion", imAcr);
+  }
   if (Array.isArray(crudos.informes)) {
     const lista = crudos.informes.filter((x): x is string => typeof x === "string").map((x) => x.trim().slice(0, 200)).filter(Boolean).slice(0, 20);
     if (lista.length > 0) campo("presentacion_informes", lista);
@@ -571,6 +576,10 @@ export function validarCambios(
       const texto = v.trim().slice(0, PRES_META[campoPres].max);
       if (campoPres === "asesorCorreo" && texto && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(texto)) {
         bloqueados.push({ etiqueta: PRES_META[campoPres].etiqueta, motivo: "El correo no tiene un formato válido" });
+        continue;
+      }
+      if ((campoPres === "comercialRegistro" || campoPres === "comercialAcreditacion") && !filasComercial(estado.proposal)[campoPres === "comercialRegistro" ? 0 : 1]) {
+        bloqueados.push({ etiqueta: PRES_META[campoPres].etiqueta, motivo: "La tabla de comercialización ya no tiene esa fila" });
         continue;
       }
       if ((campoPres === "clienteNombre" || campoPres === "clienteCargo") && !estado.cliente) {
@@ -731,6 +740,14 @@ export function aplicarEnMemoria(estado: EstadoPropuesta, atomo: Atomo): EstadoP
       correo: estado.owner?.correo ?? null,
       telefono: estado.owner?.telefono ?? null,
     };
+    if (campo === "comercialRegistro" || campo === "comercialAcreditacion") {
+      // Los textos de la tabla de comercialización viven en sus filas (la 1.ª es Registro, la 2.ª Acreditación).
+      const i = campo === "comercialRegistro" ? 0 : 1;
+      const filas = filasComercial(estado.proposal).map((f) => ({ ...f }));
+      if (!filas[i]) return estado;
+      filas[i].elementos = (valor as string | null) ?? (i === 0 ? COMERCIAL_REGISTRO_DEFAULT : COMERCIAL_ACREDITACION_DEFAULT);
+      return { ...estado, proposal: { ...estado.proposal, presentacion_contacto: { ...base, comercial_filas: filas } } };
+    }
     return { ...estado, proposal: { ...estado.proposal, presentacion_contacto: { ...base, [col]: valor as string | null } } };
   }
   if (atomo.tipo === "textoServicio" && atomo.texto) {
@@ -887,6 +904,8 @@ export function valorPresentacion(estado: EstadoPropuesta, campo: PresCampo): st
   if (campo === "vigenciaDias") return Number(estado.proposal.vigencia_dias ?? 15);
   if (campo === "clienteNombre") return estado.cliente?.contact_name ?? null;
   if (campo === "clienteCargo") return estado.cliente?.contact_cargo ?? null;
+  if (campo === "comercialRegistro") return filasComercial(estado.proposal)[0]?.elementos ?? null;
+  if (campo === "comercialAcreditacion") return filasComercial(estado.proposal)[1]?.elementos ?? null;
   const col = PRES_COLUMNA[campo]!;
   const guardado = estado.proposal.presentacion_contacto?.[col];
   if (guardado !== undefined && guardado !== null) return guardado;

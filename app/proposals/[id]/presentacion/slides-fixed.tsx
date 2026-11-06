@@ -291,21 +291,26 @@ export function InformesSlide({
             <CheckBadge size={30} iconSize={18} bg={t.accent} />
             {onEditInformes ? (
               <>
-                <input
+                <textarea
                   value={text}
                   onChange={(e) => onEditInformes(items.map((v, j) => (j === idx ? e.target.value : v)))}
                   placeholder="Entregable"
+                  rows={Math.max(1, Math.ceil(text.length / 44))}
                   style={{
                     flex: 1,
                     minWidth: 0,
                     fontSize: 24,
+                    lineHeight: 1.3,
                     fontFamily: "inherit",
                     color: t.fg,
                     background: "transparent",
                     border: `1px solid ${t.line}`,
                     borderRadius: 8,
                     padding: "4px 10px",
-                  }}
+                    resize: "none",
+                    overflow: "hidden",
+                    fieldSizing: "content",
+                  } as React.CSSProperties}
                 />
                 <button
                   type="button"

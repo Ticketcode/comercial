@@ -20,6 +20,13 @@ export interface Profile {
   created_at: string;
 }
 
+/** Una fila de la tabla "Contribuimos con la comercialización del evento". */
+export interface FilaComercial {
+  concepto: string;
+  elementos: string;
+  impactos: number | null;
+}
+
 export interface PresentacionContacto {
   full_name: string | null;
   cargo: string | null;
@@ -32,6 +39,8 @@ export interface PresentacionContacto {
   /** Textos editables de la lámina "Contribuimos con la comercialización": elementos con marca de cada concepto. */
   comercial_registro?: string | null;
   comercial_acreditacion?: string | null;
+  /** Tabla de comercialización editada fila por fila; null/undefined = la tabla original. */
+  comercial_filas?: FilaComercial[] | null;
 }
 
 export interface Client {
