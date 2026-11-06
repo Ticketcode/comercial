@@ -41,6 +41,7 @@ export default async function AcuerdoPage({ params }: { params: Promise<{ id: st
     <AcuerdoEditor
       proposalId={id}
       valorAntesIva={base.total(base.estado)}
+      valorNoDescontable={base.noDescontable(base.estado)}
       objecionInicial={p.acuerdo_objecion ?? ""}
       descuentoInicial={Number(p.acuerdo_comercial_pct_global) || 0}
       conceptosIniciales={filas.map((f) => ({ id: f.id, label: f.label, included: !!f.included, pct: Number(f.pct), notas: f.notes ?? "" }))}

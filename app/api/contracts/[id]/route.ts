@@ -66,7 +66,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   );
 
   const globalPct = Number(proposal.acuerdo_comercial_pct_global ?? 0);
-  const discount = applyCommercialDiscount(tarifarioSummary.valorPropuestaFinal, globalPct);
+  const discount = applyCommercialDiscount(tarifarioSummary.valorPropuestaFinal, globalPct, tarifarioSummary.valorNoDescontable);
   const valorTotal = Math.round(discount.valorConDescuento + discount.ivaFinal);
 
   // Cada hito de pago en pesos, sobre el valor final que paga el cliente (ya con IVA) —

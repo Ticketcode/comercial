@@ -29,6 +29,9 @@ export interface PresentacionContacto {
   eyebrow?: string | null;
   titulo?: string | null;
   mensaje?: string | null;
+  /** Textos editables de la lámina "Contribuimos con la comercialización": elementos con marca de cada concepto. */
+  comercial_registro?: string | null;
+  comercial_acreditacion?: string | null;
 }
 
 export interface Client {
@@ -102,6 +105,13 @@ export interface Proposal {
   vigencia_dias?: number;
   /** false = el evento no vende boletas por la plataforma. Sin dato = sí vende. */
   vende_boletas?: boolean;
+  /** EVE (la IA de eventos) va en la propuesta. Las propuestas anteriores a EVE quedan en false. */
+  con_eve?: boolean;
+  /** Se cotiza solo EVE: sin plataforma, logística ni servicios adicionales. */
+  solo_eve?: boolean;
+  /** Acompañamiento en sitio solo para EVE (se calcula como la logística). */
+  eve_acompanamiento?: boolean;
+  eve_qty_equipo?: number;
   /** Grupos de diapositivas ocultas en la Presentación (ej. "informes", "casos"). */
   presentacion_hidden_slides: string[];
   /** Datos del asesor editados en la lámina de Contacto; null = los del perfil. */

@@ -37,6 +37,7 @@ import {
   hasAcuerdoComercial,
 } from "./slides-app";
 import { HIDEABLE_SLIDE_GROUPS } from "@/lib/data/laminas";
+import { EveDisenoSlide, EveEntregablesSlide, EveInversionSlide, EveSlide, getEveDeck } from "./slides-eve";
 
 const PREVIEW_SCALE = 760 / 1920;
 
@@ -63,7 +64,7 @@ function buildSlides(data: DeckData, hidden: string[], edit: SlideEditHandlers =
   const { onEditImpactos, onEditContacto, onEditInformes } = edit;
   type SlideFn = (p: { data: DeckData; page: number; total: number }) => JSX.Element;
   const isHidden = (group: string) => hidden.includes(group);
-  const entries: { key: string; group: string; render: SlideFn }[] = [
+  const todas: { key: string; group: string; render: SlideFn }[] = [
     { key: "cover", group: "cover", render: (p) => <CoverSlide {...p} /> },
     { key: "plataforma", group: "plataforma", render: (p) => <PlataformaSlide page={p.page} total={p.total} /> },
     { key: "cifras", group: "cifras", render: (p) => <CifrasSlide page={p.page} total={p.total} /> },
@@ -78,6 +79,17 @@ function buildSlides(data: DeckData, hidden: string[], edit: SlideEditHandlers =
         group: claveOcultarGrupo(grupo),
         render: (p: Parameters<SlideFn>[0]) => <GrupoSlide grupo={grupo} paquetes={paquetes} page={p.page} total={p.total} />,
       })),
+    // EVE, la IA del evento: va en todas las propuestas que la llevan, antes de la logística.
+    ...(() => {
+      const eve = getEveDeck(data);
+      if (!eve) return [];
+      return [
+        { key: "eve-que-es", group: "eve", render: (p: Parameters<SlideFn>[0]) => <EveSlide page={p.page} total={p.total} /> },
+        { key: "eve-diseno", group: "eve", render: (p: Parameters<SlideFn>[0]) => <EveDisenoSlide page={p.page} total={p.total} /> },
+        { key: "eve-entregables", group: "eve", render: (p: Parameters<SlideFn>[0]) => <EveEntregablesSlide page={p.page} total={p.total} /> },
+        { key: "eve-inversion", group: "eve", render: (p: Parameters<SlideFn>[0]) => <EveInversionSlide eve={eve} page={p.page} total={p.total} /> },
+      ];
+    })(),
     ...(getLogisticaDeck(data)
       ? [
           {
@@ -100,7 +112,7 @@ function buildSlides(data: DeckData, hidden: string[], edit: SlideEditHandlers =
     {
       key: "comercial",
       group: "comercial",
-      render: (p) => <ComercialSlide {...p} onEditImpactos={onEditImpactos} />,
+      render: (p) => <ComercialSlide {...p} onEditImpactos={onEditImpactos} onEditContacto={onEditContacto} />,
     },
     {
       key: "informes",
@@ -131,6 +143,9 @@ function buildSlides(data: DeckData, hidden: string[], edit: SlideEditHandlers =
     { key: "casos", group: "casos", render: (p) => <CasosSlide page={p.page} total={p.total} /> },
     { key: "cierre", group: "cierre", render: (p) => <CierreSlide {...p} onEditContacto={onEditContacto} /> },
   ];
+  // Solo EVE: se cotiza únicamente la IA, así que no van las láminas de plataforma, logística ni servicios.
+  const SOLO_EVE_SIN = new Set(["presencial", "logistica", "servicios", "comercial", "informes", "preproduccion"]);
+  const entries = todas.filter((e) => !(data.proposal.solo_eve === true && (SOLO_EVE_SIN.has(e.group) || e.key.startsWith("componentes-"))));
   // La numeración de página (dibujada dentro de cada lámina) solo cuenta las
   // visibles — una oculta conserva el número de la última visible, ya que no
   // se le asigna un puesto propio en el PDF final.
@@ -289,7 +304,7 @@ export function PresentacionViewer({ data: initialData, version }: { data: DeckD
           <Link href="/perfil" className="underline">
             tu perfil
           </Link>{" "}
-          si no los cambias aquí. El resto (impacto inicial, informes) se edita directo en su lámina.
+          si no los cambias aquí. El resto se edita directo en cada lámina (lápiz o casillas), se oculta con el ojito de la lámina, o se lo pides a NOVA.
         </p>
 
         <div className="mt-4 space-y-5">
@@ -329,27 +344,6 @@ export function PresentacionViewer({ data: initialData, version }: { data: DeckD
           </fieldset>
 
           <fieldset>
-            <legend className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-500">Lámina de cierre</legend>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-              <LabeledField label="Encabezado">
-                <input value={contacto?.eyebrow ?? ""} onChange={(e) => onEditContacto("eyebrow", e.target.value)} placeholder="Atentamente" className={inputClass} maxLength={60} />
-              </LabeledField>
-              <LabeledField label="Título">
-                <input value={contacto?.titulo ?? ""} onChange={(e) => onEditContacto("titulo", e.target.value)} placeholder="Gracias" className={inputClass} maxLength={60} />
-              </LabeledField>
-              <LabeledField label="Mensaje">
-                <input
-                  value={contacto?.mensaje ?? ""}
-                  onChange={(e) => onEditContacto("mensaje", e.target.value)}
-                  placeholder={`Hagamos de ${initialData.proposal.event_name} un evento sin filas y con datos reales.`}
-                  className={inputClass}
-                  maxLength={240}
-                />
-              </LabeledField>
-            </div>
-          </fieldset>
-
-          <fieldset>
             <legend className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-500">Oferta</legend>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
               <LabeledField label="Vigencia (días)">
@@ -361,17 +355,6 @@ export function PresentacionViewer({ data: initialData, version }: { data: DeckD
             </div>
           </fieldset>
 
-          <fieldset>
-            <legend className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-500">Láminas que se muestran</legend>
-            <div className="flex flex-wrap gap-x-5 gap-y-2">
-              {HIDEABLE_SLIDE_GROUPS.map((g) => (
-                <label key={g.key} className="flex items-center gap-2 text-xs text-neutral-700">
-                  <input type="checkbox" checked={!hiddenSlides.includes(g.key)} onChange={() => toggleHiddenSlide(g.key)} className="h-4 w-4" />
-                  {g.label}
-                </label>
-              ))}
-            </div>
-          </fieldset>
         </div>
         {pesoInvalido && (
           <p className="mt-3 text-xs text-amber-700">

@@ -35,14 +35,17 @@ export async function cargarEstado(supabase: SupabaseClient, proposalId: string,
   };
   const tasas = buildLogisticsRates(rateRows ?? []);
   // Mismas cantidades que calcula el Diagnóstico (cloud server, correos por aforo…).
-  const total = (e: EstadoPropuesta) =>
+  const resumen = (e: EstadoPropuesta) =>
     computeTarifarioSummary(
       e.proposal,
       tasas,
       e.servicios.map((s) => ({ ...s, quantity: computedServiceQuantity(s.label, e.proposal) ?? s.quantity })),
       escalaProductor ?? []
-    ).valorPropuestaFinal;
-  return { estado, total, aforoScales: aforoScales ?? [] };
+    );
+  const total = (e: EstadoPropuesta) => resumen(e).valorPropuestaFinal;
+  /** Parte del valor que el descuento del acuerdo comercial no toca (manillas y escarapelas físicas). */
+  const noDescontable = (e: EstadoPropuesta) => resumen(e).valorNoDescontable;
+  return { estado, total, noDescontable, aforoScales: aforoScales ?? [] };
 }
 
 /** Escribe en la base los cambios ya aceptados. Cada uno se vuelve a validar: el navegador no es de fiar. */

@@ -13,12 +13,15 @@ const card = "rounded-2xl border border-border bg-surface p-5";
 export function AcuerdoEditor({
   proposalId,
   valorAntesIva,
+  valorNoDescontable,
   objecionInicial,
   descuentoInicial,
   conceptosIniciales,
 }: {
   proposalId: string;
   valorAntesIva: number;
+  /** Parte del valor que el descuento no toca (manillas y escarapelas físicas, tercerizadas). */
+  valorNoDescontable: number;
   objecionInicial: string;
   descuentoInicial: number;
   conceptosIniciales: Concepto[];
@@ -33,7 +36,7 @@ export function AcuerdoEditor({
 
   const incluidos = conceptos.filter((c) => c.included);
   const suma = incluidos.reduce((s, c) => s + Number(c.pct), 0);
-  const d = applyCommercialDiscount(valorAntesIva, descuento);
+  const d = applyCommercialDiscount(valorAntesIva, descuento, valorNoDescontable);
 
   function cambiar(id: string, parche: Partial<Concepto>) {
     setConceptos((prev) => prev.map((c) => (c.id === id ? { ...c, ...parche } : c)));
@@ -164,6 +167,11 @@ export function AcuerdoEditor({
             <dd className="font-semibold text-ink">{formatCOP(d.valorConDescuento + d.ivaFinal)}</dd>
           </div>
         </dl>
+        {valorNoDescontable > 0 && (
+          <p className="mt-3 text-xs text-muted">
+            El descuento no aplica a manillas ni escarapelas físicas ({formatCOP(valorNoDescontable)}): son servicios tercerizados.
+          </p>
+        )}
       </section>
 
       <div className="flex flex-wrap items-center gap-3">

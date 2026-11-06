@@ -4,6 +4,10 @@ import { formatCOP } from "@/lib/pricing/summary";
 
 export interface ResumenPrecio {
   logistica: number;
+  /** Costo del acompañamiento de EVE en sitio (0 si no lo lleva). */
+  acompanamientoEve: number;
+  /** Precio de EVE: fee fijo más valor por asistente (0 si la propuesta no lleva EVE). */
+  eve: number;
   servicios: number;
   totalCosto: number;
   rentabilidadPct: number;
@@ -44,6 +48,12 @@ export function ResumenPrecioCard({ r, pendientes, evento }: { r: ResumenPrecio;
           <dt className="text-muted">+ Servicios y paquetes</dt>
           <dd className="font-semibold text-ink">{formatCOP(r.servicios)}</dd>
         </div>
+        {r.acompanamientoEve > 0 && (
+          <div className={fila}>
+            <dt className="text-muted">+ Acompañamiento de EVE (con imprevistos)</dt>
+            <dd className="font-semibold text-ink">{formatCOP(r.acompanamientoEve)}</dd>
+          </div>
+        )}
         <div className={`${fila} border-t border-border pt-2`}>
           <dt className="font-semibold text-ink">Subtotal (costo, antes de rentabilidad)</dt>
           <dd className="font-semibold text-ink">{formatCOP(r.totalCosto)}</dd>
@@ -56,6 +66,12 @@ export function ResumenPrecioCard({ r, pendientes, evento }: { r: ResumenPrecio;
           <dt className="text-muted">+ Comisiones {Math.round(r.comisionesPct * 100)}% (sobre subtotal + rentabilidad)</dt>
           <dd className="font-semibold text-ink">{formatCOP(r.comisiones)}</dd>
         </div>
+        {r.eve > 0 && (
+          <div className={fila}>
+            <dt className="text-muted">+ EVE (fee + valor por asistente, precio directo)</dt>
+            <dd className="font-semibold text-ink">{formatCOP(r.eve)}</dd>
+          </div>
+        )}
         <div className={`${fila} border-t border-border pt-2`}>
           <dt className="font-semibold text-ink">Valor propuesta antes de IVA</dt>
           <dd className="font-semibold text-ink">{formatCOP(r.valorFinal)}</dd>

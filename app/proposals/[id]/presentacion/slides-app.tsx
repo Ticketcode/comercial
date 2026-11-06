@@ -978,11 +978,17 @@ export function LogisticaSlide({
   );
 }
 
+const COMERCIAL_REGISTRO_DEFAULT =
+  "Correo de confirmación · Correo de recordación · Escarapela digital (descarga) · Impacto comercial a la base de datos";
+const COMERCIAL_ACREDITACION_DEFAULT =
+  "Escarapela digital (acceso) · Manilla biodegradable · Base de datos de visitantes a cada stand de la zona expo";
+
 export function ComercialSlide({
   data,
   page,
   total: totalPages,
   onEditImpactos,
+  onEditContacto,
 }: {
   data: DeckData;
   page: number;
@@ -990,9 +996,37 @@ export function ComercialSlide({
   /** Si se pasa, "Impacto inicial" se edita en la propia lámina en vez de solo mostrarse
    * (no se pasa en el área oculta que exporta el PDF, para no capturar cajas de input). */
   onEditImpactos?: (field: "registro" | "acreditacion", value: number | null) => void;
+  /** Si se pasa, los elementos con marca de cada concepto se editan en la propia lámina. */
+  onEditContacto?: (field: keyof PresentacionContacto, value: string) => void;
 }) {
   const t = THEME.light;
   const { proposal } = data;
+  const textos = {
+    comercial_registro: proposal.presentacion_contacto?.comercial_registro ?? COMERCIAL_REGISTRO_DEFAULT,
+    comercial_acreditacion: proposal.presentacion_contacto?.comercial_acreditacion ?? COMERCIAL_ACREDITACION_DEFAULT,
+  };
+  const editableTexto = (key: "comercial_registro" | "comercial_acreditacion") =>
+    onEditContacto ? (
+      <textarea
+        value={textos[key]}
+        onChange={(e) => onEditContacto(key, e.target.value)}
+        rows={3}
+        style={{
+          width: "100%",
+          fontSize: 24,
+          lineHeight: 1.3,
+          fontFamily: "inherit",
+          color: t.fg,
+          background: "transparent",
+          border: `1px solid ${t.line}`,
+          borderRadius: 8,
+          padding: "6px 10px",
+          resize: "none",
+        }}
+      />
+    ) : (
+      textos[key]
+    );
   const registro = proposal.impactos_registro;
   const acreditacion = proposal.impactos_acreditacion;
   const total = registro != null && acreditacion != null ? registro + acreditacion : null;
@@ -1040,18 +1074,12 @@ export function ComercialSlide({
           </tr>
           <tr>
             <td style={{ padding: "16px 20px" }}>Registro</td>
-            <td style={{ padding: "16px 20px" }}>
-              Correo de confirmación · Correo de recordación · Escarapela digital (descarga) · Impacto comercial a
-              la base de datos
-            </td>
+            <td style={{ padding: "16px 20px" }}>{editableTexto("comercial_registro")}</td>
             <td style={{ padding: "16px 20px" }}>{editableCell("registro", registro)}</td>
           </tr>
           <tr>
             <td style={{ padding: "16px 20px" }}>Acreditación y control de acceso</td>
-            <td style={{ padding: "16px 20px" }}>
-              Escarapela digital (acceso) · Manilla biodegradable · Base de datos de visitantes a cada stand de la
-              zona expo
-            </td>
+            <td style={{ padding: "16px 20px" }}>{editableTexto("comercial_acreditacion")}</td>
             <td style={{ padding: "16px 20px" }}>{editableCell("acreditacion", acreditacion)}</td>
           </tr>
           <tr style={{ background: t.card }}>
@@ -1189,7 +1217,8 @@ export function FinalSlide({ data, page, total }: { data: DeckData; page: number
   const base = tarifarioSummary.valorPropuestaFinal;
   const descuentoPct = proposal.acuerdo_comercial_pct_global;
   const hasAcuerdo = descuentoPct > 0;
-  const descuento = base * (descuentoPct / 100);
+  const noDescontable = tarifarioSummary.valorNoDescontable ?? 0;
+  const descuento = (base - noDescontable) * (descuentoPct / 100);
   const conDescuento = base - descuento;
   const iva = conDescuento * tarifarioSummary.ivaRate;
 
@@ -1212,6 +1241,11 @@ export function FinalSlide({ data, page, total }: { data: DeckData; page: number
             <MoneyRow label="Valor sin acuerdo comercial" value={formatCOP(base)} variant="gray" on="dark" width="100%" />
             <div style={{ height: 16 }} />
             <MoneyRow label={`Acuerdo comercial (${descuentoPct}%)`} value={`- ${formatCOP(descuento)}`} variant="deep" on="dark" width="100%" />
+            {noDescontable > 0 && (
+              <p style={{ fontSize: 24, lineHeight: 1.35, color: t.muted, marginTop: 16 }}>
+                El descuento no aplica a manillas ni escarapelas físicas, que son servicios tercerizados.
+              </p>
+            )}
           </div>
         )}
       </div>
@@ -1235,7 +1269,7 @@ export function PagosSlide({ data, page, total }: { data: DeckData; page: number
   const t = THEME.light;
   const { paymentMilestones, tarifarioSummary, proposal } = data;
   const base = tarifarioSummary.valorPropuestaFinal;
-  const descuento = base * (proposal.acuerdo_comercial_pct_global / 100);
+  const descuento = (base - (tarifarioSummary.valorNoDescontable ?? 0)) * (proposal.acuerdo_comercial_pct_global / 100);
   const totalPropuesta = base - descuento;
   const hitos = paymentMilestones.length > 0 ? paymentMilestones : [];
   const variants: TileVariant[] = ["ink", "mint", "gray", "deep"];

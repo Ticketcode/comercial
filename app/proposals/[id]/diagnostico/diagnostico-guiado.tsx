@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { totalLogisticosSalones } from "@/lib/pricing/logistics";
+import { formatCOP } from "@/lib/pricing/summary";
 import type { CambiosCrudos } from "@/lib/ai/cambios";
 import { LogisticaDetalle, NotasDiagnostico, type DetalleLogistica } from "./extras-diagnostico";
 import { ResumenPrecioCard, type ResumenPrecio } from "./resumen-y-servicios";
@@ -19,6 +20,13 @@ export interface DatosGuiado {
   dias: number;
   vendeBoletas: boolean;
   conLogistica: boolean;
+  /** EVE, la IA del evento: va en todas las propuestas nuevas. */
+  conEve: boolean;
+  soloEve: boolean;
+  eveAcompanamiento: boolean;
+  eveEquipo: number;
+  /** Precio de EVE (directo) y lo que cuesta el acompañamiento para el cliente. */
+  eve: { asistentes: number; fee: number; porAsistente: number; total: number; acompanamiento: number };
   city: string;
   aforo: number;
   aforoVirtual: number;
@@ -310,6 +318,79 @@ export function DiagnosticoGuiado({ datos }: { datos: DatosGuiado }) {
             </p>
           )}
           <PedirCambioButton sobre="los datos del evento" />
+        </div>
+
+        <div className="space-y-4 rounded-2xl border border-border bg-surface p-5">
+          <div>
+            <h2 className="font-display text-xl font-extrabold text-ink">EVE, la IA del evento</h2>
+            <p className="mt-1 text-sm text-muted">
+              Todos los eventos llevan EVE: un fee fijo más un valor por asistente, sobre el aforo total. Aplica el descuento del acuerdo comercial.
+            </p>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className={etiqueta}>
+              ¿La propuesta lleva EVE?
+              <div className="flex gap-2">
+                <button type="button" disabled={pendiente} className={chip(datos.conEve)} onClick={() => !datos.conEve && guardar({ conEve: true })}>
+                  Sí
+                </button>
+                <button type="button" disabled={pendiente} className={chip(!datos.conEve)} onClick={() => datos.conEve && guardar({ conEve: false })}>
+                  No
+                </button>
+              </div>
+            </div>
+            {datos.conEve && (
+              <div className={etiqueta}>
+                ¿Qué se cotiza?
+                <div className="flex flex-wrap gap-2">
+                  <button type="button" disabled={pendiente} className={chip(!datos.soloEve)} onClick={() => datos.soloEve && guardar({ soloEve: false })}>
+                    Evento completo
+                  </button>
+                  <button type="button" disabled={pendiente} className={chip(datos.soloEve)} onClick={() => !datos.soloEve && guardar({ soloEve: true })}>
+                    Solo EVE
+                  </button>
+                </div>
+                <span className="block text-xs font-normal text-muted">
+                  {datos.soloEve ? "Solo la IA: sin plataforma, logística ni servicios adicionales." : "EVE se suma al valor de la plataforma, la logística y los servicios."}
+                </span>
+              </div>
+            )}
+            {datos.conEve && pres && (
+              <div className={etiqueta}>
+                ¿Con acompañamiento de EVE en sitio?
+                <div className="flex flex-wrap items-center gap-2">
+                  <button type="button" disabled={pendiente} className={chip(!datos.eveAcompanamiento)} onClick={() => datos.eveAcompanamiento && guardar({ eveAcompanamiento: false })}>
+                    No
+                  </button>
+                  <button type="button" disabled={pendiente} className={chip(datos.eveAcompanamiento)} onClick={() => !datos.eveAcompanamiento && guardar({ eveAcompanamiento: true })}>
+                    Sí
+                  </button>
+                  {datos.eveAcompanamiento && (
+                    <label className="flex items-center gap-2 text-xs font-semibold text-muted">
+                      Personas
+                      <input
+                        className="min-h-10 w-20 rounded-pill border border-border bg-input-bg px-3 text-center text-sm text-ink"
+                        {...num("eveEquipo", datos.eveEquipo, 0, 20, (n) => ({ eveEquipo: n }))}
+                      />
+                    </label>
+                  )}
+                </div>
+                <span className="block text-xs font-normal text-muted">
+                  Se calcula como la logística (ciudad, días, hotel, tiquetes). Si el evento ya lleva logística de Ticketcode, normalmente no hace falta.
+                </span>
+              </div>
+            )}
+          </div>
+          {datos.conEve && (
+            <p className="rounded-xl bg-surface2 px-3 py-2 text-sm text-ink">
+              {datos.eve.asistentes > 0
+                ? `Fee ${formatCOP(datos.eve.fee)} + ${datos.eve.asistentes.toLocaleString("es-CO")} asistentes × ${formatCOP(datos.eve.porAsistente)} = `
+                : "Falta el aforo para calcular EVE. "}
+              <strong>{formatCOP(datos.eve.total)}</strong>
+              {datos.eveAcompanamiento && datos.eve.acompanamiento > 0 ? ` + acompañamiento ${formatCOP(datos.eve.acompanamiento)}` : ""}
+            </p>
+          )}
+          <PedirCambioButton sobre="EVE" />
         </div>
 
         {pres && (

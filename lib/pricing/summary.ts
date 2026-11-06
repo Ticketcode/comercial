@@ -1,5 +1,6 @@
 import type { Proposal, ProposalCostItem } from "@/lib/types";
-import { necesitaLogistica } from "@/lib/data/servicios-alcance";
+import { necesitaLogistica, noAplicaDescuento } from "@/lib/data/servicios-alcance";
+import { computeEveAcompanamiento, computeEvePrecio, type EvePrecio } from "./eve";
 import {
   computeLogisticsBreakdown,
   PREACREDITACION_SERVICE_LABEL,
@@ -22,6 +23,14 @@ export interface TarifarioSummary {
   iva: number;
   ivaRate: number;
   baseGravable: number;
+  /** EVE: precio de venta directo (fee + valor por asistente). Sin rentabilidad ni comisiones. */
+  eve: EvePrecio;
+  /** Acompañamiento en sitio solo para EVE: costo con imprevistos (entra al total con rentabilidad y comisiones). */
+  eveAcompanamiento: LogisticsBreakdown | null;
+  /** Lo que el cliente paga por el acompañamiento de EVE: el costo con rentabilidad y comisiones. */
+  eveAcompanamientoPrecio: number;
+  /** Parte del valor final que el acuerdo comercial no descuenta (servicios tercerizados: manillas y escarapelas físicas). */
+  valorNoDescontable: number;
 }
 
 /**
@@ -83,12 +92,32 @@ export function computeTarifarioSummary(
     .filter((item) => item.included)
     .reduce((sum, item) => sum + (sinCobro(item.label) ? 0 : item.quantity * item.unit_cost), 0);
 
-  const totalCosto = logistica.totalCostoLogisticaConImprevistos + subtotalServicios;
+  // Solo EVE: se cotiza únicamente la IA, sin logística ni servicios adicionales.
+  const soloEve = proposal.solo_eve === true;
+  const logisticaCobrada = soloEve ? { ...logistica, totalCostoLogisticaConImprevistos: 0 } : logistica;
+  const subtotalServiciosCobrado = soloEve ? 0 : subtotalServicios;
+
+  const eve = computeEvePrecio(proposal, logisticsRates);
+  const eveAcompanamiento = computeEveAcompanamiento(proposal, logisticsRates);
+  const costoAcompanamiento = eveAcompanamiento?.totalCostoLogisticaConImprevistos ?? 0;
+
+  const totalCosto = logisticaCobrada.totalCostoLogisticaConImprevistos + subtotalServiciosCobrado + costoAcompanamiento;
   const rentabilidad = totalCosto * Number(proposal.rentabilidad_pct);
   const valorPropuestaInicial = totalCosto + rentabilidad;
   const costoDirectorComercial = valorPropuestaInicial * Number(proposal.comision_director_pct);
   const costoAsesorComercial = valorPropuestaInicial * Number(proposal.comision_asesor_pct);
-  const valorPropuestaFinal = valorPropuestaInicial + costoDirectorComercial + costoAsesorComercial;
+  // Lo que se cobra por cada peso de costo: costo + rentabilidad + comisiones.
+  const factorCosto =
+    (1 + Number(proposal.rentabilidad_pct)) * (1 + Number(proposal.comision_director_pct) + Number(proposal.comision_asesor_pct));
+  const valorPropuestaFinal = valorPropuestaInicial + costoDirectorComercial + costoAsesorComercial + eve.total;
+
+  // Los servicios tercerizados (manillas y escarapelas físicas) no entran al descuento del acuerdo comercial.
+  const costoNoDescontable = soloEve
+    ? 0
+    : serviceItems
+        .filter((item) => item.included && noAplicaDescuento(item.label) && !sinCobro(item.label))
+        .reduce((sum, item) => sum + item.quantity * item.unit_cost, 0);
+  const valorNoDescontable = costoNoDescontable * factorCosto;
 
   // Tasa de IVA y base gravable: por defecto se calcula igual que siempre
   // (19% sobre el valor final), pero el comercial puede fijarlas a mano
@@ -97,8 +126,8 @@ export function computeTarifarioSummary(
   const baseGravable = proposal.base_gravable_override ?? valorPropuestaFinal;
 
   return {
-    logistica,
-    subtotalServicios,
+    logistica: logisticaCobrada,
+    subtotalServicios: subtotalServiciosCobrado,
     totalCosto,
     rentabilidad,
     valorPropuestaInicial,
@@ -108,14 +137,24 @@ export function computeTarifarioSummary(
     ivaRate,
     baseGravable,
     iva: baseGravable * ivaRate,
+    eve,
+    eveAcompanamiento,
+    eveAcompanamientoPrecio: costoAcompanamiento * factorCosto,
+    valorNoDescontable,
   };
 }
 
+/**
+ * Aplica el descuento del acuerdo comercial. `valorNoDescontable` es la parte del valor que el descuento no toca
+ * (servicios tercerizados: manillas y escarapelas físicas); el porcentaje se calcula sobre el resto.
+ */
 export function applyCommercialDiscount(
   valorPropuestaFinal: number,
-  totalDiscountPct: number
+  totalDiscountPct: number,
+  valorNoDescontable = 0
 ) {
-  const descuento = valorPropuestaFinal * (totalDiscountPct / 100);
+  const descontable = Math.max(valorPropuestaFinal - Math.max(valorNoDescontable, 0), 0);
+  const descuento = descontable * (totalDiscountPct / 100);
   const valorConDescuento = valorPropuestaFinal - descuento;
   return {
     descuento,

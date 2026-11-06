@@ -67,6 +67,10 @@ const NECESITAN_LOGISTICA = [
 /** Servicios que solo tienen sentido si el evento vende boletas. */
 const NECESITAN_BOLETERIA = ["pasarela de pagos", "transferencia de tarifa", "venta de boleteria en sitio"];
 
+/** Servicios tercerizados: el acuerdo comercial no los descuenta (manillas y escarapelas físicas o pre-impresas). */
+const SIN_DESCUENTO = ["escarapelas fisicas", "pre-impresion de escarapelas", "manillas"];
+export const noAplicaDescuento = (label: string) => SIN_DESCUENTO.some((x) => norm(label).includes(x));
+
 export const necesitaLogistica = (label: string) => NECESITAN_LOGISTICA.some((x) => norm(label).includes(x));
 export const necesitaBoleteria = (label: string) => NECESITAN_BOLETERIA.some((x) => norm(label).includes(x));
 

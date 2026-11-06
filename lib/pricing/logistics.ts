@@ -39,6 +39,8 @@ export interface LogisticsRates {
   refrigerioLogistica: number; // "Refrigerio (Lógistica)*2"
   almuerzoLogistica: number; // "Almuerzo (Lógistica)"
   recargas: number; // "Recargas"
+  eveFee: number; // "EVE - Fee fijo"
+  evePorAsistente: number; // "EVE - Valor por asistente"
 }
 
 interface RateRow {
@@ -88,6 +90,8 @@ export function buildLogisticsRates(rows: RateRow[]): LogisticsRates {
     refrigerioLogistica: flat("Refrigerio (Lógistica)*2"),
     almuerzoLogistica: flat("Almuerzo (Lógistica)"),
     recargas: flat("Recargas"),
+    eveFee: flat("EVE - Fee fijo"),
+    evePorAsistente: flat("EVE - Valor por asistente"),
   };
 }
 

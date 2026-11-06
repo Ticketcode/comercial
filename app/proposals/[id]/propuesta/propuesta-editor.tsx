@@ -214,8 +214,8 @@ export function PropuestaEditor({
   }
 
   const discount = useMemo(
-    () => applyCommercialDiscount(tarifarioSummary.valorPropuestaFinal, globalPct),
-    [tarifarioSummary.valorPropuestaFinal, globalPct]
+    () => applyCommercialDiscount(tarifarioSummary.valorPropuestaFinal, globalPct, tarifarioSummary.valorNoDescontable),
+    [tarifarioSummary.valorPropuestaFinal, tarifarioSummary.valorNoDescontable, globalPct]
   );
 
   const totalPesoConceptos = agreementRows

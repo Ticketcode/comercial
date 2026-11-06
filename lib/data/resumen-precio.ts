@@ -12,6 +12,8 @@ export function conCantidadesCalculadas(items: ProposalCostItem[], p: Proposal):
 export function armarResumen(summary: TarifarioSummary, p: Proposal): ResumenPrecio {
   return {
     logistica: summary.logistica.totalCostoLogisticaConImprevistos,
+    acompanamientoEve: summary.eveAcompanamiento?.totalCostoLogisticaConImprevistos ?? 0,
+    eve: summary.eve?.total ?? 0,
     servicios: summary.subtotalServicios,
     totalCosto: summary.totalCosto,
     rentabilidadPct: Number(p.rentabilidad_pct),

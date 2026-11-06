@@ -5,6 +5,7 @@ export const HIDEABLE_SLIDE_GROUPS: { key: string; label: string }[] = [
   { key: "organizador", label: "Organizador" },
   { key: "presencial", label: "Presencial/Virtual" },
   { key: "componentes", label: "Plataforma base (y streaming / mundo virtual)" },
+  { key: "eve", label: "EVE (IA del evento)" },
   { key: "logistica", label: "Logística 360" },
   { key: "servicios", label: "Servicios personalizados" },
   { key: "comercial", label: "Comercialización" },

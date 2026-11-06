@@ -103,7 +103,7 @@ export async function loadDeckData(supabase: SupabaseClient, id: string): Promis
 export function versionTotals(data: DeckData) {
   const inicial = data.tarifarioSummary.valorPropuestaFinal;
   const descuentoPct = Number(data.proposal.acuerdo_comercial_pct_global ?? 0);
-  const descuento = (inicial * descuentoPct) / 100;
+  const descuento = ((inicial - (data.tarifarioSummary.valorNoDescontable ?? 0)) * descuentoPct) / 100;
   const antesIva = inicial - descuento;
   const iva = antesIva * data.tarifarioSummary.ivaRate;
   return { inicial, descuentoPct, antesIva, iva, totalConIva: antesIva + iva };

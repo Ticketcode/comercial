@@ -39,6 +39,10 @@ export interface CambiosCrudos {
   modalidad?: unknown;
   vendeBoletas?: unknown;
   conLogistica?: unknown;
+  conEve?: unknown;
+  soloEve?: unknown;
+  eveAcompanamiento?: unknown;
+  eveEquipo?: unknown;
   preacreditacion?: unknown;
   computadores?: unknown;
   impresoras?: unknown;
@@ -93,6 +97,8 @@ export type PresCampo =
   | "cierreEyebrow"
   | "cierreTitulo"
   | "cierreMensaje"
+  | "comercialRegistro"
+  | "comercialAcreditacion"
   | "vigenciaDias";
 
 export const PRES_META: Record<PresCampo, { etiqueta: string; max: number }> = {
@@ -105,11 +111,13 @@ export const PRES_META: Record<PresCampo, { etiqueta: string; max: number }> = {
   cierreEyebrow: { etiqueta: "Cierre: encabezado", max: 60 },
   cierreTitulo: { etiqueta: "Cierre: título", max: 60 },
   cierreMensaje: { etiqueta: "Cierre: mensaje", max: 240 },
+  comercialRegistro: { etiqueta: "Comercialización: elementos de Registro", max: 300 },
+  comercialAcreditacion: { etiqueta: "Comercialización: elementos de Acreditación y control de acceso", max: 300 },
   vigenciaDias: { etiqueta: "Vigencia de la oferta (días)", max: 90 },
 };
 
 /** Columna de presentacion_contacto que corresponde a cada campo del asesor y del cierre. */
-export const PRES_COLUMNA: Partial<Record<PresCampo, "full_name" | "cargo" | "correo" | "telefono" | "eyebrow" | "titulo" | "mensaje">> = {
+export const PRES_COLUMNA: Partial<Record<PresCampo, "full_name" | "cargo" | "correo" | "telefono" | "eyebrow" | "titulo" | "mensaje" | "comercial_registro" | "comercial_acreditacion">> = {
   asesorNombre: "full_name",
   asesorCargo: "cargo",
   asesorCorreo: "correo",
@@ -117,6 +125,8 @@ export const PRES_COLUMNA: Partial<Record<PresCampo, "full_name" | "cargo" | "co
   cierreEyebrow: "eyebrow",
   cierreTitulo: "titulo",
   cierreMensaje: "mensaje",
+  comercialRegistro: "comercial_registro",
+  comercialAcreditacion: "comercial_acreditacion",
 };
 
 export interface EstadoPropuesta {
@@ -178,6 +188,10 @@ export const ETIQUETA_CAMPO: Record<string, string> = {
   modality: "Modalidad",
   vende_boletas: "Vende boletas",
   con_logistica: "Con logística",
+  con_eve: "Lleva EVE",
+  solo_eve: "Solo EVE (IA)",
+  eve_acompanamiento: "Acompañamiento de EVE en sitio",
+  eve_qty_equipo: "Personas del acompañamiento de EVE",
   aforo: "Aforo presencial",
   aforo_virtual: "Aforo virtual",
   dias: "Días",
@@ -299,6 +313,22 @@ export function validarCambios(
       bloquear("con_logistica", "No aplica a una modalidad sin evento presencial");
     }
   }
+
+  // EVE, la IA del evento: va en todas las propuestas; "solo EVE" cotiza únicamente la IA; el acompañamiento es en sitio.
+  if (typeof crudos.conEve === "boolean") {
+    campo("con_eve", crudos.conEve);
+    if (!crudos.conEve && proposal.solo_eve === true) campo("solo_eve", false);
+  }
+  if (typeof crudos.soloEve === "boolean") {
+    campo("solo_eve", crudos.soloEve);
+    if (crudos.soloEve && proposal.con_eve !== true) campo("con_eve", true);
+  }
+  if (typeof crudos.eveAcompanamiento === "boolean") {
+    if (usaPresencial(m)) campo("eve_acompanamiento", crudos.eveAcompanamiento);
+    else bloquear("eve_acompanamiento", "No aplica a una modalidad sin evento presencial");
+  }
+  const equipoEve = num(crudos.eveEquipo, 0, 20);
+  if (equipoEve !== null) campo("eve_qty_equipo", Math.round(equipoEve));
 
   // Aforo: en una modalidad solo virtual, el aforo que se pide es el virtual.
   const aforo = aforoNuevo;
@@ -641,6 +671,10 @@ const REGLAS_CAMPO: Record<string, { valida: (v: ValorCampo) => boolean; presenc
   modality: { valida: (v) => v === "presencial" || v === "virtual" || v === "hibrido" || v === "mundo_virtual" },
   vende_boletas: { valida: (v) => typeof v === "boolean" },
   con_logistica: { valida: (v) => typeof v === "boolean", presencial: true },
+  con_eve: { valida: (v) => typeof v === "boolean" },
+  solo_eve: { valida: (v) => typeof v === "boolean" },
+  eve_acompanamiento: { valida: (v) => typeof v === "boolean", presencial: true },
+  eve_qty_equipo: { valida: esNum(0, 20), presencial: true },
   salones_internos_aforos: {
     valida: (v) => Array.isArray(v) && v.length <= 20 && (v as number[]).every((x) => Number.isInteger(x) && x >= 1 && x <= 100000),
     presencial: true,
@@ -732,7 +766,11 @@ export function valoresAntes(estado: EstadoPropuesta, atomo: Atomo): Atomo {
             ? null
             : k === "con_logistica" || k === "vende_boletas"
               ? true
-              : 0);
+              : k === "con_eve" || k === "solo_eve" || k === "eve_acompanamiento"
+                ? false
+                : k === "eve_qty_equipo"
+                  ? 3
+                  : 0);
     }
     return { ...atomo, id: nuevoId(), campos: antes };
   }
