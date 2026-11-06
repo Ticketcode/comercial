@@ -8,9 +8,7 @@ import { getValidServiceCostItems } from "@/lib/data/service-items";
 import { armarResumen, conCantidadesCalculadas } from "@/lib/data/resumen-precio";
 import { faltantesDiagnostico } from "@/lib/data/faltantes";
 import { controladoPorPregunta, necesitaLogistica, servicioDisponible } from "@/lib/data/servicios-alcance";
-import { TarifarioEditor } from "./tarifario-editor";
 import { DiagnosticoGuiado, type DatosGuiado } from "./diagnostico-guiado";
-import { VistaDiagnostico } from "./vista-diagnostico";
 import { notaServicio } from "./nota-servicio";
 
 // Evita que Next cachee las consultas a Supabase entre requests — sin esto,
@@ -84,7 +82,30 @@ export default async function TarifarioPage({
       total: summary.eve.total,
       acompanamiento: summary.eveAcompanamientoPrecio,
     },
+    precio: {
+      rentabilidadPct: Math.round(Number(p.rentabilidad_pct) * 10000) / 100,
+      comDirectorPct: Math.round(Number(p.comision_director_pct) * 10000) / 100,
+      comAsesorPct: Math.round(Number(p.comision_asesor_pct) * 10000) / 100,
+      tasaConversionPct: Math.round(Number(p.tasa_conversion_pct) * 10000) / 100,
+      ivaPct: Math.round(summary.ivaRate * 10000) / 100,
+      ivaManual: p.iva_rate_override != null,
+      baseGravable: p.base_gravable_override != null ? Number(p.base_gravable_override) : null,
+      baseAutomatica: summary.valorPropuestaFinal,
+    },
+    ajustes: {
+      visitaPreop: Number(p.visita_preoperativa_dias ?? 0),
+      rollos: Number(p.qty_rollos_labels ?? 0),
+      transporteAeropuerto: Number(p.qty_transporte_aeropuerto ?? 0),
+      camisetas: !!p.extra_camisetas_staff,
+      chalecos: !!p.extra_lavado_chalecos,
+      agua: !!p.extra_compra_agua,
+      bloqueador: !!p.extra_compra_bloqueador_solar,
+      cierre: !!p.extra_actividad_cierre,
+    },
     city: p.city ?? "",
+    lugar: p.lugar ?? "",
+    fechaInicio: p.event_start_date ?? "",
+    fechaFin: p.event_end_date ?? "",
     aforo: Number(p.aforo ?? 0),
     aforoVirtual: Number(p.aforo_virtual ?? 0),
     salones: (p.salones_internos_aforos ?? []).map(Number),
@@ -116,6 +137,7 @@ export default async function TarifarioPage({
           cantidad: l.quantity,
           tarifa: l.rate,
           subtotal: l.subtotal,
+          ajustado: !!l.overridden,
         })),
       })),
       subtotal: summary.logistica.subTotalCostoLogistica,
@@ -136,24 +158,6 @@ export default async function TarifarioPage({
       })),
   };
 
-  return (
-    <VistaDiagnostico
-      guiado={<DiagnosticoGuiado datos={datos} />}
-      avanzado={
-        <div>
-          <p className="mb-6 text-sm text-muted">
-            Llena los datos del evento — la Logística 360 se calcula sola. Después elige los servicios personalizados que aplican para esta propuesta.
-          </p>
-          <TarifarioEditor
-            proposal={p}
-            serviceItems={serviceItems}
-            logisticsRates={logisticsRates}
-            honorariosProductorScale={honorariosProductorScale ?? []}
-            aforoScales={aforoScales ?? []}
-          />
-        </div>
-      }
-    />
-  );
+  return <DiagnosticoGuiado datos={datos} />;
 }
 export const metadata = { title: "Diagnóstico" };

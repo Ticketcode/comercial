@@ -266,3 +266,56 @@ export async function guardarDatos(proposalId: string, crudos: CambiosCrudos): P
   }
   return { error: null, avisos };
 }
+
+/** Ajusta a mano los días y/o la cantidad de un rubro de la Logística 360 (null = volver al cálculo automático). */
+export async function ajustarRubroLogistica(
+  proposalId: string,
+  label: string,
+  ajuste: { dias?: number; quantity?: number } | null
+): Promise<{ error: string | null }> {
+  const supabase = await createClient();
+  const { data: auth } = await supabase.auth.getUser();
+  if (!auth.user) return { error: "Tu sesión expiró. Vuelve a entrar." };
+  if (!label || label.length > 160) return { error: "Rubro no válido." };
+  const { data } = await supabase.from("proposals").select("logistics_overrides").eq("id", proposalId).single();
+  const actual = ((data as { logistics_overrides?: Record<string, { dias?: number; quantity?: number }> } | null)?.logistics_overrides ?? {}) as Record<string, { dias?: number; quantity?: number }>;
+  const sig = { ...actual };
+  if (ajuste === null) delete sig[label];
+  else {
+    const limpio: { dias?: number; quantity?: number } = { ...(actual[label] ?? {}) };
+    if (ajuste.dias !== undefined) {
+      if (!Number.isFinite(ajuste.dias) || ajuste.dias < 0 || ajuste.dias > 60) return { error: "Los días deben estar entre 0 y 60." };
+      limpio.dias = Math.round(ajuste.dias * 10) / 10;
+    }
+    if (ajuste.quantity !== undefined) {
+      if (!Number.isFinite(ajuste.quantity) || ajuste.quantity < 0 || ajuste.quantity > 100000) return { error: "La cantidad debe estar entre 0 y 100.000." };
+      limpio.quantity = Math.round(ajuste.quantity * 10) / 10;
+    }
+    sig[label] = limpio;
+  }
+  const { error } = await supabase.from("proposals").update({ logistics_overrides: sig }).eq("id", proposalId);
+  if (error) return { error: error.message };
+  for (const sub of ["diagnostico", "propuesta", "presentacion", "versiones", "contrato"]) {
+    revalidatePath(`/proposals/${proposalId}/${sub}`);
+  }
+  return { error: null };
+}
+
+/** Cambia a mano el valor unitario de un servicio incluido (por ejemplo, un precio negociado distinto al de catálogo). */
+export async function cambiarPrecioServicio(proposalId: string, label: string, precio: number): Promise<{ error: string | null }> {
+  const supabase = await createClient();
+  const { data: auth } = await supabase.auth.getUser();
+  if (!auth.user) return { error: "Tu sesión expiró. Vuelve a entrar." };
+  const n = Math.round(Number(precio));
+  if (!Number.isFinite(n) || n < 0 || n > 1_000_000_000) return { error: "El valor debe estar entre 0 y 1.000.000.000." };
+  const base = await cargarEstado(supabase, proposalId);
+  if (!base) return { error: "No se encontró la propuesta." };
+  const fila = base.estado.servicios.find((s) => s.label === label);
+  if (!fila || !fila.included) return { error: "Ese servicio no está incluido." };
+  const { error } = await supabase.from("proposal_cost_items").update({ unit_cost: n }).eq("id", fila.id);
+  if (error) return { error: error.message };
+  for (const sub of ["diagnostico", "propuesta", "presentacion", "versiones", "contrato"]) {
+    revalidatePath(`/proposals/${proposalId}/${sub}`);
+  }
+  return { error: null };
+}

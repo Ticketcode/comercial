@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useState, useTransition, type ReactNode } from "react";
 import type { PaquetesDeGrupo } from "@/lib/data/paquetes";
 import { GRUPO_INFO } from "@/lib/data/paquetes";
 import { PedirCambioButton } from "../asistente/asistente-panel";
@@ -17,6 +17,7 @@ export function PaquetesPropuesta({
   resumen,
   faltantes,
   siguienteVersion,
+  ajustes,
 }: {
   proposalId: string;
   eventName: string;
@@ -24,6 +25,8 @@ export function PaquetesPropuesta({
   resumen: ResumenPrecio;
   faltantes: string[];
   siguienteVersion: number;
+  /** Qué incluye, pagos, cronograma y requerimientos (antes en el modo avanzado). */
+  ajustes?: ReactNode;
 }) {
   const router = useRouter();
   const [pendiente, start] = useTransition();
@@ -82,6 +85,8 @@ export function PaquetesPropuesta({
             </div>
           </section>
         ))}
+
+        {ajustes}
 
         <section className="rounded-2xl border border-border bg-surface p-5">
           <div className="flex flex-wrap items-center gap-4">

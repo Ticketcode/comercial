@@ -27,7 +27,32 @@ export interface DatosGuiado {
   eveEquipo: number;
   /** Precio de EVE (directo) y lo que cuesta el acompañamiento para el cliente. */
   eve: { asistentes: number; fee: number; porAsistente: number; total: number; acompanamiento: number };
+  /** Precio: rentabilidad, comisiones, tasa de conversión e IVA (en %). */
+  precio: {
+    rentabilidadPct: number;
+    comDirectorPct: number;
+    comAsesorPct: number;
+    tasaConversionPct: number;
+    ivaPct: number;
+    ivaManual: boolean;
+    baseGravable: number | null;
+    baseAutomatica: number;
+  };
+  /** Ajustes finos de la logística y extras. */
+  ajustes: {
+    visitaPreop: number;
+    rollos: number;
+    transporteAeropuerto: number;
+    camisetas: boolean;
+    chalecos: boolean;
+    agua: boolean;
+    bloqueador: boolean;
+    cierre: boolean;
+  };
   city: string;
+  lugar: string;
+  fechaInicio: string;
+  fechaFin: string;
   aforo: number;
   aforoVirtual: number;
   salones: number[];
@@ -222,6 +247,53 @@ export function DiagnosticoGuiado({ datos }: { datos: DatosGuiado }) {
               </label>
             )}
 
+            <label className={etiqueta}>
+              Lugar del evento (recinto o sede)
+              <input
+                className={campo}
+                value={val("lugar", datos.lugar)}
+                onChange={(e) => set("lugar", e.target.value)}
+                onBlur={() => {
+                  const v = (b.lugar ?? "").trim();
+                  if (b.lugar !== undefined && v && v !== datos.lugar) guardar({ lugar: v });
+                  else limpiar("lugar");
+                }}
+                placeholder="Ej. Centro de Convenciones"
+                maxLength={160}
+              />
+            </label>
+
+            <div className="grid grid-cols-2 gap-3">
+              <label className={etiqueta}>
+                Fecha de inicio
+                <input
+                  type="date"
+                  className={campo}
+                  value={val("fechaInicio", datos.fechaInicio)}
+                  onChange={(e) => set("fechaInicio", e.target.value)}
+                  onBlur={() => {
+                    const v = b.fechaInicio;
+                    if (v !== undefined && v !== datos.fechaInicio) guardar({ fechaInicio: v });
+                    else limpiar("fechaInicio");
+                  }}
+                />
+              </label>
+              <label className={etiqueta}>
+                Fecha de fin
+                <input
+                  type="date"
+                  className={campo}
+                  value={val("fechaFin", datos.fechaFin)}
+                  onChange={(e) => set("fechaFin", e.target.value)}
+                  onBlur={() => {
+                    const v = b.fechaFin;
+                    if (v !== undefined && v !== datos.fechaFin) guardar({ fechaFin: v });
+                    else limpiar("fechaFin");
+                  }}
+                />
+              </label>
+            </div>
+
             {pres && (
                 <div className={etiqueta}>
                   Salones internos y su aforo estimado
@@ -286,7 +358,7 @@ export function DiagnosticoGuiado({ datos }: { datos: DatosGuiado }) {
                 </div>
             )}
 
-            {conLog && (
+            {(conLog || (datos.conEve && datos.eveAcompanamiento)) && (
               <>
                 <label className={etiqueta}>
                   Ciudad
@@ -393,6 +465,61 @@ export function DiagnosticoGuiado({ datos }: { datos: DatosGuiado }) {
           <PedirCambioButton sobre="EVE" />
         </div>
 
+        <div className="space-y-4 rounded-2xl border border-border bg-surface p-5">
+          <div>
+            <h2 className="font-display text-xl font-extrabold text-ink">Rentabilidad, comisiones e IVA</h2>
+            <p className="mt-1 text-sm text-muted">Con esto se arma el valor de la propuesta: costo + rentabilidad + comisiones. También puedes pedírselo a NOVA.</p>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <label className={etiqueta}>
+              Rentabilidad del evento (%)
+              <input className={campo} {...num("rentabilidad", datos.precio.rentabilidadPct, 0, 100, (n) => ({ rentabilidadPct: n }))} step="any" />
+            </label>
+            <label className={etiqueta}>
+              Comisión director comercial (%)
+              <input className={campo} {...num("comDirector", datos.precio.comDirectorPct, 0, 30, (n) => ({ comisionDirectorPct: n }))} step="any" />
+            </label>
+            <label className={etiqueta}>
+              Comisión asesor comercial (%)
+              <input className={campo} {...num("comAsesor", datos.precio.comAsesorPct, 0, 30, (n) => ({ comisionAsesorPct: n }))} step="any" />
+            </label>
+            <label className={etiqueta}>
+              Tasa de conversión de asistencia (%)
+              <input className={campo} {...num("tasaConv", datos.precio.tasaConversionPct, 0, 100, (n) => ({ tasaConversionPct: n }))} step="any" />
+              <span className="block text-xs font-normal text-muted">Define cuántos asistentes usan el cloud server.</span>
+            </label>
+            <label className={etiqueta}>
+              IVA (%)
+              <div className="flex gap-2">
+                <input className={campo} {...num("iva", datos.precio.ivaPct, 0, 30, (n) => ({ ivaPct: n }))} step="any" />
+                {datos.precio.ivaManual && (
+                  <button type="button" disabled={pendiente} className={chip(false)} onClick={() => guardar({ ivaPct: "defecto" })}>
+                    19%
+                  </button>
+                )}
+              </div>
+            </label>
+            <label className={etiqueta}>
+              Base gravable (pesos)
+              <div className="flex gap-2">
+                <input
+                  className={campo}
+                  placeholder={formatCOP(datos.precio.baseAutomatica)}
+                  {...num("base", datos.precio.baseGravable ?? 0, 0, 100_000_000_000, (n) => ({ baseGravable: n }))}
+                  value={val("base", datos.precio.baseGravable ?? "")}
+                />
+                {datos.precio.baseGravable !== null && (
+                  <button type="button" disabled={pendiente} className={chip(false)} onClick={() => guardar({ baseGravable: "defecto" })}>
+                    Auto
+                  </button>
+                )}
+              </div>
+              <span className="block text-xs font-normal text-muted">Vacío = el valor de la propuesta. Úsala solo para un caso puntual.</span>
+            </label>
+          </div>
+          <PedirCambioButton sobre="rentabilidad y comisiones" />
+        </div>
+
         {pres && (
           <div className="space-y-4 rounded-2xl border border-border bg-surface p-5">
             <div>
@@ -434,7 +561,49 @@ export function DiagnosticoGuiado({ datos }: { datos: DatosGuiado }) {
           </p>
         )}
 
-        {conLog && <LogisticaDetalle d={datos.logistica} />}
+        {conLog && (
+          <div className="space-y-4 rounded-2xl border border-border bg-surface p-5">
+            <div>
+              <h2 className="font-display text-xl font-extrabold text-ink">Ajustes de la logística y extras</h2>
+              <p className="mt-1 text-sm text-muted">Lo que antes estaba en la tabla completa: visita preoperativa, consumibles, transportes y extras del evento.</p>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-3">
+              <label className={etiqueta}>
+                Visita preoperativa (días)
+                <input className={campo} {...num("visitaPreop", datos.ajustes.visitaPreop, 0, 10, (n) => ({ visitaPreoperativaDias: n }))} step="any" />
+              </label>
+              <label className={etiqueta}>
+                Rollos de labels
+                <input className={campo} {...num("rollos", datos.ajustes.rollos, 0, 500, (n) => ({ rollosLabels: n }))} />
+              </label>
+              <label className={etiqueta}>
+                Transportes aeropuerto
+                <input className={campo} {...num("aeropuerto", datos.ajustes.transporteAeropuerto, 0, 50, (n) => ({ transporteAeropuerto: n }))} />
+              </label>
+            </div>
+            <div className={etiqueta}>
+              Extras del evento
+              <div className="flex flex-wrap gap-2">
+                {(
+                  [
+                    ["camisetas", "Camisetas para el staff", datos.ajustes.camisetas],
+                    ["chalecos", "Lavado de chalecos", datos.ajustes.chalecos],
+                    ["agua", "Compra de agua", datos.ajustes.agua],
+                    ["bloqueador", "Bloqueador solar", datos.ajustes.bloqueador],
+                    ["cierre", "Actividad de cierre", datos.ajustes.cierre],
+                  ] as const
+                ).map(([k, nombre, activo]) => (
+                  <button key={k} type="button" disabled={pendiente} className={chip(activo)} onClick={() => guardar({ extras: { [k]: !activo } })}>
+                    {nombre}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <PedirCambioButton sobre="los ajustes de logística" />
+          </div>
+        )}
+
+        {conLog && <LogisticaDetalle d={datos.logistica} proposalId={datos.proposalId} />}
         <ServiciosPersonalizados proposalId={datos.proposalId} servicios={datos.servicios} />
       </section>
       <ResumenPrecioCard r={datos.resumen} pendientes={datos.faltantes.length} evento={datos.eventName} />

@@ -5,9 +5,8 @@ import { buildLogisticsRates } from "@/lib/pricing/logistics";
 import { computeTarifarioSummary } from "@/lib/pricing/summary";
 import { getValidServiceCostItems } from "@/lib/data/service-items";
 import { REQUERIMIENTOS_OPERATIVOS_TEMPLATE } from "@/lib/schedule-templates";
-import { PropuestaEditor } from "./propuesta-editor";
 import { PaquetesPropuesta } from "./paquetes-propuesta";
-import { VistaDiagnostico } from "../diagnostico/vista-diagnostico";
+import { AjustesPropuesta, type ComponenteProp } from "./ajustes-propuesta";
 import { agruparEnPaquetes, itemCatalogoAplica, type ItemParaPaquete } from "@/lib/data/paquetes";
 import { armarResumen, conCantidadesCalculadas } from "@/lib/data/resumen-precio";
 import { faltantesDiagnostico } from "@/lib/data/faltantes";
@@ -224,32 +223,46 @@ export default async function PropuestaPage({
     .limit(1)
     .maybeSingle();
 
+  // Componentes y logística aplicables a esta propuesta, con su selección (para incluir/quitar y editar el texto).
+  const componentes: ComponenteProp[] = [];
+  for (const c of catalogItemsForModality ?? []) {
+    if (!itemCatalogoAplica(c, proposal as Proposal)) continue;
+    const sel = selections.find((s) => s.catalog_item_id === c.id);
+    if (!sel) continue;
+    componentes.push({
+      selId: sel.id,
+      grupo: c.category === "logistica_360" ? "Logística 360" : "Componentes básicos",
+      nombre: c.name,
+      descripcion: c.description,
+      incluido: !!sel.included,
+      customName: sel.custom_name ?? null,
+      customDescription: sel.custom_description ?? null,
+    });
+  }
+
   return (
-    <VistaDiagnostico
-      etiquetaGuiado="Paquetes"
-      etiquetaAvanzado="Detalle y textos (avanzado)"
-      guiado={
-        <PaquetesPropuesta
+    <PaquetesPropuesta
+      proposalId={id}
+      eventName={proposal.event_name}
+      grupos={agruparEnPaquetes(itemsPaquetes)}
+      resumen={armarResumen(tarifarioSummary, proposal as Proposal)}
+      faltantes={faltantes}
+      siguienteVersion={(ultimaVersion?.version_number ?? 0) + 1}
+      ajustes={
+        <AjustesPropuesta
           proposalId={id}
-          eventName={proposal.event_name}
-          grupos={agruparEnPaquetes(itemsPaquetes)}
-          resumen={armarResumen(tarifarioSummary, proposal as Proposal)}
-          faltantes={faltantes}
-          siguienteVersion={(ultimaVersion?.version_number ?? 0) + 1}
+          componentes={componentes}
+          servicios={includedServices.map((s) => ({
+            id: s.id,
+            nombre: serviceCatalogItems?.find((c) => c.name === s.baseName)?.titulo_comercial || s.baseName,
+            descripcion: serviceCatalogItems?.find((c) => c.name === s.baseName)?.description ?? null,
+            customName: s.custom_name ?? null,
+            customDescription: s.custom_description ?? null,
+          }))}
+          pagos={paymentMilestones.map((m) => ({ id: m.id, label: m.label, pct: Number(m.pct) }))}
+          cronograma={scheduleItems.map((h) => ({ id: h.id, week_number: Number(h.week_number), day_number: h.day_number === null || h.day_number === undefined ? null : Number(h.day_number), hito: h.hito, comentario: h.comentario ?? null }))}
+          requerimientos={operationalRequirements.map((r) => ({ id: r.id, text: r.text }))}
         />
-      }
-      avanzado={
-    <PropuestaEditor
-      proposal={proposal as Proposal}
-      tarifarioSummary={tarifarioSummary}
-      catalogItems={catalogItemsForModality ?? []}
-      catalogSelections={selections}
-      includedServices={includedServices}
-      agreementItems={agreementItems}
-      scheduleItems={scheduleItems}
-      paymentMilestones={paymentMilestones}
-      operationalRequirements={operationalRequirements}
-    />
       }
     />
   );

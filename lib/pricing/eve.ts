@@ -4,7 +4,7 @@ import { computeLogisticsBreakdown, type LogisticsBreakdown, type LogisticsRates
 /**
  * EVE, la IA de eventos. Su precio es de venta directo (no lleva rentabilidad ni comisiones encima):
  *   fee fijo por evento + valor por asistente × aforo total (presencial + virtual).
- * Las dos tarifas viven en logistics_rate_items (categoría "eve"), editables como las demás.
+ *   El valor por asistente baja con el aforo (escala); todo vive en logistics_rate_items (categoría "eve"), editable como las demás tarifas.
  */
 /** Rubro del acompañamiento que no aplica a EVE (el case de equipos). */
 const CASE_LABEL = "Transporte del case (equipos)";
@@ -22,12 +22,21 @@ export function eveAsistentes(p: Pick<Proposal, "aforo" | "aforo_virtual">): num
   return Math.max(Number(p.aforo ?? 0), 0) + Math.max(Number(p.aforo_virtual ?? 0), 0);
 }
 
+/** Valor por asistente según el aforo total: el primer tramo "hasta N" que lo cubra; sin escala, la tarifa plana. */
+export function valorPorAsistente(asistentes: number, rates: LogisticsRates): number {
+  const escala = rates.eveEscala ?? [];
+  if (escala.length === 0) return rates.evePorAsistente;
+  const tramo = escala.find((t) => t.hasta !== null && asistentes <= t.hasta) ?? escala.find((t) => t.hasta === null) ?? escala[escala.length - 1];
+  return tramo.valor;
+}
+
 export function computeEvePrecio(p: Pick<Proposal, "aforo" | "aforo_virtual" | "con_eve">, rates: LogisticsRates): EvePrecio {
   const asistentes = eveAsistentes(p);
   const activo = p.con_eve === true;
   const fee = activo ? rates.eveFee : 0;
-  const valorAsistentes = activo ? asistentes * rates.evePorAsistente : 0;
-  return { asistentes, fee, porAsistente: rates.evePorAsistente, valorAsistentes, total: fee + valorAsistentes };
+  const porAsistente = valorPorAsistente(asistentes, rates);
+  const valorAsistentes = activo ? asistentes * porAsistente : 0;
+  return { asistentes, fee, porAsistente, valorAsistentes, total: fee + valorAsistentes };
 }
 
 /**

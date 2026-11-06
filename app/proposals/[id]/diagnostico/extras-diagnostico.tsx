@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { formatCOP } from "@/lib/pricing/summary";
-import { extraerDiagnostico, resolverServicioPropuesto } from "./guiado-actions";
+import { ajustarRubroLogistica, extraerDiagnostico, resolverServicioPropuesto } from "./guiado-actions";
 
 const card = "rounded-2xl border border-border bg-surface p-5";
 
@@ -106,6 +106,8 @@ export interface LineaLogistica {
   cantidad: number;
   tarifa: number;
   subtotal: number;
+  /** Los días o la cantidad se cambiaron a mano. */
+  ajustado?: boolean;
 }
 export interface RubroLogistica {
   titulo: string;
@@ -120,7 +122,44 @@ export interface DetalleLogistica {
 }
 
 /** Desglose de la Logística 360 por rubros: una tarjeta por rubro con rubro, días, cantidad, unitario y subtotal. */
-export function LogisticaDetalle({ d }: { d: DetalleLogistica }) {
+export function LogisticaDetalle({ d, proposalId }: { d: DetalleLogistica; proposalId: string }) {
+  const router = useRouter();
+  const [pendiente, start] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+  const [borrador, setBorrador] = useState<Record<string, string>>({});
+  function ajustar(label: string, ajuste: { dias?: number; quantity?: number } | null) {
+    setError(null);
+    start(async () => {
+      const r = await ajustarRubroLogistica(proposalId, label, ajuste);
+      if (r.error) setError(r.error);
+      else {
+        setBorrador({});
+        router.refresh();
+      }
+    });
+  }
+  const campoNum = (l: LineaLogistica, tipo: "dias" | "quantity") => {
+    const k = tipo + ":" + l.label;
+    const actual = tipo === "dias" ? l.dias : l.cantidad;
+    return (
+      <input
+        type="number"
+        min={0}
+        step="any"
+        disabled={pendiente}
+        value={borrador[k] ?? String(actual)}
+        onChange={(e) => setBorrador((b) => ({ ...b, [k]: e.target.value }))}
+        onBlur={() => {
+          const v = borrador[k];
+          if (v === undefined || v === "" || Number(v) === actual) return setBorrador((b) => { const c = { ...b }; delete c[k]; return c; });
+          ajustar(l.label, tipo === "dias" ? { dias: Number(v) } : { quantity: Number(v) });
+        }}
+        onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
+        aria-label={`${tipo === "dias" ? "Días" : "Cantidad"} de ${l.label}`}
+        className="min-h-9 w-20 rounded-field border border-border bg-input-bg px-2 text-right text-sm text-ink"
+      />
+    );
+  };
   const [abiertos, setAbiertos] = useState<Set<string>>(new Set());
   const todosAbiertos = abiertos.size === d.rubros.length;
   const alternar = (t: string) =>
@@ -181,9 +220,17 @@ export function LogisticaDetalle({ d }: { d: DetalleLogistica }) {
                           <td className="py-2.5 pr-3">
                             <p className="text-ink">{l.label}</p>
                             {l.basis && <p className="text-xs text-muted">{l.basis}</p>}
+                            {l.ajustado && (
+                              <p className="text-xs font-semibold text-muted">
+                                Ajustado a mano ·{" "}
+                                <button type="button" disabled={pendiente} onClick={() => ajustar(l.label, null)} className="underline">
+                                  volver al cálculo
+                                </button>
+                              </p>
+                            )}
                           </td>
-                          <td className="py-2.5 text-right text-ink">{l.dias}</td>
-                          <td className="py-2.5 text-right text-ink">{l.cantidad.toLocaleString("es-CO")}</td>
+                          <td className="py-2.5 text-right text-ink">{campoNum(l, "dias")}</td>
+                          <td className="py-2.5 text-right text-ink">{campoNum(l, "quantity")}</td>
                           <td className="py-2.5 text-right text-ink">{formatCOP(l.tarifa)}</td>
                           <td className="py-2.5 text-right text-ink">{formatCOP(l.subtotal)}</td>
                         </tr>
@@ -197,6 +244,11 @@ export function LogisticaDetalle({ d }: { d: DetalleLogistica }) {
         );
       })}
 
+      {error && (
+        <p role="alert" className="text-sm font-semibold text-danger">
+          {error}
+        </p>
+      )}
       <dl className={`${card} space-y-1.5 text-sm`}>
         <div className="flex justify-between gap-4">
           <dt className="text-muted">Sub total costo logística</dt>

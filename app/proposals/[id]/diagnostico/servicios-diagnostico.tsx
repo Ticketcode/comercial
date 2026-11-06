@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { formatCOP } from "@/lib/pricing/summary";
-import { alternarServicio, cambiarCantidadServicio } from "./guiado-actions";
+import { alternarServicio, cambiarCantidadServicio, cambiarPrecioServicio } from "./guiado-actions";
 
 export interface ServicioDiag {
   label: string;
@@ -44,6 +44,11 @@ export function ServiciosPersonalizados({ proposalId, servicios }: { proposalId:
     });
   }
   const cambiar = (label: string, incluir: boolean) => correr(() => alternarServicio(proposalId, label, incluir));
+  const guardarPrecio = (s: ServicioDiag) => {
+    const v = borrador["p:" + s.label];
+    if (v === undefined || v === "" || Number(v) === s.precio) return;
+    correr(() => cambiarPrecioServicio(proposalId, s.label, Number(v)));
+  };
   const guardarCantidad = (s: ServicioDiag) => {
     const v = borrador[s.label];
     if (v === undefined || Number(v) === s.cantidad) return;
@@ -53,7 +58,7 @@ export function ServiciosPersonalizados({ proposalId, servicios }: { proposalId:
   return (
     <section aria-label="Servicios personalizados" className="rounded-2xl border border-border bg-surface p-5">
       <h2 className="font-display text-xl font-extrabold text-ink">Servicios personalizados</h2>
-      <p className="mt-1 text-sm text-muted">Marca los que pidió el cliente. Precios de catálogo; los de correo y cloud usan el aforo.</p>
+      <p className="mt-1 text-sm text-muted">Marca los que pidió el cliente. Parten del precio de catálogo y puedes cambiar el valor unitario si negociaste otro; los de correo y cloud usan el aforo.</p>
 
       {incluidos.length > 0 && (
         <div className="mt-4 overflow-x-auto">
@@ -91,7 +96,22 @@ export function ServiciosPersonalizados({ proposalId, servicios }: { proposalId:
                       s.cantidad.toLocaleString("es-CO")
                     )}
                   </td>
-                  <td className="py-2.5 text-right text-ink">{s.sinCosto ? "—" : formatCOP(s.precio)}</td>
+                  <td className="py-2.5 text-right text-ink">
+                    {s.sinCosto ? (
+                      "—"
+                    ) : (
+                      <input
+                        type="number"
+                        min={0}
+                        value={borrador["p:" + s.label] ?? String(s.precio)}
+                        onChange={(e) => setBorrador((b) => ({ ...b, ["p:" + s.label]: e.target.value }))}
+                        onBlur={() => guardarPrecio(s)}
+                        onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
+                        aria-label={`Valor unitario de ${s.label}`}
+                        className="min-h-9 w-28 rounded-field border border-border bg-input-bg px-2 text-right text-sm"
+                      />
+                    )}
+                  </td>
                   <td className="py-2.5 text-right font-semibold text-ink">{s.sinCosto ? "Sin costo" : formatCOP(s.precio * s.cantidad)}</td>
                   <td className="py-2.5 pl-3 text-right">
                     <button type="button" disabled={pendiente} onClick={() => cambiar(s.label, false)} className="text-xs font-semibold text-muted underline disabled:opacity-50">

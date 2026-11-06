@@ -40,13 +40,29 @@ export interface LogisticsRates {
   almuerzoLogistica: number; // "Almuerzo (Lógistica)"
   recargas: number; // "Recargas"
   eveFee: number; // "EVE - Fee fijo"
-  evePorAsistente: number; // "EVE - Valor por asistente"
+  evePorAsistente: number; // "EVE - Valor por asistente" (tarifa plana; solo si no hay escala)
+  /** Escala del valor por asistente de EVE: "hasta N" asistentes, o sin tope para el último tramo. Ordenada de menor a mayor. */
+  eveEscala: { hasta: number | null; valor: number }[];
 }
 
 interface RateRow {
   name: string;
   city: string | null;
   default_unit_cost: number | string;
+}
+
+/**
+ * Escala de EVE desde las filas "EVE - Asistente hasta 1000", "EVE - Asistente más de 10000"…: el valor por asistente
+ * depende del aforo total del evento. Se edita como cualquier tarifa.
+ */
+function buildEveEscala(rows: RateRow[]): { hasta: number | null; valor: number }[] {
+  const tramos: { hasta: number | null; valor: number }[] = [];
+  for (const r of rows) {
+    const m = /^EVE - Asistente (hasta|más de) (\d+)$/.exec(r.name);
+    if (!m || r.city !== null) continue;
+    tramos.push({ hasta: m[1] === "hasta" ? Number(m[2]) : null, valor: Number(r.default_unit_cost) });
+  }
+  return tramos.sort((a, b) => (a.hasta ?? Infinity) - (b.hasta ?? Infinity));
 }
 
 /**
@@ -92,6 +108,7 @@ export function buildLogisticsRates(rows: RateRow[]): LogisticsRates {
     recargas: flat("Recargas"),
     eveFee: flat("EVE - Fee fijo"),
     evePorAsistente: flat("EVE - Valor por asistente"),
+    eveEscala: buildEveEscala(rows),
   };
 }
 
